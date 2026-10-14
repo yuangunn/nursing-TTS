@@ -17,6 +17,8 @@ TAIL_PAUSES = ["… ", ", "]
 CORRECTION_WORDS = ["아니", "아 아니", "아니다", "아니고"]
 
 _NUM_RE = re.compile(r"(?<![\d.])(\d{2,3}(?:\.\d)?)(?![\d.])")
+_TIME_RE = re.compile(r"(오전|오후) (\d{1,2})시(?: (\d{1,2})분)?")
+RESTATE_WORDS = ["정정하겠습니다", "아 정정하겠습니다", "다시 말씀드리면", "아니"]
 _WORD_RE = re.compile(r"[가-힣A-Za-z]+")
 
 
@@ -56,6 +58,19 @@ def apply(text: str, level: int, rng: random.Random) -> tuple[str, list[dict]]:
                     rep = f"{wrong}, {rng.choice(CORRECTION_WORDS)} {mm.group(1)}"
                     s = s[: mm.start()] + rep + s[mm.end():]
                     edits.append({"line": li, "type": "correction", "from": mm.group(1), "to": rep})
+            # time self-correction ("오전 1시, 정정하겠습니다 오후 1시 30분")
+            if rng.random() < p_correct * 0.6:
+                tm = list(_TIME_RE.finditer(s))
+                if tm:
+                    mm = rng.choice(tm)
+                    ampm = "오후" if mm.group(1) == "오전" else "오전"
+                    wrong_variant = rng.choice([
+                        f"{ampm} {mm.group(2)}시",                       # wrong am/pm
+                        f"{mm.group(1)} {max(1, (int(mm.group(2)) + rng.choice([-1, 1]) - 1) % 12 + 1)}시",  # wrong hour
+                    ])
+                    rep = f"{wrong_variant}, {rng.choice(RESTATE_WORDS)} {mm.group(0)}"
+                    s = s[: mm.start()] + rep + s[mm.end():]
+                    edits.append({"line": li, "type": "time_correction", "from": mm.group(0), "to": rep})
             # word repetition / restart
             if rng.random() < p_repeat:
                 words = s.split(" ")

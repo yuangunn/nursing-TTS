@@ -74,6 +74,7 @@ export default function BatchPage() {
                 <option value="mixed">현장 혼합</option>
                 <option value="casual">구어체 위주</option>
                 <option value="formal">격식체 위주</option>
+                <option value="chart">기록체 (~함/~됨)</option>
               </select>
             </div>
             <div>

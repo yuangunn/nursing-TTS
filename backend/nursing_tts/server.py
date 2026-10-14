@@ -620,6 +620,49 @@ async def voices_add_sample(voice_id: str, file: UploadFile = File(...), transcr
     return {"sample": s.__dict__, "voice": voices_mod.get_voice(voice_id).to_dict()}
 
 
+@app.post("/api/voices/{voice_id}/samples/from-long")
+async def voices_from_long(voice_id: str, file: UploadFile = File(...), max_clips: int = Form(8),
+                           transcribe: bool = Form(True)):
+    """Cut a long narration (2-3 min) into 6-14 s reference clips, transcribing each when Whisper is available."""
+    if not voices_mod.get_voice(voice_id):
+        raise HTTPException(404, "no such voice")
+    from . import slicer
+    suffix = Path(file.filename or "long.wav").suffix or ".wav"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        shutil.copyfileobj(file.file, tmp)
+        tmp_path = Path(tmp.name)
+    settings = load_settings()
+    try:
+        clips = slicer.process(tmp_path, sr=int(settings.get("sample_rate", 24000)), transcribe=transcribe,
+                               max_clips=max(1, min(int(max_clips), 30)), model_size=settings.get("asr_model") or "small",
+                               device=settings.get("asr_device") or "auto")
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(400, f"오디오를 읽거나 자를 수 없습니다: {e}")
+    finally:
+        tmp_path.unlink(missing_ok=True)
+    added = []
+    for c in clips:
+        s = voices_mod.add_sample_array(voice_id, c.audio, int(settings.get("sample_rate", 24000)), c.transcript,
+                                        script_id="auto")
+        added.append({**s.__dict__, "start": round(c.start, 2), "end": round(c.end, 2)})
+    ok, _ = verify_mod.available()
+    return {"added": added, "transcribed": ok and transcribe, "voice": voices_mod.get_voice(voice_id).to_dict()}
+
+
+@app.patch("/api/voices/{voice_id}/samples/{sample_id}")
+def voices_update_sample(voice_id: str, sample_id: str, body: dict[str, Any]):
+    v = voices_mod.get_voice(voice_id)
+    if not v:
+        raise HTTPException(404, "no such voice")
+    for smp in v.samples:
+        if smp.id == sample_id:
+            if "transcript" in body:
+                smp.transcript = str(body["transcript"]).strip()
+            voices_mod._save(v)
+            return smp.__dict__
+    raise HTTPException(404, "no such sample")
+
+
 @app.delete("/api/voices/{voice_id}/samples/{sample_id}")
 def voices_delete_sample(voice_id: str, sample_id: str):
     try:
@@ -679,7 +722,7 @@ async def noises_add(file: UploadFile = File(...), label: str = Form(""), contin
         item = noise_library.add_custom(tmp_path, label or Path(file.filename or "noise").stem, continuous, gain,
                                         sr=int(load_settings().get("sample_rate", 24000)))
     except Exception as e:  # noqa: BLE001
-        raise HTTPException(400, f"오디오 파일을 읽을 수 없습니다 (wav/flac/ogg/mp3 지원): {e}")
+        raise HTTPException(400, f"오디오 파일을 읽을 수 없습니다 (wav/flac/ogg/mp3/m4a 지원, m4a·mp3는 ffmpeg 필요): {e}")
     finally:
         tmp_path.unlink(missing_ok=True)
     return item

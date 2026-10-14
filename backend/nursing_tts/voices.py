@@ -129,6 +129,23 @@ def add_sample(voice_id: str, src_path: Path, transcript: str, script_id: str = 
     return s
 
 
+def add_sample_array(voice_id: str, audio: np.ndarray, sr: int, transcript: str, script_id: str = "") -> VoiceSample:
+    v = _load(voice_id)
+    if not v:
+        raise KeyError(voice_id)
+    audio = normalize_peak(_trim_silence(audio, sr), 0.9)
+    sid = uuid.uuid4().hex[:8]
+    fname = f"{sid}.wav"
+    write_wav(_voice_path(voice_id) / fname, audio, sr)
+    s = VoiceSample(id=sid, file=fname, transcript=transcript.strip(), script_id=script_id,
+                    duration=round(len(audio) / sr, 2), created=time.time())
+    v.samples.append(s)
+    if not v.primary_sample:
+        v.primary_sample = sid
+    _save(v)
+    return s
+
+
 def delete_sample(voice_id: str, sample_id: str) -> Voice:
     v = _load(voice_id)
     if not v:

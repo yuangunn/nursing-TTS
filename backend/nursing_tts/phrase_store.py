@@ -127,6 +127,25 @@ def _batchim(ch: str) -> bool:
     return 0xAC00 <= code <= 0xD7A3 and (code - 0xAC00) % 28 != 0
 
 
+_CHART_RULES: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(r"하였습니다\.$"), "함."), (re.compile(r"하셨습니다\.$"), "하심."), (re.compile(r"되었습니다\.$"), "됨."),
+    (re.compile(r"였습니다\.$"), "임."), (re.compile(r"했습니다\.$"), "함."), (re.compile(r"셨습니다\.$"), "심."),
+    (re.compile(r"있습니다\.$"), "있음."), (re.compile(r"없습니다\.$"), "없음."), (re.compile(r"됩니다\.$"), "됨."),
+    (re.compile(r"합니다\.$"), "함."), (re.compile(r"십니다\.$"), "심."), (re.compile(r"갑니다\.$"), "감."),
+    (re.compile(r"옵니다\.$"), "옴."), (re.compile(r"듭니다\.$"), "듦."), (re.compile(r"입니다\.$"), "임."),
+    (re.compile(r"고 있습니다\.$"), "고 있음."),
+]
+
+
+def chart_form(phrase: str) -> str:
+    """Nursing-chart register: '교육하였습니다.' -> '교육함.', '유지 중입니다.' -> '유지 중임.'"""
+    p = phrase.strip()
+    for rx, rep in _CHART_RULES:
+        if rx.search(p):
+            return rx.sub(rep, p)
+    return p
+
+
 def expand_styles(phrase: str) -> list[str]:
     """Return [formal, connective, casual] variants of a formal phrase (deduplicated)."""
     p = phrase.strip()
@@ -160,6 +179,9 @@ def stylize(text: str, rng: random.Random, style: str = "mixed", allow_connectiv
         expand = bool(load_settings().get("auto_style_expand", True))
     if not expand or not text:
         return text
+    if style == "chart":
+        # 기록체: "~함/~됨/~임". Connectives stay as they are ("~하고,").
+        return chart_form(text)
     variants = expand_styles(text)
     if len(variants) == 1:
         return text

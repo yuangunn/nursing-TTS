@@ -81,6 +81,7 @@ def fix_josa(text: str) -> str:
 
 _STEM_RULES = [
     (re.compile(r"(했|됐|였|셨|있|없|겠|았|었|갔|왔|받|봤|났)$"), "습니다"),
+    (re.compile(r"아니$"), "@아닙니다"),
     (re.compile(r"이$"), "@입니다"),
     (re.compile(r"하$"), "@합니다"),
     (re.compile(r"되$"), "@됩니다"),

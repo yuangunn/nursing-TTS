@@ -156,7 +156,7 @@ export default function PhrasesPage() {
               <div className="narrow"><button onClick={() => { setDraft([...draft, ""]); setDirty(true); }}>＋ 변형 추가</button></div>
               <div className="narrow">
                 <select value={style} onChange={(e) => setStyle(e.target.value)}>
-                  <option value="mixed">혼합</option><option value="casual">구어체</option><option value="formal">격식체</option>
+                  <option value="mixed">혼합</option><option value="casual">구어체</option><option value="formal">격식체</option><option value="chart">기록체</option>
                 </select>
               </div>
               <div className="narrow"><button onClick={sample}>🔀 예시 4개 보기</button></div>

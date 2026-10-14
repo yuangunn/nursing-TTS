@@ -141,7 +141,7 @@ export default function NoisePanel({ value, onChange, extra }: Props) {
         <div className="narrow">
           <label className="small" style={{ display: "inline-block" }}>
             <span className="filebtn">＋ 소음 파일 추가 (wav/flac/ogg/mp3)</span>
-            <input type="file" accept="audio/*,.wav,.flac,.ogg,.mp3" style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
+            <input type="file" accept="audio/*,.wav,.flac,.ogg,.mp3,.m4a,.aac,.webm" style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
           </label>
         </div>
         {window.nursing && (

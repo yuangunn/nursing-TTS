@@ -72,8 +72,16 @@ def _load(model_size: str, device: str):
 
 
 def transcribe(path: Path, model_size: str = "small", device: str = "auto") -> str:
+    """Decode with our own reader (soundfile/ffmpeg) and hand a 16 kHz array to Whisper.
+
+    Passing an array avoids faster-whisper's PyAV decoding path, which breaks
+    across some ``av`` versions.
+    """
+    from .audio.io import read_audio
+
     model = _load(model_size, device)
-    segments, _info = model.transcribe(str(path), language="ko", beam_size=1, vad_filter=False)
+    audio, _ = read_audio(path, 16000)
+    segments, _info = model.transcribe(audio, language="ko", beam_size=1, vad_filter=False)
     return " ".join(s.text.strip() for s in segments)
 
 

@@ -36,6 +36,10 @@ CASES = [
     ("췌장암", "PPPD", "외과", (50, 75), None),
     ("간세포암", "Hepatectomy", "외과", (45, 75), "남"),
     ("갑상선암", "Thyroidectomy", "외과", (25, 65), "여"),
+    ("우측 발목 골절", "ORIF ankle", "정형외과", (30, 75), None),
+    ("회전근개 파열", "Shoulder arthroplasty", "정형외과", (55, 80), None),
+    ("자궁내막증", "Total laparoscopic hysterectomy", "산부인과", (35, 55), "여"),
+    ("백내장", "Cataract surgery", "안과", (60, 85), None),
 ]
 
 TEXT_POOLS: dict[str, list[str]] = {
@@ -44,12 +48,23 @@ TEXT_POOLS: dict[str, list[str]] = {
     "onset": ["2개월 전부터", "3주 전부터", "1개월 전", "어제 저녁부터", "6개월 전부터 서서히"],
     "present_illness": ["8월 건강검진 위내시경에서 종괴 발견되어 조직검사상 선암 진단", "타병원 대장내시경에서 종괴 발견, 조직검사상 선암",
                         "외래 CT에서 담낭 결석 및 담낭염 소견", "응급실 CT에서 급성 충수염 진단", "유방 초음파 및 조직검사상 침윤성 유방암"],
-    "s1.plan": ["복강경 수술 예정", "수술 후 조직검사 결과에 따라 추가 치료 결정 예정", "수술 예정"],
     "history_detail": ["고혈압 10년, 당뇨 5년 경구약 복용", "고혈압 5년 약 복용 중", "당뇨 8년 인슐린 사용", "특이사항 없음", "협심증으로 스텐트 시술 3년 전"],
     "past_surgery": ["20년 전 충수절제술", "10년 전 제왕절개", "없음", "5년 전 담낭절제술", "2년 전 백내장 수술"],
     "allergy_reaction": ["두드러기", "가려움", "호흡곤란", "발진"],
     "medications": ["암로디핀 5mg, 메트포르민 500mg bid", "로사르탄 50mg qd", "메트포르민 500mg bid, 아토르바스타틴 20mg", "없음",
-                    "아스피린 100mg, 클로피도그렐 75mg", "레보티록신 50mcg qd"],
+                    "아스피린 100mg, 클로피도그렐 75mg", "레보티록신 50mcg qd", "혈압약 트윈스타 40/5mg 하나씩 아침 식후",
+                    "고지혈증약 로수바스타틴 10mg 저녁", "혈압약 하나 아침 식후, 당뇨약 메트포르민 아침저녁"],
+    "intake_note": ["해산물 알레르기", "채식", "매운 음식 못 드심", "유제품 피함"],
+    "weakness_note": ["오른쪽 다리", "왼쪽 팔", "환측 다리"],
+    "symptom_note": ["식후 더부룩함", "다리 부종", "가끔 두근거림", "계단 오를 때 숨참"],
+    "lmp": ["2026년 9월 30일", "2026년 10월 2일", "폐경"],
+    "pain_desc": ["수술 부위 복부 쪽 쑤시는 느낌", "수술 부위 당기는 느낌", "움직일 때 수술 부위 찌르는 느낌", "수술 부위 묵직한 느낌"],
+    "s6.fluid": ["하트만 덱스 주사액 1리터 컨트롤 세트로 40cc/hr", "하트만 1리터 60cc/hr", "N/S 1리터 KVO", "5DW 500cc 40cc/hr"],
+    "s6.line": ["왼팔 22게이지", "오른손등 24게이지", "오른팔 20게이지", "왼손등 22게이지"],
+    "s6.wound": ["복부 단일공", "복부 4개 포트", "우측 발목 수술 부위", "하복부 정중절개"],
+    "t1": ["오전 7시", "오전 7시 30분", "오전 6시 50분"], "t2": ["오전 8시", "오전 8시 10분"],
+    "t3": ["오후 1시", "오후 12시 40분"], "t4": ["오후 1시 30분", "오후 2시", "오후 3시"],
+    "s1.plan": ["복강경 수술 예정", "수술 후 조직검사 결과에 따라 추가 치료 결정 예정", "수술 예정"],
     "supplements": ["오메가3", "홍삼", "비타민 D", "없음"],
     "family_history": ["부친 위암", "모친 당뇨", "없음", "형제 대장암", "부친 고혈압"],
     "weight_change": ["2개월간 5kg 감소", "변화 없음", "1개월간 3kg 감소"],
@@ -238,6 +253,9 @@ def random_form(template_key: str, rng: random.Random, patient: Patient | None =
             form["chief_complaint"] = rng.choice(d["cc"])
         if "present_illness" in form:
             form["present_illness"] = rng.choice(d["pi"])
+    if template_key == "s1" and patient is not None and not patient.sex.startswith("여"):
+        form.pop("lmp", None)
+        form.pop("marital", None) if rng.random() < 0.5 else None
     if "family_history" in form and form.get("family_history") == "없음":
         form.pop("family_history", None)
         form["family_none"] = True
