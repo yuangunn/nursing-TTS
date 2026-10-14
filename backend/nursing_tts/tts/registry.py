@@ -47,6 +47,9 @@ def get_engine(settings: dict[str, Any]):
     if pref != "auto":
         return engines[pref]
     for key in ("f5", "http", "system", "silent"):
+        # The stock F5 checkpoint has no Hangul in its vocab, so without a Korean ckpt it must not win "auto".
+        if key == "f5" and not engines[key].ckpt_file:
+            continue
         ok, _ = engines[key].available()
         if ok:
             return engines[key]

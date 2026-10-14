@@ -267,3 +267,15 @@ def test_protocol_checklists():
         r = client.post("/api/random-patient", json={"template": "s5", "seed": i}).json()
         p = client.post("/api/script/preview", json={"template": "s5", "form": r["form"], "patient": r["patient"], "datetime": r["datetime"], "seed": i}).json()
         assert "{" not in p["spoken_text"], p["spoken_text"]
+
+
+def test_auto_engine_skips_f5_without_korean_ckpt(monkeypatch):
+    from nursing_tts.tts import registry
+    monkeypatch.setattr(registry.F5Engine, "available", lambda self: (True, "device=cpu"))
+    monkeypatch.setattr(registry.HttpTTSEngine, "available", lambda self: (False, "down"))
+    monkeypatch.setattr(registry.SystemTTSEngine, "available", lambda self: (True, "say"))
+    registry._CACHE.clear()
+    assert registry.get_engine({"tts_engine": "auto"}).key == "system"
+    registry._CACHE.clear()
+    assert registry.get_engine({"tts_engine": "auto", "f5_ckpt_file": "/x/ko.pt"}).key == "f5"
+    registry._CACHE.clear()

@@ -38,10 +38,19 @@ CLAUDE.md와 docs/ROADMAP.md를 읽고 현재 상태를 파악해 줘. 그다음
 
 ### M1 · 목소리 복제가 실제로 된다 (가장 먼저)
 목표: 등록한 간호사 목소리로 10초 녹음이 "그 사람 목소리"로 들린다.
-- [ ] Mac(Apple Silicon)에서 앱 마법사로 F5-TTS 포함 설치가 끝까지 되는지 확인. 실패하면 `app/electron/main.ts`의 `setupBackend`/`constraints-f5.txt` 수정
-- [ ] 한국어 F5 체크포인트 확보·지정(설정 → F5-TTS). README "한국어 모델" 절의 후보 중 하나를 골라 실제 합성
-- [ ] 같은 샘플로 Qwen3-TTS(`scripts/servers/qwen3_tts_server.py`), CosyVoice 래퍼도 돌려 품질·속도 비교표 작성 → 기본 엔진 결정
+- [x] F5-TTS 설치 (2026-10-14, M4 16GB, Python 3.12): `pip -r requirements-f5.txt -c constraints-f5.txt` 2분, pip 되감기 없음, MPS 인식. **앱 마법사 경로는 아직 미실측.** 추론 시 torchaudio 2.11 → torchcodec이 FFmpeg 공유 라이브러리를 요구해 `brew install ffmpeg` 없으면 `libavutil` 로드 실패
+- [ ] ~~한국어 F5 체크포인트~~ **보류**: 기본 vocab 2,545자 중 한글 0자라 한국어 자체가 불가. HF·웹에 공개 한국어 파인튜닝 없음(`team-lucid/F5-TTS-ko`는 245자 vocab의 다른 모델). 쓰려면 KSS 등으로 직접 파인튜닝(RTX 5070 Ti)해야 함
+- [x] Qwen3-TTS 비교 (MPS bf16, `say -v Yuna` 13.7초 참조, 한국어 1문장):
+
+  | 모델 | 로드 | 합성 | RTF | 비고 |
+  |---|---|---|---|---|
+  | Qwen3-TTS 0.6B-Base | 50초 | 8.1초 음성 / 15.5초 | 1.9 | whisper-base 되읽기 거의 일치. **기본 엔진 후보** |
+  | Qwen3-TTS 1.7B-Base | 68초 | 7.8초 음성 / 17.9초 | 2.3 | 0.6B 대비 체감 차이는 청취 판단 필요 |
+  | F5-TTS v1 Base | 69초 | — | — | 한국어 불가(위) |
+
+  앱 전체 경로(목소리 등록 → `/test` 19초 → S5 인계 92초 녹음 + 소음 6개 = 108초)도 HTTP 엔진으로 통과. `qwen3_tts_server.py`는 MPS를 쓰도록 수정. CosyVoice·Chatterbox는 미실행
 - [ ] 목소리 등록 화면에 "합성 테스트" 결과를 원본 샘플과 나란히 듣게 하고, 실패 시 원인(체크포인트 없음/장치) 안내
+- [ ] **실제 간호사 녹음으로 재검증**: 지금까지는 합성 참조(`say`)뿐이라 "그 사람 목소리"인지 판단 불가. `local_data/`에 실제 2~3분 녹음을 넣고 0.6B vs 1.7B 블라인드 청취
 - 완료 기준: 간호사 3명 목소리로 각 5개 녹음 생성, 본인이 들어서 구분 가능. 합성 1건당 소요 시간 기록
 
 ### M2 · 진짜 녹음처럼 들린다

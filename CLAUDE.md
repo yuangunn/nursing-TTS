@@ -53,7 +53,7 @@ F5-TTS(로컬 복제)는 `backend/requirements-f5.txt`를 `-c backend/constraint
 - 실제 환자 데이터는 절대 저장소에 넣지 않는다. 테스트 녹음은 `local_data/`(gitignore).
 
 ## 알려진 제한 / 다음 할 일
-- 복제 엔진 실제 품질은 GPU가 없는 클라우드 환경에서 검증하지 못했다. Mac(Apple Silicon)에서 F5-TTS 설치·합성 실측이 첫 과제 (`docs/ROADMAP.md` M1).
+- F5-TTS는 한국어 불가(기본 vocab에 한글 없음, 공개 한국어 체크포인트 없음). `auto`는 `f5_ckpt_file`이 있을 때만 F5를 고른다. 한국어 복제는 Qwen3-TTS HTTP 래퍼(`scripts/servers/qwen3_tts_server.py`, MPS 지원)로 M4에서 실측 완료 (`docs/ROADMAP.md` M1 표). 실제 간호사 녹음으로는 아직 미검증.
 - 코드 서명/공증 없음. 첫 실행 시 우클릭 → 열기 또는 `xattr -dr com.apple.quarantine`.
 - 시스템 TTS(macOS `say`)는 복제가 아니므로 흐름 확인용.
 

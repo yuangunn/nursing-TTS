@@ -34,6 +34,8 @@ def _load():
 
         if torch.cuda.is_available():
             kwargs = {"device_map": "cuda:0", "dtype": torch.bfloat16}
+        elif torch.backends.mps.is_available():  # Apple Silicon: bf16 works, RTF ~1.9 on M4 for the 0.6B model
+            kwargs = {"device_map": "mps", "dtype": torch.bfloat16}
         else:
             kwargs = {"device_map": "cpu", "dtype": torch.float32}
         _model = Qwen3TTSModel.from_pretrained(MODEL_ID, **kwargs)
