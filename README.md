@@ -121,7 +121,7 @@ npm run dist:mac    # macOS dmg
 | 시스템 TTS (`system`) | X | macOS `say`, Windows SAPI, Linux espeak-ng. 파이프라인 확인용 |
 | 무음 (`silent`) | X | 음성 없이 파일/텍스트 파이프라인 테스트용 |
 
-`자동` 선택 시 F5 → HTTP → 시스템 → 무음 순으로 사용 가능한 엔진을 고릅니다.
+`자동` 선택 시 F5 → HTTP → 시스템 → 무음 순으로 사용 가능한 엔진을 고릅니다. 단 F5는 한국어 체크포인트(`f5_ckpt_file`)가 지정된 경우에만 자동 선택 대상입니다.
 
 ### 한국어를 지원하는 로컬 목소리 복제 모델
 
@@ -138,9 +138,9 @@ npm run dist:mac    # macOS dmg
 실행 예:
 
 ```bash
-# Qwen3-TTS (별도 venv)
-pip install -U qwen-tts fastapi uvicorn python-multipart soundfile
-python scripts/servers/qwen3_tts_server.py --port 8081
+# Qwen3-TTS (별도 venv; Apple Silicon은 MPS bf16으로 자동 실행, M4에서 0.6B 모델 RTF 약 1.9)
+python3.12 -m venv ~/.venvs/nursing-qwen && ~/.venvs/nursing-qwen/bin/pip install -U qwen-tts fastapi uvicorn python-multipart soundfile
+~/.venvs/nursing-qwen/bin/python scripts/servers/qwen3_tts_server.py --port 8081
 # 앱 설정 → 커스텀 HTTP TTS 서버 URL: http://127.0.0.1:8081/synthesize
 ```
 
@@ -148,7 +148,7 @@ python scripts/servers/qwen3_tts_server.py --port 8081
 
 ### F5-TTS 한국어 체크포인트
 
-F5-TTS 기본 체크포인트(`F5TTS_v1_Base`)는 영어/중국어 데이터로 학습되어 한국어 발음이 불완전합니다. Hugging Face에서 "F5-TTS Korean" 커뮤니티 파인튜닝 체크포인트(`model_*.pt` 또는 `.safetensors` + `vocab.txt`)를 받아 설정 탭에 경로를 지정하세요. 체크포인트마다 vocab이 다르므로 **같은 배포에 포함된 vocab.txt**를 함께 지정해야 합니다. 직접 파인튜닝하려면 F5-TTS 저장소의 `finetune_gradio.py`로 한국어 데이터(예: KSS, 자체 병동 녹음)를 학습하면 됩니다.
+F5-TTS 기본 체크포인트(`F5TTS_v1_Base`)는 영어/중국어 데이터로 학습되어 **vocab에 한글이 한 글자도 없어 한국어를 읽지 못합니다**(2026-10-14 확인). 공개된 한국어 파인튜닝 체크포인트도 아직 없으므로, 한국어는 아래 Qwen3-TTS 래퍼를 먼저 쓰세요. 또한 macOS에서는 torchaudio가 FFmpeg 공유 라이브러리를 요구하므로 F5를 쓰려면 `brew install ffmpeg`가 필요합니다. Hugging Face에서 "F5-TTS Korean" 커뮤니티 파인튜닝 체크포인트(`model_*.pt` 또는 `.safetensors` + `vocab.txt`)를 받아 설정 탭에 경로를 지정하세요. 체크포인트마다 vocab이 다르므로 **같은 배포에 포함된 vocab.txt**를 함께 지정해야 합니다. 직접 파인튜닝하려면 F5-TTS 저장소의 `finetune_gradio.py`로 한국어 데이터(예: KSS, 자체 병동 녹음)를 학습하면 됩니다.
 
 ### 커스텀 HTTP TTS 서버 계약
 
