@@ -1,7 +1,8 @@
 {
   "name": "nursing-tts-app",
-  "version": "0.1.0",
+  "version": "0.1.0-beta",
   "description": "간호기록 음성 녹음 생성기 (데스크탑)",
+  "author": "nursing-tts",
   "private": true,
   "main": "dist-electron/main.js",
   "scripts": {
@@ -34,6 +35,7 @@
   "build": {
     "appId": "kr.nursing.tts",
     "productName": "NursingTTS",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "directories": {
       "output": "release"
     },
@@ -51,24 +53,62 @@
           "!.venv/**",
           "!**/__pycache__/**",
           "!tests/**",
-          "!local_data/**"
+          "!local_data/**",
+          "!*.egg-info/**"
+        ]
+      },
+      {
+        "from": "../scripts",
+        "to": "scripts",
+        "filter": [
+          "**/*"
         ]
       }
     ],
-    "win": {
-      "target": [
-        "nsis"
-      ]
-    },
     "mac": {
       "target": [
-        "dmg"
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
       ],
-      "category": "public.app-category.medical"
+      "category": "public.app-category.medical",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "identity": null
+    },
+    "dmg": {
+      "writeUpdateInfo": false
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
-    }
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ]
+    },
+    "npmRebuild": false
   }
 }

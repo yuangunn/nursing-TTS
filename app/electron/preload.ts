@@ -10,6 +10,9 @@ contextBridge.exposeInMainWorld("nursing", {
   chooseFile: (filters?: { name: string; extensions: string[] }[]): Promise<string | null> =>
     ipcRenderer.invoke("choose-file", filters),
   restartBackend: (): Promise<boolean> => ipcRenderer.invoke("restart-backend"),
+  backendInstalled: (): Promise<boolean> => ipcRenderer.invoke("backend-installed"),
+  setupBackend: (withF5?: boolean): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke("setup-backend", withF5),
+  appVersion: (): Promise<string> => ipcRenderer.invoke("app-version"),
   onBackendReady: (cb: (ok: boolean) => void) => {
     ipcRenderer.on("backend-ready", (_e, ok) => cb(ok));
   },

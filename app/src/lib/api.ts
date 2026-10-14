@@ -9,6 +9,9 @@ export interface NursingBridge {
   chooseDirectory(): Promise<string | null>;
   chooseFile(filters?: { name: string; extensions: string[] }[]): Promise<string | null>;
   restartBackend(): Promise<boolean>;
+  backendInstalled(): Promise<boolean>;
+  setupBackend(withF5?: boolean): Promise<{ ok: boolean; message: string }>;
+  appVersion(): Promise<string>;
   onBackendReady(cb: (ok: boolean) => void): void;
   onBackendLog(cb: (line: string) => void): void;
 }
