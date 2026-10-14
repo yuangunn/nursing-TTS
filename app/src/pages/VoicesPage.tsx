@@ -160,6 +160,16 @@ export default function VoicesPage() {
   return (
     <div className="cols">
       <div>
+        {!voices.length && (
+          <div className="callout">
+            <b>처음이라면 이렇게 하세요</b>
+            <ol style={{ margin: "6px 0 0", paddingLeft: 18, lineHeight: 1.8 }}>
+              <li>아래에 목소리 이름(예: 간호사 A)을 적고 <b>＋ 추가</b></li>
+              <li>오른쪽에 나오는 대본을 보고 <b>● 녹음 시작</b> → 8~15초 읽고 <b>■ 녹음 종료</b></li>
+              <li>대본을 바꿔 가며 3개 정도 녹음하면 끝. 이미 녹음해 둔 파일이 있으면 "긴 녹음에서 샘플 자동 추출"</li>
+            </ol>
+          </div>
+        )}
         <div className="panel">
           <h2>등록된 목소리</h2>
           <ul className="list">
@@ -276,7 +286,7 @@ export default function VoicesPage() {
             </div>
           </>
         ) : (
-          <div className="panel muted">왼쪽에서 목소리를 선택하거나 새로 추가하세요.</div>
+          <div className="panel"><div className="empty"><b>왼쪽에서 목소리를 먼저 추가하세요</b>이름만 적고 ＋ 추가를 누르면 여기에 녹음 화면이 나타납니다.</div></div>
         )}
       </div>
     </div>

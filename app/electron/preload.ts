@@ -13,6 +13,14 @@ contextBridge.exposeInMainWorld("nursing", {
   backendInstalled: (): Promise<boolean> => ipcRenderer.invoke("backend-installed"),
   setupBackend: (withF5?: boolean): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke("setup-backend", withF5),
   appVersion: (): Promise<string> => ipcRenderer.invoke("app-version"),
+  cancelSetup: (): Promise<boolean> => ipcRenderer.invoke("cancel-setup"),
+  checkEnvironment: (): Promise<unknown> => ipcRenderer.invoke("check-environment"),
+  openExternal: (url: string): Promise<void> => ipcRenderer.invoke("open-external", url),
+  onSetupProgress: (cb: (p: unknown) => void) => {
+    const handler = (_e: unknown, p: unknown) => cb(p);
+    ipcRenderer.on("setup-progress", handler);
+    return () => ipcRenderer.removeListener("setup-progress", handler);
+  },
   onBackendReady: (cb: (ok: boolean) => void) => {
     ipcRenderer.on("backend-ready", (_e, ok) => cb(ok));
   },
