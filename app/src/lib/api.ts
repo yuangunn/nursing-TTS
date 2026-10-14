@@ -10,7 +10,7 @@ export interface NursingBridge {
   chooseFile(filters?: { name: string; extensions: string[] }[]): Promise<string | null>;
   restartBackend(): Promise<boolean>;
   backendInstalled(): Promise<boolean>;
-  setupBackend(withF5?: boolean): Promise<{ ok: boolean; message: string }>;
+  setupBackend(withQwen?: boolean): Promise<{ ok: boolean; message: string }>;
   appVersion(): Promise<string>;
   cancelSetup(): Promise<boolean>;
   checkEnvironment(): Promise<EnvInfo>;
@@ -29,12 +29,12 @@ export interface EnvInfo {
   diskFreeGb: number | null;
   backendInstalled: boolean;
   backendRunning: boolean;
-  f5Installed: boolean;
+  qwenInstalled: boolean;
   venvDir: string;
   backendDir: string;
   dataDir: string;
 }
-export type SetupPhase = "venv" | "pip" | "deps" | "f5" | "start" | "done" | "error" | "cancelled";
+export type SetupPhase = "venv" | "pip" | "deps" | "qwen" | "model" | "start" | "done" | "error" | "cancelled";
 export interface SetupProgress {
   phase: SetupPhase;
   pct: number;
@@ -42,7 +42,7 @@ export interface SetupProgress {
   detail: string;
   elapsed: number;
   eta: number | null;
-  withF5: boolean;
+  withQwen: boolean;
 }
 
 declare global {
@@ -297,11 +297,8 @@ export interface EngineInfo {
 export interface Settings {
   tts_engine: string;
   device: string;
-  f5_model: string;
-  f5_ckpt_file: string;
-  f5_vocab_file: string;
-  f5_nfe_step: number;
-  f5_speed: number;
+  qwen_model: string;
+  qwen_idle_unload_min: number;
   http_tts_url: string;
   output_dir: string;
   sample_rate: number;

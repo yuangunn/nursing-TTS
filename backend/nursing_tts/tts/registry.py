@@ -3,8 +3,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from .f5 import F5Engine
 from .http_engine import HttpTTSEngine
+from .qwen import QwenEngine
 from .silent import SilentEngine
 from .system import SystemTTSEngine
 
@@ -13,19 +13,15 @@ _CACHE: dict[str, Any] = {}
 
 def build_engines(settings: dict[str, Any]) -> dict[str, Any]:
     sr = int(settings.get("sample_rate", 24000))
-    sig = (settings.get("f5_model"), settings.get("f5_ckpt_file"), settings.get("f5_vocab_file"),
-           settings.get("device"), settings.get("f5_nfe_step"), settings.get("f5_speed"), sr,
+    sig = (settings.get("qwen_model"), settings.get("device"), settings.get("qwen_idle_unload_min"), sr,
            settings.get("http_tts_url"))
     if _CACHE.get("sig") != sig:
         _CACHE.clear()
         _CACHE["sig"] = sig
         _CACHE["engines"] = {
-            "f5": F5Engine(model=settings.get("f5_model") or "F5TTS_v1_Base",
-                           ckpt_file=settings.get("f5_ckpt_file") or "",
-                           vocab_file=settings.get("f5_vocab_file") or "",
-                           device=settings.get("device") or "auto",
-                           nfe_step=settings.get("f5_nfe_step") or 32,
-                           speed=settings.get("f5_speed") or 1.0, sr=sr),
+            "qwen": QwenEngine(model=settings.get("qwen_model") or "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+                               device=settings.get("device") or "auto", sr=sr,
+                               idle_unload_min=settings.get("qwen_idle_unload_min", 10)),
             "http": HttpTTSEngine(settings.get("http_tts_url") or "", sr=sr),
             "system": SystemTTSEngine(sr=sr),
             "silent": SilentEngine(sr=sr),
@@ -44,12 +40,9 @@ def engine_status(settings: dict[str, Any]) -> list[dict[str, Any]]:
 def get_engine(settings: dict[str, Any]):
     engines = build_engines(settings)
     pref = settings.get("tts_engine", "auto")
-    if pref != "auto":
+    if pref in engines:
         return engines[pref]
-    for key in ("f5", "http", "system", "silent"):
-        # The stock F5 checkpoint has no Hangul in its vocab, so without a Korean ckpt it must not win "auto".
-        if key == "f5" and not engines[key].ckpt_file:
-            continue
+    for key in ("qwen", "http", "system", "silent"):  # unknown pref (e.g. "f5" from an older settings file) -> auto
         ok, _ = engines[key].available()
         if ok:
             return engines[key]

@@ -8,6 +8,7 @@ import * as path from "path";
 let BACKEND_PORT = Number(process.env.NURSING_TTS_PORT || 8765);
 let BACKEND_URL = `http://127.0.0.1:${BACKEND_PORT}`;
 const DEV_URL = process.env.VITE_DEV_SERVER_URL;
+const QWEN_MODEL = "Qwen/Qwen3-TTS-12Hz-1.7B-Base"; // keep in sync with backend config.py DEFAULTS.qwen_model
 
 let backend: ChildProcess | null = null;
 let mainWindow: BrowserWindow | null = null;
@@ -86,13 +87,13 @@ function venvPyVersion(venv: string): Promise<PythonInfo> {
   return pyVersion(py);
 }
 
-function f5Installed(): boolean {
+function qwenInstalled(): boolean {
   const venv = venvDir();
   try {
     const lib = process.platform === "win32" ? path.join(venv, "Lib", "site-packages") : path.join(venv, "lib");
     if (!fs.existsSync(lib)) return false;
     const dirs = process.platform === "win32" ? [lib] : fs.readdirSync(lib).map((d) => path.join(lib, d, "site-packages"));
-    return dirs.some((d) => fs.existsSync(path.join(d, "f5_tts")));
+    return dirs.some((d) => fs.existsSync(path.join(d, "qwen_tts")));
   } catch { return false; }
 }
 
@@ -111,7 +112,7 @@ async function checkEnvironment() {
     diskFreeGb,
     backendInstalled: backendInstalled(),
     backendRunning: await ping(BACKEND_URL),
-    f5Installed: f5Installed(),
+    qwenInstalled: qwenInstalled(),
     venvDir: venvDir(),
     backendDir: backendDir(),
     dataDir: app.getPath("userData"),
@@ -120,22 +121,22 @@ async function checkEnvironment() {
 
 /* ---------------- backend installer with structured progress ---------------- */
 
-type Phase = "venv" | "pip" | "deps" | "f5" | "start" | "done" | "error" | "cancelled";
-interface SetupProgress { phase: Phase; pct: number; message: string; detail: string; elapsed: number; eta: number | null; withF5: boolean }
+type Phase = "venv" | "pip" | "deps" | "qwen" | "model" | "start" | "done" | "error" | "cancelled";
+interface SetupProgress { phase: Phase; pct: number; message: string; detail: string; elapsed: number; eta: number | null; withQwen: boolean }
 
 // Typical durations (seconds) on a normal broadband connection — used for the ETA only.
-const EXPECTED: Record<string, number> = { venv: 10, pip: 15, deps: 90, f5: 720, start: 12 };
-const EXPECTED_PKGS = { deps: 32, f5: 70 };
+const EXPECTED: Record<string, number> = { venv: 10, pip: 15, deps: 90, qwen: 240, model: 480, start: 12 };
+const EXPECTED_PKGS = { deps: 32, qwen: 100 };
 
 let setupChild: ChildProcess | null = null;
 let setupCancelled = false;
 
 /** Create the venv in userData and install the backend requirements, reporting phase/percent/ETA to the renderer. */
-async function setupBackend(withF5 = false): Promise<{ ok: boolean; message: string }> {
+async function setupBackend(withQwen = false): Promise<{ ok: boolean; message: string }> {
   const dir = backendDir();
   const venv = venvDir();
   const t0 = Date.now();
-  const phases: Phase[] = withF5 ? ["venv", "pip", "deps", "f5", "start"] : ["venv", "pip", "deps", "start"];
+  const phases: Phase[] = withQwen ? ["venv", "pip", "deps", "qwen", "model", "start"] : ["venv", "pip", "deps", "start"];
   const totalExpected = phases.reduce((a, p) => a + EXPECTED[p], 0);
   let phaseIdx = 0;
   let phaseStart = t0;
@@ -152,7 +153,7 @@ async function setupBackend(withF5 = false): Promise<{ ok: boolean; message: str
     const remainingCur = Math.max(cur * 0.15, cur * (1 - inner) - Math.max(0, phaseElapsed - cur * inner));
     const remainingNext = phases.slice(phaseIdx + 1).reduce((a, p) => a + EXPECTED[p], 0);
     const eta = phase === "done" || phase === "error" ? 0 : Math.round(remainingCur + remainingNext);
-    const p: SetupProgress = { phase, pct, message, detail, elapsed: Math.round(elapsed), eta, withF5 };
+    const p: SetupProgress = { phase, pct, message, detail, elapsed: Math.round(elapsed), eta, withQwen };
     mainWindow?.webContents.send("setup-progress", p);
   };
   const nextPhase = () => { phaseIdx++; phaseStart = Date.now(); inner = 0; };
@@ -197,7 +198,7 @@ async function setupBackend(withF5 = false): Promise<{ ok: boolean; message: str
       else if (/error/i.test(line) && !/^WARNING/.test(line)) { emit(phases[phaseIdx], phaseLabel(), line.slice(0, 160)); }
     };
   };
-  const phaseLabel = () => ({ venv: "Python 가상환경 만드는 중", pip: "pip 업데이트 중", deps: "백엔드 패키지 설치 중", f5: "F5-TTS + PyTorch 설치 중 (수 GB, 오래 걸립니다)", start: "백엔드 시작 중", done: "완료", error: "오류", cancelled: "취소됨" }[phases[phaseIdx] || "done"]);
+  const phaseLabel = () => ({ venv: "Python 가상환경 만드는 중", pip: "pip 업데이트 중", deps: "백엔드 패키지 설치 중", qwen: "Qwen3-TTS + PyTorch 설치 중 (약 2 GB)", model: "한국어 복제 모델 내려받는 중 (1.7B, 약 4.5 GB)", start: "백엔드 시작 중", done: "완료", error: "오류", cancelled: "취소됨" }[phases[phaseIdx] || "done"]);
   const fail = (message: string) => { emit("error", message); return { ok: false, message }; };
   const checkCancel = () => setupCancelled;
 
@@ -232,17 +233,28 @@ async function setupBackend(withF5 = false): Promise<{ ok: boolean; message: str
   if ((await run(py, ["-m", "pip", "install", "-r", path.join(dir, "requirements.txt")], dir, pipTracker(EXPECTED_PKGS.deps))) !== 0) return fail("백엔드 패키지 설치 실패 (인터넷 연결 또는 로그 확인).");
   if (checkCancel()) return fail("취소됨");
   nextPhase();
-  // phase: f5 (optional)
-  if (withF5) {
-    emit("f5", phaseLabel(), "1/2 PyTorch 받는 중 (가장 큰 파일, 수 분)");
-    const common = ["--prefer-binary", "-c", path.join(dir, "constraints-f5.txt")];
-    if ((await run(py, ["-m", "pip", "install", ...common, "torch>=2.3", "torchaudio>=2.3"], dir, pipTracker(12))) !== 0) return fail("PyTorch 설치 실패 (로그 확인). 기본 백엔드는 설치되어 있으니 앱은 쓸 수 있습니다.");
+  // phase: qwen (optional) — the built-in Korean voice-cloning engine
+  if (withQwen) {
+    emit("qwen", phaseLabel(), "1/2 PyTorch 받는 중 (가장 큰 파일, 수 분)");
+    // PyPI torch on Windows is CPU-only; NVIDIA (incl. Blackwell) needs the cu128 wheel. mac/linux wheels already have MPS/CUDA.
+    const torchArgs = process.platform === "win32" ? ["torch", "torchaudio", "--index-url", "https://download.pytorch.org/whl/cu128"] : ["torch", "torchaudio"];
+    if ((await run(py, ["-m", "pip", "install", "--prefer-binary", ...torchArgs], dir, pipTracker(12))) !== 0) return fail("PyTorch 설치 실패 (로그 확인). 기본 백엔드는 설치되어 있으니 앱은 쓸 수 있습니다.");
     if (checkCancel()) return fail("취소됨");
     inner = Math.max(inner, 0.5);
-    emit("f5", phaseLabel(), "2/2 F5-TTS 패키지 설치 중");
-    const code = await run(py, ["-m", "pip", "install", ...common, "-r", path.join(dir, "requirements-f5.txt")], dir, pipTracker(EXPECTED_PKGS.f5));
+    emit("qwen", phaseLabel(), "2/2 qwen-tts · faster-whisper 설치 중");
+    const code = await run(py, ["-m", "pip", "install", "--prefer-binary", "-r", path.join(dir, "requirements-qwen.txt")], dir, pipTracker(EXPECTED_PKGS.qwen));
     if (backtracked) return fail(`pip이 '${backtracked}' 패키지 버전 충돌을 풀지 못해 중단했습니다. Python 버전(3.10~3.13 권장)을 확인하고 다시 시도하세요. 기본 백엔드는 설치되어 있어 앱은 쓸 수 있습니다.`);
-    if (code !== 0) return fail("F5-TTS 설치 실패 (로그 확인). 기본 백엔드는 설치되어 있으니 앱은 쓸 수 있습니다.");
+    if (code !== 0) return fail("Qwen3-TTS 설치 실패 (로그 확인). 기본 백엔드는 설치되어 있으니 앱은 쓸 수 있습니다.");
+    if (checkCancel()) return fail("취소됨");
+    nextPhase();
+    // phase: model — fetch the weights now so the first synthesis does not stall for minutes without feedback
+    emit("model", phaseLabel(), "Hugging Face에서 받습니다. 이미 받아 둔 파일은 건너뜁니다");
+    const dl = `from huggingface_hub import snapshot_download as d; d(${JSON.stringify(QWEN_MODEL)}); d("Systran/faster-whisper-small")`;
+    const mcode = await run(py, ["-c", dl], dir, (l) => {
+      const pct = [...l.matchAll(/(\d{1,3})%/g)].pop();
+      if (pct) { inner = Math.max(inner, Math.min(1, Number(pct[1]) / 100)); emit("model", phaseLabel(), l.replace(/.*\r/, "").slice(0, 120)); }
+    });
+    if (mcode !== 0) pushLog("[setup] 모델 다운로드 실패 — 첫 합성 때 다시 받습니다"); // engine is installed; not fatal
     if (checkCancel()) return fail("취소됨");
     nextPhase();
   }
@@ -362,8 +374,8 @@ ipcMain.handle("choose-file", async (_e, filters?: { name: string; extensions: s
   return r.canceled ? null : r.filePaths[0];
 });
 ipcMain.handle("backend-installed", () => backendInstalled());
-ipcMain.handle("setup-backend", async (_e, withF5?: boolean) => {
-  const r = await setupBackend(!!withF5);
+ipcMain.handle("setup-backend", async (_e, withQwen?: boolean) => {
+  const r = await setupBackend(!!withQwen);
   pushLog(`[setup] ${r.message}`);
   return r;
 });

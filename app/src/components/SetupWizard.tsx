@@ -21,7 +21,7 @@ export default function SetupWizard({ status, refresh, onFinish }: Props) {
   const [step, setStep] = useState<Step>(0);
   const [env, setEnv] = useState<EnvInfo | null>(null);
   const [envBusy, setEnvBusy] = useState(false);
-  const [withF5, setWithF5] = useState(false);
+  const [withQwen, setWithQwen] = useState(false);
   const electron = !!window.nursing;
 
   const checkEnv = async () => {
@@ -97,8 +97,8 @@ export default function SetupWizard({ status, refresh, onFinish }: Props) {
                         <div className="muted" style={{ marginTop: 6 }}>설치가 끝나면 "다시 확인"을 누르세요.</div>
                       </div>
                     ) : null} />
-                  <Check ok={env ? (env.diskFreeGb === null ? null : env.diskFreeGb >= (withF5 ? 8 : 1)) : null} busy={envBusy} label="디스크 여유 공간"
-                    detail={env ? (env.diskFreeGb === null ? "확인 불가" : `${env.diskFreeGb} GB 여유 (기본 설치 약 0.3 GB, F5-TTS 포함 시 약 4 GB)`) : "확인 중…"} />
+                  <Check ok={env ? (env.diskFreeGb === null ? null : env.diskFreeGb >= (withQwen ? 10 : 1)) : null} busy={envBusy} label="디스크 여유 공간"
+                    detail={env ? (env.diskFreeGb === null ? "확인 불가" : `${env.diskFreeGb} GB 여유 (기본 설치 약 0.3 GB, 목소리 복제 엔진 포함 시 약 6.5 GB)`) : "확인 중…"} />
                   <Check ok={env ? env.backendInstalled : null} busy={envBusy} label="백엔드 Python 환경" neutral
                     detail={env ? (env.backendInstalled ? `이미 설치됨 (${env.venvDir})` : "아직 없음 — 다음 단계에서 설치합니다") : "확인 중…"} />
                   <Check ok={env ? env.backendRunning : null} busy={envBusy} label="백엔드 실행 상태" neutral
@@ -116,19 +116,19 @@ export default function SetupWizard({ status, refresh, onFinish }: Props) {
           {step === 2 && (
             <>
               <h2>백엔드 설치</h2>
-              {installed && !withF5 ? (
+              {installed && !withQwen ? (
                 <>
                   <div className="callout ok">백엔드가 이미 설치되어 실행 중입니다. 이 단계는 건너뛰어도 됩니다.</div>
-                  <p className="muted">목소리 복제 엔진(F5-TTS)을 지금 같이 설치하려면 아래를 켜고 설치를 시작하세요. 나중에 설정 탭에서도 할 수 있습니다.</p>
+                  <p className="muted">목소리 복제 엔진(Qwen3-TTS)을 지금 같이 설치하려면 아래를 켜고 설치를 시작하세요. 나중에 설정 탭에서도 할 수 있습니다.</p>
                 </>
               ) : (
                 <p className="lead">음성 처리를 담당하는 Python 백엔드를 이 PC에 설치합니다. 앱 데이터 폴더에만 설치되고, 삭제하면 깨끗이 지워집니다.</p>
               )}
               <label className="opt">
-                <input type="checkbox" checked={withF5} onChange={(e) => setWithF5(e.target.checked)} />
-                <span><b>F5-TTS 목소리 복제 엔진도 설치</b> <span className="badge warn">약 3 GB · 10~20분</span><br /><small className="muted">등록한 간호사 목소리로 실제 합성하려면 필요합니다. GPU(또는 Apple Silicon)가 없으면 매우 느립니다. 처음에는 끄고 시스템 음성으로 흐름을 먼저 확인하는 것을 권합니다.</small></span>
+                <input type="checkbox" checked={withQwen} onChange={(e) => setWithQwen(e.target.checked)} />
+                <span><b>Qwen3-TTS 목소리 복제 엔진도 설치</b> <span className="badge warn">약 6.5 GB · 10~25분</span><br /><small className="muted">등록한 간호사 목소리로 한국어를 합성하려면 필요합니다. Apple Silicon 또는 NVIDIA GPU에서 실시간의 약 2배 시간이 걸리고, CPU만 있으면 매우 느립니다. 급하면 끄고 시스템 음성으로 흐름을 먼저 확인해도 됩니다.</small></span>
               </label>
-              {(!installed || withF5) && <InstallProgress key={withF5 ? "f5" : "base"} withF5={withF5} onDone={async (ok) => { if (ok) await refresh(); }} />}
+              {(!installed || withQwen) && <InstallProgress key={withQwen ? "qwen" : "base"} withQwen={withQwen} onDone={async (ok) => { if (ok) await refresh(); }} />}
               <div className="wizard-actions">
                 <button onClick={back}>← 이전</button>
                 <button className="primary" onClick={next} disabled={!installed && electron}>다음 →</button>
@@ -194,7 +194,7 @@ function EngineStep({ onBack, onNext }: { onBack: () => void; onNext: () => void
   };
   const desc: Record<string, string> = {
     auto: "사용 가능한 복제 엔진이 있으면 쓰고, 없으면 시스템 음성으로 대신합니다.",
-    f5: "로컬 목소리 복제. 한국어 체크포인트를 설정 탭에서 지정해야 품질이 나옵니다.",
+    qwen: "내장 한국어 목소리 복제 (Qwen3-TTS 1.7B). 설치되어 있으면 '자동'이 이 엔진을 씁니다.",
     http: "별도로 띄운 TTS 서버(Qwen3-TTS, CosyVoice 등)에 연결합니다. 고급 사용자용.",
     system: "이 PC의 기본 음성(macOS say / Windows SAPI). 복제는 아니지만 전체 흐름을 바로 확인할 수 있습니다.",
     silent: "소리 없는 더미 wav. 대본·파일 생성만 테스트할 때.",

@@ -1,6 +1,6 @@
 """Reading scripts for voice enrollment (10-15 s each, heavy on ward vocabulary).
 
-Each script is short on purpose: zero-shot cloning models (F5-TTS, CosyVoice,
+Each script is short on purpose: zero-shot cloning models (Qwen3-TTS, CosyVoice,
 Fish Speech...) work best with a clean 5-15 second reference.  The transcript
 is stored alongside the recording because the models need it as ``ref_text``.
 """

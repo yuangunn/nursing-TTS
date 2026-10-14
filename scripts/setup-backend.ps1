@@ -1,7 +1,7 @@
 # One-time backend setup for Windows (PowerShell).
 #   .\scripts\setup-backend.ps1          # base install
-#   .\scripts\setup-backend.ps1 -F5      # also install F5-TTS (needs NVIDIA GPU + CUDA PyTorch)
-param([switch]$F5)
+#   .\scripts\setup-backend.ps1 -Qwen    # also install Qwen3-TTS (needs NVIDIA GPU + CUDA PyTorch)
+param([switch]$Qwen)
 $ErrorActionPreference = "Stop"
 Set-Location (Join-Path $PSScriptRoot "..\backend")
 
@@ -13,10 +13,10 @@ if (-not (Test-Path ".venv")) { & $py.Source -m venv .venv }
 & .\.venv\Scripts\python.exe -m pip install --upgrade pip
 & .\.venv\Scripts\pip.exe install -r requirements.txt
 
-if ($F5) {
-  Write-Host "Installing PyTorch with CUDA and F5-TTS (several GB)..."
-  & .\.venv\Scripts\pip.exe install torch torchaudio --index-url https://download.pytorch.org/whl/cu124
-  & .\.venv\Scripts\pip.exe install -r requirements-f5.txt
+if ($Qwen) {
+  Write-Host "Installing PyTorch with CUDA and Qwen3-TTS (several GB)..."
+  & .\.venv\Scripts\pip.exe install torch torchaudio --index-url https://download.pytorch.org/whl/cu128
+  & .\.venv\Scripts\pip.exe install -r requirements-qwen.txt
 }
 
 Write-Host ""

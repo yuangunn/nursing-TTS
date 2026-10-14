@@ -19,12 +19,12 @@
 - **템플릿**: `templates/s1_admission.py` … `s6_progress.py`는 선언형(`RecordTemplate/Section/Field/Option`). 연결형 문구는 `,`로 끝내고 `grammar.close_sentence()`가 종결형으로 바꾼다. 조사는 `grammar.fix_josa()`. 말투는 formal/casual/mixed/chart, `phrase_store.stylize()`가 플레이스홀더 치환 **후** 적용.
 - **프로토콜 체크리스트**: `templates/protocols.py` (정규 차팅: Routine, 낙상, 통증, Wound, 약물, 호흡, 배액관, 도뇨관, 고체온, 오심, 혈당 …). `Section.group == "protocol"`, 필드 키는 `p_` 접두.
 - **말투 변형 관리**: `extra_phrases.py`(내장) + `phrase_store.py`(사용자 오버라이드 → `data_dir/phrases.json`). UI "말투 관리" 탭.
-- **TTS 어댑터**: `tts/{f5,http_engine,system,silent}.py`, `tts/registry.py`. `auto`는 복제 엔진 우선. HTTP 어댑터는 `scripts/servers/_common.py` 규약(`POST /synthesize`).
+- **TTS 어댑터**: `tts/{qwen,http_engine,system,silent}.py`, `tts/registry.py`. `auto`는 qwen → http → system → silent. `qwen`은 Qwen3-TTS 1.7B 내장 복제(참조 프롬프트 캐시, 유휴 시 언로드), `http`는 원격 GPU 등 외부 서버용. HTTP 어댑터는 `scripts/servers/_common.py` 규약(`POST /synthesize`).
 - **오디오**: `audio/noise.py`(합성 소음 카탈로그), `mixer.py`(SNR), `augment.py`(채널 프리셋·속도), `disfluency.py`(간투사·숫자 정정), `slicer.py`(긴 녹음 → 6~14초 조각), `verify.py`(faster-whisper CER), `dataset.py`(LJSpeech/NeMo/Whisper 내보내기).
 - **파일명**: `{YYYYMMDD_HHMM}_{환자명}.wav/.txt/.json`. 데이터 폴더는 `NURSING_TTS_DATA` 환경변수 또는 OS 앱 데이터 폴더.
 
 ### 앱 핵심 개념
-- `electron/main.ts`: 백엔드 Python 탐색(`userData/venv` → `backend/.venv`), 설치기(`setupBackend`: venv 생성 → pip → requirements → (F5) → 시작, `setup-progress` 이벤트로 단계/퍼센트/ETA 전송, 3.10 미만 venv 재생성, pip 되감기 감지 중단), `check-environment`.
+- `electron/main.ts`: 백엔드 Python 탐색(`userData/venv` → `backend/.venv`), 설치기(`setupBackend`: venv 생성 → pip → requirements → (Qwen: torch → requirements-qwen → 모델 다운로드) → 시작, `setup-progress` 이벤트로 단계/퍼센트/ETA 전송, 3.10 미만 venv 재생성, pip 되감기 감지 중단), `check-environment`.
 - `src/App.tsx`: 처음 설정 마법사(`SetupWizard`) → 작업 순서 사이드바(`Sidebar`: 1 목소리 → 2 녹음 → 3 대량 → 4 결과물) + 시작 가이드(`GettingStarted`). 온보딩 완료 여부는 `localStorage`(`lib/onboarding.ts`).
 - 페이지: `RecordPage`(1~7 단계), `VoicesPage`, `BatchPage`, `ResultsPage`, `PhrasesPage`, `SettingsPage`. 백엔드 호출은 `lib/api.ts` 하나로.
 
@@ -42,7 +42,7 @@ npm run typecheck && npm run build        # CI와 동일
 npx electron-builder --mac --publish never  # 로컬 패키징 (release/ 에 dmg/zip)
 ```
 
-F5-TTS(로컬 복제)는 `backend/requirements-f5.txt`를 `-c backend/constraints-f5.txt`와 함께 설치. 기본 체크포인트는 영/중 전용이라 **한국어 파인튜닝 체크포인트**를 설정에서 지정해야 한다. 한국어 가능 모델 비교는 README "한국어 모델" 절.
+내장 복제 엔진은 `backend/requirements-qwen.txt`(qwen-tts + faster-whisper). 모델 `Qwen/Qwen3-TTS-12Hz-1.7B-Base`(약 4.5 GB)는 설치기 `model` 단계 또는 첫 합성 때 HF에서 받는다. Windows+NVIDIA는 torch를 cu128 인덱스로 먼저 설치. 다른 한국어 모델 비교는 README "한국어 모델" 절.
 
 ## 작업 규칙
 - 브랜치를 따서 PR → CI green이면 squash merge (사용자 지시: "CI green시 자동 머지"). 저장소 auto-merge는 꺼져 있다.
@@ -53,7 +53,7 @@ F5-TTS(로컬 복제)는 `backend/requirements-f5.txt`를 `-c backend/constraint
 - 실제 환자 데이터는 절대 저장소에 넣지 않는다. 테스트 녹음은 `local_data/`(gitignore).
 
 ## 알려진 제한 / 다음 할 일
-- F5-TTS는 한국어 불가(기본 vocab에 한글 없음, 공개 한국어 체크포인트 없음). `auto`는 `f5_ckpt_file`이 있을 때만 F5를 고른다. 한국어 복제는 Qwen3-TTS HTTP 래퍼(`scripts/servers/qwen3_tts_server.py`, MPS 지원)로 M4에서 실측 완료 (`docs/ROADMAP.md` M1 표). 실제 간호사 녹음으로는 아직 미검증.
+- F5-TTS는 제거했다(기본 vocab에 한글 없음, 공개 한국어 체크포인트 없음). 내장 복제는 Qwen3-TTS 1.7B(M4 MPS에서 RTF 약 2.3), 1.7B vs 0.6B 품질 비교와 실제 간호사 녹음 청취 검증은 `docs/ROADMAP.md` M1 참고.
 - 코드 서명/공증 없음. 첫 실행 시 우클릭 → 열기 또는 `xattr -dr com.apple.quarantine`.
 - 시스템 TTS(macOS `say`)는 복제가 아니므로 흐름 확인용.
 

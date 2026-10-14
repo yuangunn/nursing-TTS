@@ -77,7 +77,7 @@ export default function App() {
                   <b>백엔드가 꺼져 있습니다.</b> {status.installed === false ? "아직 설치되지 않았습니다. 아래에서 설치하면 자동으로 켜집니다." : "재시작해 보고, 계속 안 되면 설정의 로그를 확인하세요."}
                 </div>
                 {status.installed === false ? (
-                  <InstallProgress withF5={false} compact onDone={() => refresh()} />
+                  <InstallProgress withQwen={false} compact onDone={() => refresh()} />
                 ) : (
                   <div className="row" style={{ marginTop: 8 }}>
                     <div className="narrow"><button className="primary" onClick={async () => { await window.nursing?.restartBackend(); refresh(); }}>백엔드 재시작</button></div>
