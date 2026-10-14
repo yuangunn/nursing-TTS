@@ -2,10 +2,11 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { ChildProcess, execFile, spawn } from "child_process";
 import * as fs from "fs";
 import * as http from "http";
+import * as net from "net";
 import * as path from "path";
 
-const BACKEND_PORT = Number(process.env.NURSING_TTS_PORT || 8765);
-const BACKEND_URL = `http://127.0.0.1:${BACKEND_PORT}`;
+let BACKEND_PORT = Number(process.env.NURSING_TTS_PORT || 8765);
+let BACKEND_URL = `http://127.0.0.1:${BACKEND_PORT}`;
 const DEV_URL = process.env.VITE_DEV_SERVER_URL;
 
 let backend: ChildProcess | null = null;
@@ -27,9 +28,17 @@ function venvPython(dir: string): string {
   return process.platform === "win32" ? path.join(dir, "Scripts", "python.exe") : path.join(dir, "bin", "python");
 }
 
+/** A venv left by an older app build may hold Python < 3.10 (seen: Xcode's 3.9); the backend cannot run on it, so treat it as not installed. */
+function venvUsable(venv: string): boolean {
+  if (!fs.existsSync(venvPython(venv))) return false;
+  try {
+    const m = /^version\s*=\s*(\d+)\.(\d+)/m.exec(fs.readFileSync(path.join(venv, "pyvenv.cfg"), "utf8"));
+    return !m || Number(m[1]) > 3 || (Number(m[1]) === 3 && Number(m[2]) >= 10);
+  } catch { return true; }
+}
+
 function findPython(dir: string): string | null {
-  const candidates = [venvPython(venvDir()), venvPython(path.join(dir, ".venv"))];
-  for (const c of candidates) if (fs.existsSync(c)) return c;
+  for (const v of [venvDir(), path.join(dir, ".venv")]) if (venvUsable(v)) return venvPython(v);
   return null;
 }
 
@@ -249,11 +258,16 @@ async function setupBackend(withF5 = false): Promise<{ ok: boolean; message: str
   return { ok: true, message: `백엔드 설치 완료: ${venv}` };
 }
 
+/** True only when OUR backend answers: an unrelated program on the same port (seen: a local daemon replying 404 JSON) must not count. */
 function ping(url: string): Promise<boolean> {
   return new Promise((resolve) => {
     const req = http.get(url + "/api/health", (res) => {
-      resolve((res.statusCode || 500) < 500);
-      res.resume();
+      let body = "";
+      res.setEncoding("utf8");
+      res.on("data", (c) => (body += c));
+      res.on("end", () => {
+        try { resolve(res.statusCode === 200 && JSON.parse(body).ok === true); } catch { resolve(false); }
+      });
     });
     req.on("error", () => resolve(false));
     req.setTimeout(1500, () => {
@@ -261,6 +275,28 @@ function ping(url: string): Promise<boolean> {
       resolve(false);
     });
   });
+}
+
+function portFree(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const s = net.createServer();
+    s.once("error", () => resolve(false));
+    s.listen(port, "127.0.0.1", () => s.close(() => resolve(true)));
+  });
+}
+
+/** Keep the default port if our backend is already on it or it is free; otherwise move to the next free one. */
+async function choosePort(): Promise<void> {
+  if ((await ping(BACKEND_URL)) || (await portFree(BACKEND_PORT))) return;
+  const taken = BACKEND_PORT;
+  for (let p = taken + 1; p < taken + 20; p++) {
+    if (await portFree(p)) {
+      BACKEND_PORT = p;
+      BACKEND_URL = `http://127.0.0.1:${p}`;
+      pushLog(`[main] 포트 ${taken}은 다른 프로그램이 사용 중 → ${p} 사용`);
+      return;
+    }
+  }
 }
 
 async function startBackend(): Promise<void> {
@@ -347,6 +383,7 @@ ipcMain.handle("restart-backend", async () => {
 });
 
 app.whenReady().then(async () => {
+  await choosePort(); // before the window exists so get-backend-url is final
   createWindow();
   await startBackend();
   mainWindow?.webContents.send("backend-ready", await ping(BACKEND_URL));
