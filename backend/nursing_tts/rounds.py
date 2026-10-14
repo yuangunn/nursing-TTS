@@ -1,19 +1,21 @@
-"""Doctor-rounds background chatter rendered with the OS TTS.
+"""Doctor-rounds background chatter.
 
 The real "회진" sound in a ward is a conversation two beds away: a doctor asking, the patient
-answering, a nurse reporting.  Instead of recording one we script a short exchange, read it
-with the system voice (macOS say / Windows SAPI) and push it far away (band-pass + room) with
-the same treatment the mixer uses for extra voices.  The result is saved as a user noise clip.
+answering, a nurse reporting.  We script a short exchange, read every line with the registered
+nurse voice (clone engine) and shift the pitch per role so it sounds like a middle-aged man, an
+older woman and another nurse, then push it far away (band-pass + room) with the mixer's extra-voice
+treatment.  Without a clone engine the OS voice is used instead.  Saved as a user noise clip.
 """
 from __future__ import annotations
 
 import random
+from pathlib import Path
 
 import numpy as np
 
 from .audio.augment import speed_perturb
 from .audio.mixer import _distant
-from .tts.base import natural_pause
+from .tts.base import natural_pause, trim_silence
 
 DOCTOR = [
     "어제보다 많이 좋아지셨네요. 가스 나오면 물부터 조금씩 드셔 보세요.",
@@ -40,6 +42,11 @@ NURSE = [
     "오늘 복도 세 바퀴 걸으셨고 통증 삼 점입니다.",
 ]
 
+# Pitch shift (semitones) from the registered voice: middle-aged man / older woman / another nurse.
+ROLE_SHIFT = {"doctor": -7.0, "patient": -3.0, "nurse": 2.0}
+# OS-voice fallback: only tempo/pitch via resampling tells the speakers apart.
+_SPEED = {"doctor": 0.9, "patient": 1.1, "nurse": 1.0}
+
 
 def make_dialogue(rng: random.Random, turns: int = 6) -> list[tuple[str, str]]:
     """[(role, line)] - doctor opens, patient/nurse alternate."""
@@ -51,20 +58,34 @@ def make_dialogue(rng: random.Random, turns: int = 6) -> list[tuple[str, str]]:
     return out
 
 
-# ponytail: one system voice for everyone; speed/pitch shift tells the speakers apart well enough at a distance.
-_SPEED = {"doctor": 0.9, "patient": 1.1, "nurse": 1.0}
+def pitch_shift(audio: np.ndarray, sr: int, semitones: float) -> np.ndarray:
+    """Pitch without tempo change (librosa comes with qwen-tts); plain resampling as a fallback."""
+    if abs(semitones) < 0.01:
+        return audio
+    try:
+        import librosa  # type: ignore
+
+        return librosa.effects.pitch_shift(audio.astype(np.float32), sr=sr, n_steps=semitones).astype(np.float32)
+    except ImportError:
+        # ponytail: fallback also changes tempo; good enough for far-away chatter
+        return speed_perturb(audio, 2 ** (semitones / 12))
 
 
-def render(engine, rng: random.Random, sr: int = 24000, turns: int = 6) -> tuple[np.ndarray, list[tuple[str, str]]]:
-    """Render a rounds conversation as far-away chatter. Returns (audio, dialogue)."""
+def render(engine, rng: random.Random, sr: int = 24000, turns: int = 6,
+           ref: tuple[Path, str] | None = None) -> tuple[np.ndarray, list[tuple[str, str]]]:
+    """Render a rounds conversation as far-away chatter. Returns (audio, dialogue).
+
+    ``ref`` = (sample path, transcript) of a registered voice for a cloning engine; None = OS voice."""
     dialogue = make_dialogue(rng, turns)
     pieces: list[np.ndarray] = []
     for role, line in dialogue:
-        audio, asr = engine.synthesize(line, None, seed=rng.randrange(1 << 30))
+        audio, asr = engine.synthesize(line, ref, seed=rng.randrange(1 << 30))
         if asr != sr:
             from .audio.io import resample
             audio = resample(audio, asr, sr)
-        pieces.append(speed_perturb(audio.astype(np.float32), _SPEED[role]))
+        audio = trim_silence(audio.astype(np.float32), sr)
+        audio = pitch_shift(audio, sr, ROLE_SHIFT[role]) if ref is not None else speed_perturb(audio, _SPEED[role])
+        pieces.append(audio)
         pieces.append(np.zeros(int(natural_pause(rng) * sr), dtype=np.float32))
     joined = np.concatenate(pieces[:-1]) if pieces else np.zeros(sr, dtype=np.float32)
     far = _distant(joined, sr, np.random.default_rng(rng.randrange(1 << 30)))

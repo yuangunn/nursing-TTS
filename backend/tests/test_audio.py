@@ -95,3 +95,16 @@ def test_trim_silence_cuts_model_tail():
     out = trim_silence(speech, sr)
     assert 1.0 <= len(out) / sr <= 1.15
     assert len(trim_silence(np.zeros(sr, dtype=np.float32), sr)) == sr  # all-silent input untouched
+
+
+def test_rounds_pitch_shift_moves_fundamental():
+    from nursing_tts.rounds import pitch_shift
+
+    sr = 24000
+    t = np.arange(2 * sr) / sr
+    tone = (0.3 * np.sin(2 * np.pi * 440 * t)).astype(np.float32)
+    low = pitch_shift(tone, sr, -12)
+    spec = np.abs(np.fft.rfft(low[: sr]))
+    peak_hz = np.fft.rfftfreq(sr, 1 / sr)[np.argmax(spec)]
+    assert 200 <= peak_hz <= 240, peak_hz
+    assert pitch_shift(tone, sr, 0) is tone

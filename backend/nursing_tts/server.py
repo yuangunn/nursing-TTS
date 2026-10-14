@@ -761,24 +761,37 @@ async def noises_add(file: UploadFile = File(...), label: str = Form(""), contin
 
 @app.post("/api/noises/rounds")
 def noises_rounds(body: dict[str, Any] | None = None):
-    """Script a short doctor-rounds exchange, read it with the OS TTS and save it as a far-away noise clip."""
+    """Script a short doctor-rounds exchange, read it with a registered voice (pitch-shifted per role)
+    or the OS TTS, and save it as a far-away noise clip."""
     from .audio.io import write_wav
     from .rounds import render
+    from .tts.registry import get_engine
     from .tts.system import SystemTTSEngine
 
-    engine = SystemTTSEngine()
-    ok, status = engine.available()
-    if not ok:
-        raise HTTPException(400, f"시스템 TTS를 쓸 수 없습니다 ({status})")
     body = body or {}
     rng = random.Random(body.get("seed"))
-    sr = int(load_settings().get("sample_rate", 24000))
-    audio, dialogue = render(engine, rng, sr=sr, turns=int(body.get("turns", 6)))
+    settings = load_settings()
+    sr = int(settings.get("sample_rate", 24000))
+    engine = get_engine(settings)
+    ref = None
+    label = "회진 대화 (시스템 TTS, 멀리서)"
+    if engine.clones_voice:
+        voice_id = body.get("voice_id") or next((v.id for v in voices_mod.list_voices() if v.samples), "")
+        voice = voices_mod.get_voice(voice_id) if voice_id else None
+        if voice and voice.samples:
+            ref = voices_mod.pick_reference(voice_id, rng=rng)
+            label = f"회진 대화 ({voice.name} 톤 변조, 멀리서)"
+    if ref is None:
+        engine = SystemTTSEngine()
+        ok, status = engine.available()
+        if not ok:
+            raise HTTPException(400, f"시스템 TTS를 쓸 수 없습니다 ({status})")
+    audio, dialogue = render(engine, rng, sr=sr, turns=int(body.get("turns", 6)), ref=ref)
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
         tmp_path = Path(tmp.name)
     try:
         write_wav(tmp_path, audio, sr)
-        item = noise_library.add_custom(tmp_path, body.get("label") or "회진 대화 (시스템 TTS, 멀리서)", False, 0.6, sr=sr)
+        item = noise_library.add_custom(tmp_path, body.get("label") or label, False, 0.6, sr=sr)
     finally:
         tmp_path.unlink(missing_ok=True)
     item["dialogue"] = [f"{r}: {t}" for r, t in dialogue]
