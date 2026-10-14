@@ -14,14 +14,30 @@ def _ffmpeg() -> str | None:
 
 
 def _decode_with_ffmpeg(path: Path, sr: int) -> np.ndarray:
-    """Decode any container ffmpeg understands (m4a/aac, mp3, webm, ...) to mono float32."""
+    """Decode any container ffmpeg understands (m4a/aac, mp3, webm, ...) to mono float32.
+
+    Without ffmpeg, macOS falls back to the built-in ``afconvert`` so phone recordings (m4a) still work.
+    """
+    import shutil
     import subprocess
+    import sys
+    import tempfile
     exe = _ffmpeg()
-    if not exe:
-        raise RuntimeError("이 형식은 ffmpeg가 있어야 읽을 수 있습니다 (m4a/aac/mp3/webm). ffmpeg를 설치하거나 wav로 변환해 주세요.")
-    cmd = [exe, "-v", "error", "-i", str(path), "-f", "f32le", "-acodec", "pcm_f32le", "-ac", "1", "-ar", str(sr), "-"]
-    out = subprocess.run(cmd, capture_output=True, check=True).stdout
-    return np.frombuffer(out, dtype=np.float32).copy()
+    if exe:
+        cmd = [exe, "-v", "error", "-i", str(path), "-f", "f32le", "-acodec", "pcm_f32le", "-ac", "1", "-ar", str(sr), "-"]
+        out = subprocess.run(cmd, capture_output=True, check=True).stdout
+        return np.frombuffer(out, dtype=np.float32).copy()
+    if sys.platform == "darwin" and shutil.which("afconvert"):
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            out_path = Path(tmp.name)
+        try:
+            subprocess.run(["afconvert", "-f", "WAVE", "-d", f"LEI16@{sr}", "-c", "1", str(path), str(out_path)],
+                           capture_output=True, check=True)
+            data, _ = sf.read(str(out_path), dtype="float32", always_2d=True)
+            return data.mean(axis=1).astype(np.float32)
+        finally:
+            out_path.unlink(missing_ok=True)
+    raise RuntimeError("이 형식은 ffmpeg가 있어야 읽을 수 있습니다 (m4a/aac/mp3/webm). ffmpeg를 설치하거나 wav로 변환해 주세요.")
 
 
 def read_audio(path: str | Path, target_sr: int | None = None) -> tuple[np.ndarray, int]:

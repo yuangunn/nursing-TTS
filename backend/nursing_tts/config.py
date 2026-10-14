@@ -28,13 +28,10 @@ def data_dir() -> Path:
 
 
 DEFAULTS: dict[str, Any] = {
-    "tts_engine": "auto",          # auto | f5 | http | system | silent
+    "tts_engine": "auto",          # auto | qwen | http | system | silent
     "device": "auto",              # auto | cuda | mps | cpu
-    "f5_model": "F5TTS_v1_Base",
-    "f5_ckpt_file": "",            # Korean fine-tuned checkpoint (.pt/.safetensors)
-    "f5_vocab_file": "",
-    "f5_nfe_step": 32,
-    "f5_speed": 1.0,
+    "qwen_model": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",  # built-in cloning model (HF id or local path)
+    "qwen_idle_unload_min": 10,    # drop the model from memory after this many idle minutes (0 = keep)
     "http_tts_url": "http://127.0.0.1:8081/synthesize",
     "output_dir": "",              # empty -> data_dir()/output
     "sample_rate": 24000,

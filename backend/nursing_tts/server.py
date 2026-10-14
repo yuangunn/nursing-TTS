@@ -110,11 +110,8 @@ class BatchRequest(BaseModel):
 class SettingsModel(BaseModel):
     tts_engine: str | None = None
     device: str | None = None
-    f5_model: str | None = None
-    f5_ckpt_file: str | None = None
-    f5_vocab_file: str | None = None
-    f5_nfe_step: int | None = None
-    f5_speed: float | None = None
+    qwen_model: str | None = None
+    qwen_idle_unload_min: int | None = None
     http_tts_url: str | None = None
     output_dir: str | None = None
     sample_rate: int | None = None

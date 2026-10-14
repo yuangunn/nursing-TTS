@@ -1,6 +1,0 @@
-# Optional: local voice-cloning engine (F5-TTS). Install AFTER the base requirements.
-# GPU (CUDA) or Apple Silicon (MPS) strongly recommended. CPU works but is very slow.
-# See README.md for the Korean checkpoint setup.
-torch>=2.3
-torchaudio>=2.3
-f5-tts>=1.0

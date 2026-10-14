@@ -269,13 +269,40 @@ def test_protocol_checklists():
         assert "{" not in p["spoken_text"], p["spoken_text"]
 
 
-def test_auto_engine_skips_f5_without_korean_ckpt(monkeypatch):
+def test_auto_engine_order_and_legacy_pref(monkeypatch):
     from nursing_tts.tts import registry
-    monkeypatch.setattr(registry.F5Engine, "available", lambda self: (True, "device=cpu"))
+    monkeypatch.setattr(registry.QwenEngine, "available", lambda self: (False, "미설치"))
     monkeypatch.setattr(registry.HttpTTSEngine, "available", lambda self: (False, "down"))
     monkeypatch.setattr(registry.SystemTTSEngine, "available", lambda self: (True, "say"))
     registry._CACHE.clear()
     assert registry.get_engine({"tts_engine": "auto"}).key == "system"
+    monkeypatch.setattr(registry.QwenEngine, "available", lambda self: (True, "device=cpu"))
     registry._CACHE.clear()
-    assert registry.get_engine({"tts_engine": "auto", "f5_ckpt_file": "/x/ko.pt"}).key == "f5"
+    assert registry.get_engine({"tts_engine": "auto"}).key == "qwen"
+    assert registry.get_engine({"tts_engine": "f5"}).key == "qwen"  # settings saved by an older version fall back to auto
     registry._CACHE.clear()
+
+
+def test_qwen_engine_needs_reference():
+    import pytest
+    from nursing_tts.tts.qwen import QwenEngine
+    with pytest.raises(RuntimeError):
+        QwenEngine().synthesize("안녕하세요", None)
+
+
+def test_read_m4a_without_ffmpeg(tmp_path):
+    import shutil
+    import subprocess
+    import sys
+    import pytest
+    import soundfile as sf
+    from nursing_tts.audio import io as aio
+    if sys.platform != "darwin" or not shutil.which("afconvert"):
+        pytest.skip("macOS afconvert only")
+    wav = tmp_path / "t.wav"
+    sf.write(wav, np.sin(np.arange(24000) / 24000 * 2 * np.pi * 440).astype(np.float32) * 0.5, 24000)
+    m4a = tmp_path / "t.m4a"
+    subprocess.run(["afconvert", "-f", "m4af", "-d", "aac", str(wav), str(m4a)], check=True, capture_output=True)
+    aio._ffmpeg = lambda: None  # pretend ffmpeg is absent
+    audio, sr = aio.read_audio(m4a, target_sr=16000)
+    assert sr == 16000 and 15000 < len(audio) < 17000 and abs(audio).max() > 0.3

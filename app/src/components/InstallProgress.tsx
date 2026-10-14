@@ -7,7 +7,7 @@ import { fmtSec } from "../lib/onboarding";
  * Used by the first-run wizard and by the settings page.
  */
 interface Props {
-  withF5: boolean;
+  withQwen: boolean;
   autoStart?: boolean;
   onDone?: (ok: boolean) => void;
   compact?: boolean;
@@ -17,11 +17,12 @@ const PHASES: { key: SetupPhase; label: string; est: string }[] = [
   { key: "venv", label: "Python 가상환경 만들기", est: "약 10초" },
   { key: "pip", label: "설치 도구(pip) 업데이트", est: "약 15초" },
   { key: "deps", label: "백엔드 패키지 설치", est: "1~3분" },
-  { key: "f5", label: "F5-TTS + PyTorch 설치", est: "10~20분, 약 3GB" },
+  { key: "qwen", label: "Qwen3-TTS + PyTorch 설치", est: "3~6분, 약 2 GB" },
+  { key: "model", label: "한국어 복제 모델 내려받기 (1.7B)", est: "5~15분, 약 4.5 GB" },
   { key: "start", label: "백엔드 시작", est: "약 10초" },
 ];
 
-export default function InstallProgress({ withF5, autoStart, onDone, compact }: Props) {
+export default function InstallProgress({ withQwen, autoStart, onDone, compact }: Props) {
   const [p, setP] = useState<SetupProgress | null>(null);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
@@ -48,7 +49,7 @@ export default function InstallProgress({ withF5, autoStart, onDone, compact }: 
     setRunning(true); setResult(null); setP(null); setLog("");
     startedAt.current = Date.now();
     try {
-      const r = await window.nursing.setupBackend(withF5);
+      const r = await window.nursing.setupBackend(withQwen);
       setResult(r);
       onDone?.(r.ok);
     } catch (e) {
@@ -65,13 +66,13 @@ export default function InstallProgress({ withF5, autoStart, onDone, compact }: 
 
   const cancel = async () => { await window.nursing?.cancelSetup(); };
 
-  const phases = PHASES.filter((x) => withF5 || x.key !== "f5");
+  const phases = PHASES.filter((x) => withQwen || (x.key !== "qwen" && x.key !== "model"));
   const curIdx = p ? phases.findIndex((x) => x.key === p.phase) : -1;
   const elapsed = running ? Math.round((Date.now() - startedAt.current) / 1000) : p?.elapsed ?? 0;
   void tick;
   const failed = p?.phase === "error" || (result && !result.ok);
   const done = p?.phase === "done" || (result && result.ok);
-  const totalEst = withF5 ? "보통 12~25분 (인터넷 속도에 따라 다름)" : "보통 2~4분 (인터넷 속도에 따라 다름)";
+  const totalEst = withQwen ? "보통 10~25분, 약 6.5 GB (인터넷 속도에 따라 다름)" : "보통 2~4분 (인터넷 속도에 따라 다름)";
 
   if (!window.nursing) {
     return <div className="callout">브라우저(개발) 모드에서는 앱 내 설치를 쓸 수 없습니다. 터미널에서 <span className="kbd">scripts/setup-backend.sh</span>를 실행하세요.</div>;

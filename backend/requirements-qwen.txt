@@ -1,0 +1,5 @@
+# Built-in voice-cloning engine (Qwen3-TTS, Korean supported) + Whisper for transcribing enrolment recordings.
+# Install AFTER the base requirements. NVIDIA GPU or Apple Silicon (MPS) strongly recommended; CPU is very slow.
+# Windows + NVIDIA: install torch first with  pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu128
+qwen-tts>=0.1.1
+faster-whisper>=1.0

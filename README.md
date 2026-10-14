@@ -16,7 +16,7 @@
 앱을 처음 켜면 **처음 설정 마법사**가 뜹니다. 순서는 `환경 점검 → 백엔드 설치 → 음성 엔진 → 첫 목소리 → 완료`이며 약 5분이 걸립니다.
 
 - **환경 점검**: Python 3.10 이상, 디스크 여유 공간, 기존 설치 여부를 확인하고 없으면 설치 방법(brew / python.org)을 바로 안내합니다.
-- **백엔드 설치**: 앱 데이터 폴더에 Python 가상환경을 만들고 패키지를 설치합니다. 단계별 진행률, 경과 시간, 예상 남은 시간이 표시되고 언제든 취소할 수 있습니다. 기본 설치는 2~4분, F5-TTS 복제 엔진을 함께 설치하면 10~20분(약 3 GB)입니다. pip이 버전 충돌로 제자리걸음을 하면 자동으로 중단하고 이유를 알려 줍니다.
+- **백엔드 설치**: 앱 데이터 폴더에 Python 가상환경을 만들고 패키지를 설치합니다. 단계별 진행률, 경과 시간, 예상 남은 시간이 표시되고 언제든 취소할 수 있습니다. 기본 설치는 2~4분, Qwen3-TTS 복제 엔진을 함께 설치하면 10~25분(패키지 약 2 GB + 모델 약 4.5 GB)입니다. pip이 버전 충돌로 제자리걸음을 하면 자동으로 중단하고 이유를 알려 줍니다.
 - **음성 엔진**: 처음에는 "자동"으로 두면 됩니다. 복제 엔진이 없으면 시스템 음성으로 전체 흐름을 먼저 확인할 수 있습니다.
 - **첫 목소리**: 대본을 읽어 10초 샘플을 등록합니다. 마이크가 없으면 건너뛰고 나중에 "1 · 목소리 등록"에서 하면 됩니다.
 
@@ -85,11 +85,11 @@ scripts/   설치 스크립트, 커스텀 TTS 서버 예제
 ```bash
 # macOS / Linux
 ./scripts/setup-backend.sh          # 기본
-./scripts/setup-backend.sh --f5     # + F5-TTS 로컬 목소리 복제 엔진
+./scripts/setup-backend.sh --qwen   # + Qwen3-TTS 내장 목소리 복제 엔진
 
 # Windows (PowerShell)
 .\scripts\setup-backend.ps1
-.\scripts\setup-backend.ps1 -F5
+.\scripts\setup-backend.ps1 -Qwen
 ```
 
 ### 2) 앱 실행 (개발 모드)
@@ -116,12 +116,12 @@ npm run dist:mac    # macOS dmg
 
 | 엔진 | 목소리 복제 | 비고 |
 |---|---|---|
-| **F5-TTS** (`f5`) | O | 로컬 zero-shot 복제. `pip install -r backend/requirements-f5.txt`. **한국어 파인튜닝 체크포인트** 필요 (아래 참고) |
+| **Qwen3-TTS** (`qwen`) | O | 내장 한국어 복제 (Apache-2.0, 기본 1.7B). 마법사 "목소리 복제 엔진 포함" 또는 `pip install -r backend/requirements-qwen.txt`. Apple Silicon(MPS)·NVIDIA 권장 |
 | **커스텀 HTTP** (`http`) | O | Fish Speech / OpenAudio, CosyVoice 2, XTTS 등 원하는 모델을 `scripts/example_tts_server.py` 계약으로 감싸 연결 |
 | 시스템 TTS (`system`) | X | macOS `say`, Windows SAPI, Linux espeak-ng. 파이프라인 확인용 |
 | 무음 (`silent`) | X | 음성 없이 파일/텍스트 파이프라인 테스트용 |
 
-`자동` 선택 시 F5 → HTTP → 시스템 → 무음 순으로 사용 가능한 엔진을 고릅니다. 단 F5는 한국어 체크포인트(`f5_ckpt_file`)가 지정된 경우에만 자동 선택 대상입니다.
+`자동` 선택 시 Qwen3-TTS → HTTP → 시스템 → 무음 순으로 사용 가능한 엔진을 고릅니다. 모델은 기본 설정에서 10분 쉬면 메모리에서 내려가고 다음 합성 때 다시 올라옵니다(설정에서 조절).
 
 ### 한국어를 지원하는 로컬 목소리 복제 모델
 
@@ -129,11 +129,11 @@ npm run dist:mac    # macOS dmg
 
 | 모델 | 라이선스 | 한국어 | 참조 음성 | 래퍼 | 비고 |
 |---|---|---|---|---|---|
-| **Qwen3-TTS** (Alibaba, 0.6B/1.7B) | Apache-2.0 | 10개 언어 중 공식 지원 | 3초~ | `qwen3_tts_server.py` | 한국어 품질·자연스러움이 가장 균형 잡힘. 1순위 추천 |
+| **Qwen3-TTS** (Alibaba, 0.6B/1.7B) | Apache-2.0 | 10개 언어 중 공식 지원 | 3초~ | 내장 엔진 `qwen` 또는 `qwen3_tts_server.py` | **기본 내장 엔진**. M4 Mac(MPS)에서 1.7B 실시간 대비 약 2.3배, 0.6B 약 1.9배 |
 | **Chatterbox Multilingual v3** (Resemble AI) | MIT | 23개 언어, `ko` | 5~10초 | `chatterbox_server.py` | 감정 과장(exaggeration) 조절 가능, 설치 간단 |
 | **Fun-CosyVoice3 / CosyVoice2** (Alibaba) | Apache-2.0 | 9개 언어 중 공식 지원 | 3~10초 | `cosyvoice_server.py` | 저장소 클론·모델 다운로드 필요, 스트리밍 지원 |
 | **GPT-SoVITS v2+** | MIT | 한/영/일/중/광둥 | 5초 zero-shot, 1분 few-shot 파인튜닝 | (자체 API 서버 `api_v2.py` 사용) | 간호사별 1분 데이터로 **파인튜닝**하면 가장 비슷한 목소리 |
-| **F5-TTS** + 한국어 파인튜닝 | CC-BY-NC(가중치) | 커뮤니티 파인튜닝 필요 | 5~15초 | 내장 엔진 `f5` | 기본 체크포인트는 영/중. 비상업 라이선스 주의 |
+| ~~F5-TTS~~ | CC-BY-NC | 기본 vocab에 한글 없음 | — | (제거됨) | 공개 한국어 체크포인트가 없어 0.1.2에서 뺐습니다 |
 
 실행 예:
 
@@ -146,9 +146,9 @@ python3.12 -m venv ~/.venvs/nursing-qwen && ~/.venvs/nursing-qwen/bin/pip instal
 
 래퍼는 각 모델의 공식 README/모델 카드에 적힌 API 그대로 호출하며, 이 저장소에서는 GPU가 없어 실제 합성까지는 검증하지 못했습니다. 모델 버전이 바뀌어 인자명이 달라지면 래퍼 파일의 `synthesize()` 한 함수만 고치면 됩니다.
 
-### F5-TTS 한국어 체크포인트
+### 원격 GPU에서 합성하기
 
-F5-TTS 기본 체크포인트(`F5TTS_v1_Base`)는 영어/중국어 데이터로 학습되어 **vocab에 한글이 한 글자도 없어 한국어를 읽지 못합니다**(2026-10-14 확인). 공개된 한국어 파인튜닝 체크포인트도 아직 없으므로, 한국어는 아래 Qwen3-TTS 래퍼를 먼저 쓰세요. 또한 macOS에서는 torchaudio가 FFmpeg 공유 라이브러리를 요구하므로 F5를 쓰려면 `brew install ffmpeg`가 필요합니다. Hugging Face에서 "F5-TTS Korean" 커뮤니티 파인튜닝 체크포인트(`model_*.pt` 또는 `.safetensors` + `vocab.txt`)를 받아 설정 탭에 경로를 지정하세요. 체크포인트마다 vocab이 다르므로 **같은 배포에 포함된 vocab.txt**를 함께 지정해야 합니다. 직접 파인튜닝하려면 F5-TTS 저장소의 `finetune_gradio.py`로 한국어 데이터(예: KSS, 자체 병동 녹음)를 학습하면 됩니다.
+내장 엔진은 백엔드가 도는 PC에서 합성합니다. GPU가 다른 PC(예: NVIDIA 노트북)에 있으면 거기서 `scripts/servers/qwen3_tts_server.py`를 띄우고 설정 → 커스텀 HTTP TTS 서버 URL을 그 PC 주소로 바꾸면 됩니다. 수천 건을 양산할 때 유리합니다.
 
 ### 커스텀 HTTP TTS 서버 계약
 

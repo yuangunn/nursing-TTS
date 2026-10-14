@@ -56,11 +56,6 @@ export default function SettingsPage() {
     }
   };
 
-  const chooseFile = async (key: "f5_ckpt_file" | "f5_vocab_file") => {
-    const p = await window.nursing?.chooseFile(key === "f5_ckpt_file" ? [{ name: "Checkpoint", extensions: ["pt", "safetensors", "bin"] }] : [{ name: "Vocab", extensions: ["txt"] }]);
-    if (p) save({ [key]: p } as Partial<Settings>);
-  };
-
   return (
     <div className="cols">
       <div>
@@ -99,37 +94,19 @@ export default function SettingsPage() {
         </div>
 
         <div className="panel">
-          <h2>F5-TTS (로컬 목소리 복제)</h2>
+          <h2>Qwen3-TTS (내장 한국어 목소리 복제)</h2>
           <div className="muted" style={{ marginBottom: 8 }}>
-            설치: <span className="kbd">pip install -r backend/requirements-f5.txt</span>. 기본 체크포인트는 영어/중국어용이므로 <b>한국어 파인튜닝 체크포인트</b>를 지정하세요 (README 참고).
+            아래 "백엔드" 패널에서 <b>목소리 복제 엔진 포함</b>으로 설치하면 켜집니다. 모델(1.7B, 약 4.5 GB)은 설치 때 내려받습니다. GPU가 다른 PC에 있으면 이 엔진 대신 아래 HTTP 서버를 쓰세요.
           </div>
           <div className="row">
             <div>
-              <label>모델 이름</label>
-              <input type="text" value={s.f5_model} onChange={(e) => setS({ ...s, f5_model: e.target.value })} onBlur={() => save({ f5_model: s.f5_model })} />
+              <label>모델 (Hugging Face ID 또는 로컬 경로)</label>
+              <input type="text" value={s.qwen_model} onChange={(e) => setS({ ...s, qwen_model: e.target.value })} onBlur={() => save({ qwen_model: s.qwen_model })} />
             </div>
             <div className="narrow">
-              <label>NFE step (품질↔속도)</label>
-              <input type="number" value={s.f5_nfe_step} min={8} max={64} onChange={(e) => save({ f5_nfe_step: Number(e.target.value) })} />
+              <label>유휴 시 메모리 해제 (분, 0=유지)</label>
+              <input type="number" value={s.qwen_idle_unload_min} min={0} max={120} onChange={(e) => save({ qwen_idle_unload_min: Number(e.target.value) })} />
             </div>
-            <div className="narrow">
-              <label>속도</label>
-              <input type="number" value={s.f5_speed} min={0.6} max={1.5} step={0.05} onChange={(e) => save({ f5_speed: Number(e.target.value) })} />
-            </div>
-          </div>
-          <div className="row">
-            <div>
-              <label>한국어 체크포인트 (.pt / .safetensors)</label>
-              <input type="text" value={s.f5_ckpt_file} onChange={(e) => setS({ ...s, f5_ckpt_file: e.target.value })} onBlur={() => save({ f5_ckpt_file: s.f5_ckpt_file })} />
-            </div>
-            <div className="narrow"><button onClick={() => chooseFile("f5_ckpt_file")}>찾기…</button></div>
-          </div>
-          <div className="row">
-            <div>
-              <label>vocab.txt</label>
-              <input type="text" value={s.f5_vocab_file} onChange={(e) => setS({ ...s, f5_vocab_file: e.target.value })} onBlur={() => save({ f5_vocab_file: s.f5_vocab_file })} />
-            </div>
-            <div className="narrow"><button onClick={() => chooseFile("f5_vocab_file")}>찾기…</button></div>
           </div>
         </div>
 
@@ -253,7 +230,7 @@ export default function SettingsPage() {
 function BackendHelp({ dir, log }: { dir: string; log: string }) {
   const [installed, setInstalled] = useState<boolean | null>(null);
   const [version, setVersion] = useState("");
-  const [withF5, setWithF5] = useState(false);
+  const [withQwen, setWithQwen] = useState(false);
   const [show, setShow] = useState(false);
   useEffect(() => {
     window.nursing?.backendInstalled().then(setInstalled).catch(() => setInstalled(null));
@@ -274,12 +251,12 @@ function BackendHelp({ dir, log }: { dir: string; log: string }) {
             <div className="narrow"><button className={show ? "" : "primary"} onClick={() => setShow((v) => !v)}>{installed ? "재설치 / 업데이트…" : "⬇ 백엔드 설치…"}</button></div>
             <div className="narrow">
               <label style={{ display: "inline-flex", gap: 6, alignItems: "center", color: "inherit", fontSize: 13, margin: 0 }}>
-                <input type="checkbox" checked={withF5} onChange={(e) => setWithF5(e.target.checked)} /> F5-TTS 목소리 복제 엔진 포함 <span className="badge warn">약 3 GB · 10~20분</span>
+                <input type="checkbox" checked={withQwen} onChange={(e) => setWithQwen(e.target.checked)} /> 목소리 복제 엔진(Qwen3-TTS) 포함 <span className="badge warn">약 6.5 GB · 10~25분</span>
               </label>
             </div>
             <div className="muted">Python 3.10 이상 필요 (mac: <span className="kbd">brew install python</span>). 환경은 앱 데이터 폴더에 만들어집니다.</div>
           </div>
-          {show && <InstallProgress key={withF5 ? "f5" : "base"} withF5={withF5} />}
+          {show && <InstallProgress key={withQwen ? "qwen" : "base"} withQwen={withQwen} />}
         </>
       )}
       <div className="muted" style={{ marginBottom: 6 }}>백엔드 폴더: {dir || "(브라우저 모드)"}{!window.nursing && <> · 개발 모드에서는 <span className="kbd">scripts/setup-backend.sh</span> (mac) / <span className="kbd">scripts\setup-backend.ps1</span> (Windows)</>}</div>
