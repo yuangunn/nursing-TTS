@@ -11,8 +11,10 @@ from __future__ import annotations
 import random
 import re
 
-FILLERS = ["어", "음", "그", "어 그", "자", "네"]
-FILLER_WEIGHTS = [5, 5, 3, 1, 1, 1]
+# Weights follow three real nurse recordings (2026-10-15): read-aloud charting had ~0 fillers,
+# interview-style 간호정보조사 ~2/min, mostly hedges (혹시·뭐·이제·좀) rather than 어/음.
+FILLERS = ["어", "음", "그", "어 그", "자", "네", "이제", "뭐", "혹시", "혹시 뭐"]
+FILLER_WEIGHTS = [4, 3, 3, 1, 1, 1, 3, 2, 2, 1]
 TAIL_PAUSES = ["… ", ", "]
 CORRECTION_WORDS = ["아니", "아 아니", "아니다", "아니고"]
 

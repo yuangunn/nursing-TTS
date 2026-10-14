@@ -7,7 +7,7 @@
 | 경로 | 내용 |
 |---|---|
 | `backend/nursing_tts/` | Python 3.10+ FastAPI 백엔드. 대본 생성·발음 변환·TTS 어댑터·소음 합성·증강·검증·데이터셋 내보내기 |
-| `backend/tests/` | pytest (28개). 무음 엔진으로 전체 파이프라인을 돈다 |
+| `backend/tests/` | pytest (36개). 무음 엔진으로 전체 파이프라인을 돈다 |
 | `app/` | Electron 33 + React 18 + Vite 6 + TypeScript. `electron/main.ts`가 백엔드 프로세스와 설치기를 담당 |
 | `scripts/` | `setup-backend.{sh,ps1}`, 한국어 복제 모델 래퍼 서버(`servers/qwen3_tts_server.py` 등) |
 | `.github/workflows/` | `ci.yml` (pytest + typecheck/build), `release.yml` (`v*` 태그 또는 수동 실행 → mac dmg/zip, win exe를 prerelease에 업로드) |
@@ -19,8 +19,8 @@
 - **템플릿**: `templates/s1_admission.py` … `s6_progress.py`는 선언형(`RecordTemplate/Section/Field/Option`). 연결형 문구는 `,`로 끝내고 `grammar.close_sentence()`가 종결형으로 바꾼다. 조사는 `grammar.fix_josa()`. 말투는 formal/casual/mixed/chart, `phrase_store.stylize()`가 플레이스홀더 치환 **후** 적용.
 - **프로토콜 체크리스트**: `templates/protocols.py` (정규 차팅: Routine, 낙상, 통증, Wound, 약물, 호흡, 배액관, 도뇨관, 고체온, 오심, 혈당 …). `Section.group == "protocol"`, 필드 키는 `p_` 접두.
 - **말투 변형 관리**: `extra_phrases.py`(내장) + `phrase_store.py`(사용자 오버라이드 → `data_dir/phrases.json`). UI "말투 관리" 탭.
-- **TTS 어댑터**: `tts/{qwen,http_engine,system,silent}.py`, `tts/registry.py`. `auto`는 qwen → http → system → silent. `qwen`은 Qwen3-TTS 1.7B 내장 복제(참조 프롬프트 캐시, 유휴 시 언로드), `http`는 원격 GPU 등 외부 서버용. HTTP 어댑터는 `scripts/servers/_common.py` 규약(`POST /synthesize`).
-- **오디오**: `audio/noise.py`(합성 소음 카탈로그), `mixer.py`(SNR), `augment.py`(채널 프리셋·속도), `disfluency.py`(간투사·숫자 정정), `slicer.py`(긴 녹음 → 6~14초 조각), `verify.py`(faster-whisper CER), `dataset.py`(LJSpeech/NeMo/Whisper 내보내기).
+- **TTS 어댑터**: `tts/{qwen,http_engine,system,silent}.py`, `tts/registry.py`. `auto`는 qwen → http → system → silent. `qwen`은 Qwen3-TTS 1.7B 내장 복제(참조 프롬프트 캐시, 유휴 시 언로드), `http`는 원격 GPU 등 외부 서버용. HTTP 어댑터는 `scripts/servers/_common.py` 규약(`POST /synthesize`). `tts/base.py`의 `synthesize_paragraphs`는 문단을 **문장 단위**(20자 미만은 이웃과 합침)로 합성하고, 문장 사이 쉼은 실제 간호사 녹음에 맞춘 로그정규 분포(중앙값 0.6초, p90 1.6초, 문단 바뀔 때 ×1.6)로 넣는다.
+- **오디오**: `audio/noise.py`(합성 소음 카탈로그), `mixer.py`(SNR), `augment.py`(채널 프리셋·속도), `disfluency.py`(간투사·숫자 정정), `slicer.py`(긴 녹음 → 6~14초 조각), `verify.py`(faster-whisper CER: 정답/발음/「전사를 발음 변환한 것」 세 기준 중 최소), `dataset.py`(LJSpeech/NeMo/Whisper 내보내기). `rounds.py`는 의사·환자·간호사 회진 대화를 시스템 TTS로 읽어 멀리서 들리는 "내 소음" 클립으로 저장(`POST /api/noises/rounds`, 소리 옵션의 "회진 대화 만들기" 버튼). 실제 소음 녹음(유튜브에서 딴 네뷸라이저·중환자실·모니터 알람 등)은 저작권 때문에 저장소에 넣지 않고 `backend/local_data/noise/`와 사용자 데이터 폴더(`noises/`)에만 둔다.
 - **파일명**: `{YYYYMMDD_HHMM}_{환자명}.wav/.txt/.json`. 데이터 폴더는 `NURSING_TTS_DATA` 환경변수 또는 OS 앱 데이터 폴더.
 
 ### 앱 핵심 개념
