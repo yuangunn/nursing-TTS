@@ -50,6 +50,23 @@ export default function NoisePanel({ value, onChange, extra }: Props) {
     }
   };
 
+  const [making, setMaking] = useState(false);
+  const makeRounds = async () => {
+    setErr("");
+    setMaking(true);
+    try {
+      const r = await fetch(apiUrl("/api/noises/rounds"), { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+      if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+      const item = await r.json();
+      await load();
+      if (!value.types.includes(item.id)) onChange({ ...value, types: [...value.types, item.id] });
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setMaking(false);
+    }
+  };
+
   const upload = async (file: File) => {
     setErr("");
     const fd = new FormData();
@@ -147,6 +164,11 @@ export default function NoisePanel({ value, onChange, extra }: Props) {
         {window.nursing && (
           <div className="narrow"><button onClick={importFolder} title="MUSAN, DEMAND 같은 공개 소음 데이터셋 폴더나 직접 녹음한 병동 소음 폴더를 한 번에 가져옵니다">📁 폴더째 가져오기</button></div>
         )}
+        <div className="narrow">
+          <button onClick={makeRounds} disabled={making} title="의사·환자·간호사 회진 대화를 시스템 TTS로 읽어 옆 침상에서 들리듯 멀리 보낸 소음 클립을 만듭니다. 누를 때마다 다른 대화가 나옵니다">
+            {making ? "만드는 중…" : "🩺 회진 대화 만들기 (시스템 TTS)"}
+          </button>
+        </div>
       </div>
       {err && <div className="error">{err}</div>}
     </div>

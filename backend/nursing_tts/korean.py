@@ -118,6 +118,7 @@ def read_number(token: str, counter: str | None = None) -> str:
 
 UNIT_READINGS: dict[str, list[str]] = {
     "mmHg": [""],  # nurses almost never pronounce it
+    "mg/dL": [""],  # "혈당 145" - the unit is written, not said
     "cc": ["씨씨"],
     "cc/hr": ["씨씨 퍼 아워", "씨씨"],
     "mL/hr": ["밀리리터 퍼 아워", "씨씨"],
@@ -125,6 +126,7 @@ UNIT_READINGS: dict[str, list[str]] = {
     "mL": ["밀리리터", "씨씨"],
     "ml": ["밀리리터", "씨씨"],
     "L": ["리터"],
+    "L/min": ["리터", "리터 퍼 미닛"],
     "mg": ["밀리그램", "미리그램"],
     "mcg": ["마이크로그램"],
     "g": ["그램"],
@@ -194,7 +196,7 @@ ABBREVIATIONS: dict[str, list[str]] = {
     "oozing": ["우징"], "pus": ["퍼스"], "bile": ["바일"], "purulent": ["퓨룰런트"],
     "dressing": ["드레싱"], "stapler": ["스테플러"], "steri-strip": ["스테리스트립"],
     # respiratory
-    "O2": ["오투"], "nasal": ["네이잘"], "mask": ["마스크"], "room air": ["룸 에어"], "RA": ["룸 에어"],
+    "O2": ["오투"], "nasal": ["나잘", "네이잘"], "mask": ["마스크"], "room air": ["룸 에어"], "RA": ["룸 에어"],
     "inspirometer": ["인스피로미터"], "Inspirometer": ["인스피로미터"], "nebulizer": ["네뷸라이저"],
     "lung care": ["렁 케어"], "ambulation": ["앰뷸레이션"], "chest PA": ["체스트 피에이"],
     "CXR": ["씨엑스알"], "CT": ["씨티"], "MRI": ["엠알아이"], "EKG": ["이케이지"], "ECG": ["이씨지"],
@@ -225,7 +227,26 @@ ABBREVIATIONS: dict[str, list[str]] = {
     "AB형": ["에이비형"], "O형": ["오형"], "EGD": ["이지디"], "colono": ["콜로노"], "ERCP": ["이알씨피"],
     "PEG": ["페그"], "TACE": ["테이스"], "RFA": ["알에프에이"], "angio": ["안지오"], "PCI": ["피씨아이"],
     "CAG": ["씨에이지"], "PTCA": ["피티씨에이"], "biopsy": ["바이옵시"], "pending": ["펜딩"],
+    # words the 2026-10-15 M2 audit found left untranslated in tts_text (280 random scripts)
+    "blood culture": ["블러드 컬쳐"], "urine culture": ["유린 컬쳐"], "wound culture": ["운드 컬쳐"],
+    "PRBC": ["피알비씨"], "pack": ["팩"], "ice pack": ["아이스팩"], "5 rights": ["파이브 라이츠"],
+    "NSAIDs": ["엔세이드"], "PAINAD": ["페인에이디"], "FLACC": ["플랙"], "ORIF": ["오알아이에프", "오리프"],
+    "arthroplasty": ["아스로플라스티"], "replacement": ["리플레이스먼트"], "knee": ["니"], "hip": ["힙"],
+    "shoulder": ["숄더"], "ankle": ["앵클"], "anterior": ["앤테리어"], "resection": ["리섹션"], "low": ["로우"],
+    "thyroidectomy": ["타이로이덱토미"], "hepatectomy": ["헤파텍토미"], "cataract": ["카타락트"], "surgery": ["서저리"],
+    "chole": ["콜레"], "appe": ["아페"], "lap": ["랩"], "S상": ["에스상"], "A-line": ["에이라인"],
+    "IV line": ["아이브이 라인"], "IV site": ["아이브이 사이트"], "line": ["라인"], "site": ["사이트"],
+    "gauge": ["게이지"], "patency": ["페이턴시"], "call bell": ["콜벨"], "milking": ["밀킹"],
+    "clean": ["클린"], "clear": ["클리어"], "soft": ["소프트"], "crackle": ["크래클"], "distension": ["디스텐션"],
+    "high flow": ["하이 플로우"], "simple mask": ["심플 마스크"], "reservoir mask": ["리저버 마스크"],
+    "nasal cannula": ["네이잘 캐뉼라"], "cannula": ["캐뉼라"], "bilious": ["빌리어스"], "Penrose": ["펜로즈"],
+    "Hemovac": ["헤모박"], "wound": ["운드"], "right": ["라이트"], "left": ["레프트"], "sputum": ["스퓨텀"],
+    "Nelaton": ["넬라톤"], "suprapubic": ["수프라퓨빅"], "stable": ["스테이블"],
 }
+# Case-insensitive fallback for leftovers ("Mastectomy", "Total" ...); exact keys win first.
+_ABBR_LOWER: dict[str, list[str]] = {}
+for _k, _v in ABBREVIATIONS.items():
+    _ABBR_LOWER.setdefault(_k.lower(), _v)
 
 LETTER_READING = {
     "A": "에이", "B": "비", "C": "씨", "D": "디", "E": "이", "F": "에프", "G": "지", "H": "에이치",
@@ -268,14 +289,24 @@ def to_tts_text(spoken: str, rng: random.Random | None = None) -> str:
     rng = rng or random.Random()
     text = spoken
 
+    # 0. thousands separators "1,800cc" -> "1800cc"
+    text = re.sub(r"(?<=\d),(?=\d{3}(?!\d))", "", text)
+
     # 1. Arrows (37.4→36.9) read as "에서"
     text = _ARROW.sub(" 에서 ", text)
 
     # 2. "a/b" numeric pairs (BP, I/O) -> "a 에 b"
     text = _SLASH_PAIR.sub(lambda m: f"{m.group(1)} 에 {m.group(2)}", text)
 
+    # 2b. chart-style vital chains "120/80-76-20-36.8": hyphens are separators, not ranges
+    text = re.sub(r"(?<![\d.])(\d+(?:\.\d+)?(?:-\d+(?:\.\d+)?){2,})(?![\d.])", lambda m: m.group(1).replace("-", ", "), text)
+
     # 3. ranges "150~180" -> "150 에서 180"
     text = _RANGE.sub(lambda m: f"{m.group(1)} 에서 {m.group(2)}", text)
+
+    # 3a. any "q{n}h" not in the dictionary (q24h, q2h ...) -> "{n} 시간마다"
+    text = re.sub(r"\bq\s*(\d+)\s*h\b",
+                  lambda m: m.group(0) if m.group(0) in ABBREVIATIONS else f"{sino(int(m.group(1)))} 시간마다", text)
 
     # 3b. "+" between items -> 플러스
     text = re.sub(r"\s*\+\s*", " 플러스 ", text)
@@ -296,6 +327,11 @@ def to_tts_text(spoken: str, rng: random.Random | None = None) -> str:
         return _pick(ABBREVIATIONS[m.group(1)], rng)
 
     text = _WORD_BOUNDARY_ABBR.sub(abbr_repl, text)
+
+    # 5b. leftover Latin words, case-insensitively ("Mastectomy" -> "mastectomy", "Total" -> "total")
+    text = re.sub(r"(?<![가-힣A-Za-z])([A-Za-z][A-Za-z-]*)(?![A-Za-z])",
+                  lambda m: _pick(_ABBR_LOWER[m.group(1).lower()], rng) if m.group(1).lower() in _ABBR_LOWER else m.group(1),
+                  text)
 
     # 6. numbers followed by Korean counters
     def counter_repl(m: re.Match) -> str:

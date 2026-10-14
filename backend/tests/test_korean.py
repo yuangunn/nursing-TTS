@@ -51,3 +51,35 @@ def test_josa():
     assert fix_josa("서울(으)로") == "서울로"
     assert fix_josa("DM(으)로") == "DM으로"
     assert fix_josa("틀니(이)랑 안경(이)랑") == "틀니랑 안경이랑"
+
+
+def test_m2_chart_readings():
+    """Readings collected in M2 (2026-10-15) from real-recording comparison and a 280-script audit."""
+    r = random.Random(0)
+    assert "백이십삼 에 구십" in to_tts_text("혈압 123/90", r)
+    assert to_tts_text("체온 7도 1", r) == "체온 칠 도 일"
+    assert to_tts_text("HTN", r) in ("에이치티엔", "하이퍼텐션")
+    assert to_tts_text("1,800cc", r) == "천팔백 씨씨"
+    assert to_tts_text("V/S 120/80-76-20-36.8", r) == "브이에스 백이십 에 팔십, 칠십육, 이십, 삼십육 점 팔"
+    assert to_tts_text("메트로니다졸 q24h", r) == "메트로니다졸 이십사 시간마다"
+    assert to_tts_text("BST 145mg/dL 측정됨", r) == "비에스티 백사십오 측정됨"
+    assert to_tts_text("PRBC 1 pack 수혈 완료", r) == "피알비씨 한 팩 수혈 완료"
+    assert to_tts_text("NSAIDs 알러지", r) == "엔세이드 알러지"
+    assert to_tts_text("S상결장 종괴", r) == "에스상결장 종괴"
+    assert "Total" not in to_tts_text("Total knee replacement arthroplasty", r)
+    assert to_tts_text("Mastectomy 예정", r) == "마스텍토미 예정"
+
+
+def test_tts_text_has_no_digits_or_latin_across_templates():
+    from nursing_tts.fake import random_datetime, random_form, random_patient
+    from nursing_tts.generator import build_script
+    import re
+
+    for t in ("s1", "s2", "s3_1", "s3_2", "s4", "s5", "s6"):
+        for i in range(8):
+            rng = random.Random(100 * i + len(t))
+            p = random_patient(rng, t)
+            s = build_script(t, random_form(t, rng, p), p, random_datetime(rng),
+                             style=rng.choice(["mixed", "casual", "formal", "chart"]), seed=i, signal_format="random")
+            left = re.findall(r"[A-Za-z0-9]+", s.tts_text)
+            assert not left, f"{t} seed {i}: {left} in {s.tts_text!r}"

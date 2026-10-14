@@ -93,7 +93,13 @@ def verify(path: Path, spoken_text: str, tts_text: str, settings: dict[str, Any]
         return {"error": str(e), "passed": None}
     c1 = cer(spoken_text, hyp)
     c2 = cer(tts_text, hyp)
-    best = min(c1, c2)
+    # Whisper writes digits as digits but English chart terms in Korean ("chest tube" -> "체스트 튜브"),
+    # so it matches neither layer; converting the hypothesis the same way as tts_text does.
+    import random
+
+    from .korean import to_tts_text
+    c3 = cer(tts_text, to_tts_text(hyp, random.Random(0)))
+    best = min(c1, c2, c3)
     thr = float(settings.get("cer_threshold", 0.25))
-    return {"hyp": hyp, "cer": round(c1, 4), "cer_phonetic": round(c2, 4), "cer_best": round(best, 4),
-            "threshold": thr, "passed": best <= thr}
+    return {"hyp": hyp, "cer": round(c1, 4), "cer_phonetic": round(c2, 4), "cer_hyp_phonetic": round(c3, 4),
+            "cer_best": round(best, 4), "threshold": thr, "passed": best <= thr}

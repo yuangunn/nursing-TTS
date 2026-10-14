@@ -759,6 +759,32 @@ async def noises_add(file: UploadFile = File(...), label: str = Form(""), contin
     return item
 
 
+@app.post("/api/noises/rounds")
+def noises_rounds(body: dict[str, Any] | None = None):
+    """Script a short doctor-rounds exchange, read it with the OS TTS and save it as a far-away noise clip."""
+    from .audio.io import write_wav
+    from .rounds import render
+    from .tts.system import SystemTTSEngine
+
+    engine = SystemTTSEngine()
+    ok, status = engine.available()
+    if not ok:
+        raise HTTPException(400, f"시스템 TTS를 쓸 수 없습니다 ({status})")
+    body = body or {}
+    rng = random.Random(body.get("seed"))
+    sr = int(load_settings().get("sample_rate", 24000))
+    audio, dialogue = render(engine, rng, sr=sr, turns=int(body.get("turns", 6)))
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+        tmp_path = Path(tmp.name)
+    try:
+        write_wav(tmp_path, audio, sr)
+        item = noise_library.add_custom(tmp_path, body.get("label") or "회진 대화 (시스템 TTS, 멀리서)", False, 0.6, sr=sr)
+    finally:
+        tmp_path.unlink(missing_ok=True)
+    item["dialogue"] = [f"{r}: {t}" for r, t in dialogue]
+    return item
+
+
 @app.patch("/api/noises/{nid}")
 def noises_update(nid: str, body: dict[str, Any]):
     item = noise_library.update_custom(nid, **body)
