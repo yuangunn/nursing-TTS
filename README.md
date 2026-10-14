@@ -77,6 +77,29 @@ npm run dist:mac    # macOS dmg
 
 `자동` 선택 시 F5 → HTTP → 시스템 → 무음 순으로 사용 가능한 엔진을 고릅니다.
 
+### 한국어를 지원하는 로컬 목소리 복제 모델
+
+2026년 기준으로 한국어를 공식 지원하면서 오픈 가중치로 로컬 실행이 가능한 zero-shot 복제 모델입니다. 모두 `scripts/servers/`의 래퍼로 바로 연결할 수 있습니다 (각 모델은 의존성이 달라 **별도 가상환경**에서 서버로 띄우는 방식을 권장).
+
+| 모델 | 라이선스 | 한국어 | 참조 음성 | 래퍼 | 비고 |
+|---|---|---|---|---|---|
+| **Qwen3-TTS** (Alibaba, 0.6B/1.7B) | Apache-2.0 | 10개 언어 중 공식 지원 | 3초~ | `qwen3_tts_server.py` | 한국어 품질·자연스러움이 가장 균형 잡힘. 1순위 추천 |
+| **Chatterbox Multilingual v3** (Resemble AI) | MIT | 23개 언어, `ko` | 5~10초 | `chatterbox_server.py` | 감정 과장(exaggeration) 조절 가능, 설치 간단 |
+| **Fun-CosyVoice3 / CosyVoice2** (Alibaba) | Apache-2.0 | 9개 언어 중 공식 지원 | 3~10초 | `cosyvoice_server.py` | 저장소 클론·모델 다운로드 필요, 스트리밍 지원 |
+| **GPT-SoVITS v2+** | MIT | 한/영/일/중/광둥 | 5초 zero-shot, 1분 few-shot 파인튜닝 | (자체 API 서버 `api_v2.py` 사용) | 간호사별 1분 데이터로 **파인튜닝**하면 가장 비슷한 목소리 |
+| **F5-TTS** + 한국어 파인튜닝 | CC-BY-NC(가중치) | 커뮤니티 파인튜닝 필요 | 5~15초 | 내장 엔진 `f5` | 기본 체크포인트는 영/중. 비상업 라이선스 주의 |
+
+실행 예:
+
+```bash
+# Qwen3-TTS (별도 venv)
+pip install -U qwen-tts fastapi uvicorn python-multipart soundfile
+python scripts/servers/qwen3_tts_server.py --port 8081
+# 앱 설정 → 커스텀 HTTP TTS 서버 URL: http://127.0.0.1:8081/synthesize
+```
+
+래퍼는 각 모델의 공식 README/모델 카드에 적힌 API 그대로 호출하며, 이 저장소에서는 GPU가 없어 실제 합성까지는 검증하지 못했습니다. 모델 버전이 바뀌어 인자명이 달라지면 래퍼 파일의 `synthesize()` 한 함수만 고치면 됩니다.
+
 ### F5-TTS 한국어 체크포인트
 
 F5-TTS 기본 체크포인트(`F5TTS_v1_Base`)는 영어/중국어 데이터로 학습되어 한국어 발음이 불완전합니다. Hugging Face에서 "F5-TTS Korean" 커뮤니티 파인튜닝 체크포인트(`model_*.pt` 또는 `.safetensors` + `vocab.txt`)를 받아 설정 탭에 경로를 지정하세요. 체크포인트마다 vocab이 다르므로 **같은 배포에 포함된 vocab.txt**를 함께 지정해야 합니다. 직접 파인튜닝하려면 F5-TTS 저장소의 `finetune_gradio.py`로 한국어 데이터(예: KSS, 자체 병동 녹음)를 학습하면 됩니다.

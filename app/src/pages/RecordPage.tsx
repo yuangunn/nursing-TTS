@@ -3,6 +3,8 @@ import FieldInput from "../components/FieldInput";
 import JobProgress from "../components/JobProgress";
 import NoisePanel from "../components/NoisePanel";
 import PatientPanel from "../components/PatientPanel";
+import Visualizer from "../components/Visualizer";
+import { useEnergy } from "../lib/energy";
 import { apiUrl, DEFAULT_NOISE, DEFAULT_PATIENT, get, Job, NoiseSettings, nowLocalIso, Patient, post, Settings, TemplateSchema, Voice } from "../lib/api";
 
 interface Preview {
@@ -36,6 +38,7 @@ export default function RecordPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [showTts, setShowTts] = useState(false);
   const debounce = useRef<number | null>(null);
+  const setEnergy = useEnergy();
 
   const template = useMemo(() => templates.find((t) => t.key === tkey), [templates, tkey]);
 
@@ -213,7 +216,7 @@ export default function RecordPage() {
           }
         />
 
-        <div className="panel">
+        <div className="panel highlight">
           <h2>녹음 생성</h2>
           <div className="row">
             <div>
@@ -240,7 +243,7 @@ export default function RecordPage() {
           {doneItem?.status === "done" && (
             <div style={{ marginTop: 8 }}>
               <div className="ok-text">저장됨: {doneItem.files.wav} ({doneItem.duration}s)</div>
-              <audio controls src={apiUrl(`/api/output/file?rel=${encodeURIComponent(doneItem.files.wav.replace(result!.folder || "", "").replace(/^[\\/]/, ""))}`) + `&t=${Date.now()}`} />
+              <Visualizer autoPlay onEnergy={setEnergy} src={apiUrl(`/api/output/file?rel=${encodeURIComponent(doneItem.files.wav.replace(result!.folder || "", "").replace(/^[\\/]/, ""))}`) + `&t=${result!.created}`} />
               <div className="row" style={{ marginTop: 6 }}>
                 <div className="narrow"><button onClick={() => window.nursing?.showInFolder(doneItem.files.wav)}>폴더에서 보기</button></div>
                 <div className="narrow muted">{wavRel}</div>

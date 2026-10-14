@@ -113,7 +113,7 @@ export default function BatchPage() {
         />
       </div>
       <div>
-        <div className="panel">
+        <div className="panel highlight">
           <h2>실행</h2>
           <div className="row">
             <div className="narrow"><button className="primary" onClick={start} disabled={!sel.length || (clones && !voiceIds.length) || (job?.status === "running")}>🚀 {count}개 생성 시작</button></div>
@@ -123,6 +123,13 @@ export default function BatchPage() {
           <div className="muted">파일명: 시그널 발화시각_환자명 (예: 20261018_1110_홍길동.wav + .txt 정답 텍스트 + .json 메타)</div>
           {err && <div className="error">{err}</div>}
           <JobProgress jobId={jobId} onDone={(j) => { setJob(j); refreshJobs(); }} />
+          {job && (
+            <div className="stat">
+              <div><div className="k">완료</div><div className="v">{job.done}/{job.total}</div></div>
+              <div><div className="k">오류</div><div className="v">{job.items.filter((i) => i.status === "error").length}</div></div>
+              <div><div className="k">총 길이</div><div className="v">{Math.round(job.items.reduce((a, i) => a + (i.duration || 0), 0))}s</div></div>
+            </div>
+          )}
           {job && (
             <table className="items" style={{ marginTop: 8 }}>
               <thead><tr><th>#</th><th>환자</th><th>종류</th><th>길이</th><th>상태</th></tr></thead>

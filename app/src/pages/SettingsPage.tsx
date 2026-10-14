@@ -133,7 +133,10 @@ export default function SettingsPage() {
 
         <div className="panel">
           <h2>커스텀 HTTP TTS 서버</h2>
-          <div className="muted" style={{ marginBottom: 6 }}>Fish Speech, CosyVoice 등 다른 복제 모델을 <span className="kbd">scripts/example_tts_server.py</span> 형식으로 감싸 연결합니다.</div>
+          <div className="muted" style={{ marginBottom: 6 }}>
+            한국어 지원 복제 모델을 별도 환경에서 서버로 띄우고 연결합니다. 준비된 래퍼: <span className="kbd">scripts/servers/qwen3_tts_server.py</span> (Qwen3-TTS, Apache-2.0),{" "}
+            <span className="kbd">chatterbox_server.py</span> (Chatterbox Multilingual, MIT), <span className="kbd">cosyvoice_server.py</span> (Fun-CosyVoice3). README의 "한국어 모델" 절 참고.
+          </div>
           <input type="text" value={s.http_tts_url} onChange={(e) => setS({ ...s, http_tts_url: e.target.value })} onBlur={() => save({ http_tts_url: s.http_tts_url })} />
         </div>
       </div>

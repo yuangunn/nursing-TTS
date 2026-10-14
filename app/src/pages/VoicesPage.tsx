@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { apiUrl, del, EnrollScript, get, patch, post, postBlob, Voice } from "../lib/api";
 import { Recorder, startRecording } from "../lib/wav";
+import Visualizer from "../components/Visualizer";
+import { useEnergy } from "../lib/energy";
 
 export default function VoicesPage() {
   const [voices, setVoices] = useState<Voice[]>([]);
@@ -18,6 +20,7 @@ export default function VoicesPage() {
   const [testUrl, setTestUrl] = useState("");
   const [testNote, setTestNote] = useState("");
   const timer = useRef<number | null>(null);
+  const setEnergy = useEnergy();
 
   const load = async () => {
     const vs = await get<Voice[]>("/api/voices");
@@ -57,7 +60,7 @@ export default function VoicesPage() {
   const record = async () => {
     setErr("");
     try {
-      const r = await startRecording(setLevel);
+      const r = await startRecording((v) => { setLevel(v); setEnergy(Math.min(1, v * 6)); });
       setRecorder(r);
       setElapsed(0);
       const start = Date.now();
@@ -72,6 +75,7 @@ export default function VoicesPage() {
     if (timer.current) window.clearInterval(timer.current);
     const blob = await recorder.stop();
     setRecorder(null);
+    setEnergy(0);
     await upload(blob, "recording.wav");
   };
 
@@ -189,9 +193,9 @@ export default function VoicesPage() {
               <div className="row" style={{ marginTop: 12 }}>
                 <div className="narrow">
                   {!recorder ? (
-                    <button className="primary" onClick={record} disabled={!transcript.trim() || !!busy}>● 녹음 시작</button>
+                    <button className="primary rec-btn" onClick={record} disabled={!transcript.trim() || !!busy}>● 녹음 시작</button>
                   ) : (
-                    <button className="danger" onClick={stop}>■ 녹음 종료 및 저장 ({elapsed.toFixed(1)}s)</button>
+                    <button className="danger rec-btn live" onClick={stop}>■ 녹음 종료 및 저장 ({elapsed.toFixed(1)}s)</button>
                   )}
                 </div>
                 <div>
@@ -200,7 +204,7 @@ export default function VoicesPage() {
                 </div>
                 <div className="narrow">
                   <label style={{ display: "inline-block" }}>
-                    <span className="kbd" style={{ cursor: "pointer", padding: "6px 10px", display: "inline-block", borderRadius: 6 }}>파일로 추가</span>
+                    <span className="filebtn">파일로 추가</span>
                     <input type="file" accept="audio/*,.wav,.flac,.ogg,.mp3,.m4a" style={{ display: "none" }} disabled={!transcript.trim()}
                       onChange={(e) => e.target.files?.[0] && upload(e.target.files[0], e.target.files[0].name)} />
                   </label>
@@ -230,7 +234,7 @@ export default function VoicesPage() {
                 <div className="narrow"><button onClick={testVoice} disabled={!voice.samples.length || !!busy}>🔊 이 목소리로 합성 테스트</button></div>
                 <div className="muted">{testNote}</div>
               </div>
-              {testUrl && <audio controls autoPlay src={testUrl} />}
+              {testUrl && <div style={{ marginTop: 10 }}><Visualizer autoPlay src={testUrl} onEnergy={setEnergy} height={120} /></div>}
             </div>
           </>
         ) : (

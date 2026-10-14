@@ -98,22 +98,25 @@ export default function NoisePanel({ value, onChange, extra }: Props) {
         </label>
         {extra}
       </div>
-      <div className="checks" style={{ marginTop: 8 }}>
-        {catalog.map((n) => (
-          <span key={n.key} style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
-            <label>
-              <input type="checkbox" checked={value.types.includes(n.key)} disabled={!value.enabled} onChange={() => toggle(n.key)} />
-              {n.label}
-              {!n.builtin && <span className="badge" style={{ marginLeft: 4 }}>내 파일</span>}
-            </label>
-            <button className="small" title="미리듣기" onClick={() => play(apiUrl(`/api/noises/${n.key}/preview`), n.key)}>
-              {previewing === n.key ? "■" : "▶"}
-            </button>
-            {!n.builtin && (
-              <button className="small danger" title="삭제" onClick={() => remove(n.key)}>×</button>
-            )}
-          </span>
-        ))}
+      <div className="pill-grid" style={{ marginTop: 10 }}>
+        {catalog.map((n) => {
+          const on = value.types.includes(n.key);
+          return (
+            <div key={n.key} className={"pill" + (on ? " on" : "")} onClick={() => value.enabled && toggle(n.key)} style={{ opacity: value.enabled ? 1 : 0.5 }}>
+              <input type="checkbox" checked={on} disabled={!value.enabled} onChange={() => toggle(n.key)} onClick={(e) => e.stopPropagation()} />
+              <div style={{ flex: 1 }}>
+                <div className="t">{n.label}</div>
+                <div className="d">{n.builtin ? (n.continuous ? "지속 배경음" : "랜덤 이벤트") : `내 파일 · ${n.duration ?? 0}s`}</div>
+              </div>
+              <button className="small" title="미리듣기" onClick={(e) => { e.stopPropagation(); play(apiUrl(`/api/noises/${n.key}/preview`), n.key); }}>
+                {previewing === n.key ? "■" : "▶"}
+              </button>
+              {!n.builtin && (
+                <button className="small danger" title="삭제" onClick={(e) => { e.stopPropagation(); remove(n.key); }}>×</button>
+              )}
+            </div>
+          );
+        })}
       </div>
       <div className="row" style={{ marginTop: 10 }}>
         <div className="narrow">
@@ -121,7 +124,7 @@ export default function NoisePanel({ value, onChange, extra }: Props) {
         </div>
         <div className="narrow">
           <label className="small" style={{ display: "inline-block" }}>
-            <span className="kbd" style={{ cursor: "pointer", padding: "6px 10px", display: "inline-block", background: "#eef2f6", borderRadius: 6 }}>＋ 소음 파일 추가 (wav/flac/ogg/mp3)</span>
+            <span className="filebtn">＋ 소음 파일 추가 (wav/flac/ogg/mp3)</span>
             <input type="file" accept="audio/*,.wav,.flac,.ogg,.mp3" style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
           </label>
         </div>
