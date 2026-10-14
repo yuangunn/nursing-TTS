@@ -15,8 +15,9 @@ from typing import Any
 
 import numpy as np
 
-from . import llm, voices as voices_mod
-from .audio.io import normalize_peak, resample, write_wav
+from . import disfluency, llm, verify as verify_mod, voices as voices_mod
+from .audio.augment import AugmentConfig, augment
+from .audio.io import normalize_peak, resample, rms, write_wav
 from .audio.mixer import NoiseClip, NoiseConfig, mix
 from .config import load_settings, output_dir
 from .fake import random_datetime, random_form, random_patient
@@ -44,6 +45,7 @@ class JobItem:
     duration: float = 0.0
     error: str = ""
     spoken_text: str = ""
+    verify: dict[str, Any] | None = None
 
 
 @dataclass
@@ -124,6 +126,29 @@ def _noise_cfg(raw: dict[str, Any] | None, settings: dict[str, Any], rng: random
     )
 
 
+def _augment_cfg(raw: dict[str, Any] | None) -> AugmentConfig:
+    raw = raw or {}
+    return AugmentConfig(
+        enabled=bool(raw.get("enabled", False)),
+        channels=list(raw.get("channels") or ["studio", "smartphone", "lapel", "recorder"]),
+        speed_min=float(raw.get("speed_min", 0.92)), speed_max=float(raw.get("speed_max", 1.08)),
+        speed_prob=float(raw.get("speed_prob", 0.6)), gain_db_range=float(raw.get("gain_db_range", 6.0)),
+        clip_prob=float(raw.get("clip_prob", 0.1)),
+    )
+
+
+def _loudness(audio: np.ndarray, target_dbfs: float) -> np.ndarray:
+    r = rms(audio)
+    if r < 1e-6:
+        return audio
+    gain = (10 ** (target_dbfs / 20)) / r
+    out = audio * gain
+    peak = float(np.max(np.abs(out)))
+    if peak > 0.98:
+        out = out / peak * 0.98
+    return out.astype(np.float32)
+
+
 def generate_one(spec: dict[str, Any], settings: dict[str, Any], custom_noises: list[NoiseClip],
                  item: JobItem | None = None, progress=None) -> dict[str, Any]:
     """spec keys: template, form, patient, datetime, style, seed, voice_id, noise, llm_polish, rounds_voice."""
@@ -158,15 +183,32 @@ def generate_one(spec: dict[str, Any], settings: dict[str, Any], custom_noises: 
             script.tts_text = "\n".join(tts_lines)
             script.spoken_text = spoken
 
+    # --- spoken disfluencies (fillers / restarts / self-corrections)
+    from .korean import to_tts_text as _to_tts
+    level = int(spec.get("disfluency", settings.get("default_disfluency", 0)) or 0)
+    verbatim_text = script.spoken_text
+    disfluency_edits: list[dict[str, Any]] = []
+    if level > 0:
+        verbatim_text, disfluency_edits = disfluency.apply(script.spoken_text, level, random.Random(seed + 11))
+        if disfluency_edits:
+            v_lines = verbatim_text.splitlines()
+            script.tts_text = "\n".join([script.tts_text.splitlines()[0]] +
+                                        [_to_tts(l, random.Random(seed + 13 + i)) for i, l in enumerate(v_lines[1:])])
+
     engine = get_engine(settings)
     voice_id = spec.get("voice_id") or ""
+    voice_obj = voices_mod.get_voice(voice_id) if voice_id else None
     ref = voices_mod.pick_reference(voice_id, rng=rng) if voice_id else None
     if engine.clones_voice and ref is None:
         raise RuntimeError("목소리 복제 엔진에는 등록된 목소리(참조 음성)가 필요합니다. 목소리 등록 탭에서 먼저 녹음하세요.")
 
     paragraphs = [p for p in script.tts_text.splitlines() if p.strip()]
     audio, sr = synthesize_paragraphs(engine, paragraphs, ref, seed, progress=progress)
-    audio = normalize_peak(audio, 0.9)
+    audio = _loudness(normalize_peak(audio, 0.9), float(settings.get("loudness_dbfs", -20.0)))
+
+    # --- channel / speed augmentation on the speech layer
+    aug_cfg = _augment_cfg(spec.get("augment"))
+    audio, aug_info = augment(audio, sr, aug_cfg, np.random.default_rng(seed + 17))
 
     extra_voices = []
     if spec.get("rounds_voice"):
@@ -220,9 +262,24 @@ def generate_one(spec: dict[str, Any], settings: dict[str, Any], custom_noises: 
         "sentences": script.sentences,
         "structured": script.structured,
         "noise": {"enabled": cfg.enabled, "level": cfg.level, "types": cfg.types, "events": events},
+        "augment": aug_info,
+        "disfluency_level": level,
+        "disfluency_edits": disfluency_edits,
+        "verbatim_text": verbatim_text,
+        "voice_name": voice_obj.name if voice_obj else "",
+        "voice_sex": voice_obj.sex if voice_obj else "",
         "sample_rate": sr,
         "duration_sec": round(len(mixed) / sr, 2),
+        "review": {"status": "pending", "note": ""},
     }
+    if settings.get("asr_verify"):
+        ok, _ = verify_mod.available()
+        if ok:
+            if progress:
+                progress(len(paragraphs), len(paragraphs))
+            meta["verify"] = verify_mod.verify(wav_path, script.spoken_text, script.tts_text, settings)
+        else:
+            meta["verify"] = {"error": "faster-whisper 미설치", "passed": None}
     json_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     if item is not None:
         item.files = {"wav": str(wav_path), "txt": str(txt_path), "json": str(json_path)}
@@ -230,6 +287,7 @@ def generate_one(spec: dict[str, Any], settings: dict[str, Any], custom_noises: 
         item.spoken_text = script.spoken_text
         item.patient = patient.name
         item.template = template_key
+        item.verify = meta.get("verify")
     return meta
 
 
@@ -261,10 +319,22 @@ def _run(job: Job, specs: list[dict[str, Any]], custom_noises: list[NoiseClip]) 
 
 
 def start_single(spec: dict[str, Any], custom_noises: list[NoiseClip]) -> Job:
-    job = Job(id=uuid.uuid4().hex[:8], kind="single", total=1, items=[JobItem(index=0)])
+    """One form -> ``variants`` recordings with different seeds (and rotated voices)."""
+    n = max(1, min(int(spec.get("variants") or 1), 20))
+    rng = random.Random(spec.get("seed"))
+    voice_ids = [v for v in (spec.get("voice_ids") or []) if v] or [spec.get("voice_id") or ""]
+    specs = []
+    for i in range(n):
+        sp = dict(spec)
+        if i > 0 or spec.get("seed") is None:
+            sp["seed"] = rng.randrange(1 << 30)
+        sp["voice_id"] = voice_ids[i % len(voice_ids)]
+        specs.append(sp)
+    job = Job(id=uuid.uuid4().hex[:8], kind="single" if n == 1 else "variants", total=n,
+              items=[JobItem(index=i) for i in range(n)])
     with _LOCK:
         _JOBS[job.id] = job
-    threading.Thread(target=_run, args=(job, [spec], custom_noises), daemon=True).start()
+    threading.Thread(target=_run, args=(job, specs, custom_noises), daemon=True).start()
     return job
 
 
@@ -288,11 +358,13 @@ def start_batch(opts: dict[str, Any], custom_noises: list[NoiseClip]) -> Job:
         if n["enabled"] and noise.get("level_jitter", True):
             n["level"] = int(max(0, min(100, int(noise.get("level", 35)) + rng.randint(-15, 15))))
         style = opts.get("style") or rng.choice(["mixed", "mixed", "casual", "formal"])
+        dis = opts.get("disfluency")
+        dis_level = int(dis) if dis not in (None, "", "random") else rng.choices([0, 1, 2, 3], weights=[40, 30, 20, 10])[0]
         specs.append({
             "template": t, "form": form, "patient": patient.__dict__, "datetime": when.isoformat(timespec="minutes"),
             "style": style, "seed": rng.randrange(1 << 30), "voice_id": rng.choice(voice_ids), "noise": n,
             "llm_polish": bool(opts.get("llm_polish")), "rounds_voice": bool(opts.get("rounds_voice")) and rng.random() < 0.4,
-            "folder": str(folder),
+            "folder": str(folder), "disfluency": dis_level, "augment": opts.get("augment") or {},
         })
     job = Job(id=uuid.uuid4().hex[:8], kind="batch", total=count, items=[JobItem(index=i) for i in range(count)],
               folder=str(folder))

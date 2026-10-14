@@ -108,3 +108,41 @@ def test_settings_roundtrip():
     assert s["llm_api_key_set"]
     client.delete("/api/settings/llm_api_key")
     assert not client.get("/api/settings").json()["llm_api_key_set"]
+
+
+def test_variants_disfluency_augment_and_export():
+    save_settings({"tts_engine": "silent"})
+    v = client.post("/api/voices", json={"name": "변형 간호사"}).json()
+    client.post(f"/api/voices/{v['id']}/samples", files={"file": ("rec.wav", _wav_bytes(), "audio/wav")}, data={"transcript": "t"})
+    gen = client.post("/api/generate", json={
+        "template": "s5", "form": client.get("/api/templates/s5/defaults").json(), "patient": {"name": "박변형"},
+        "datetime": "2026-10-19T08:10", "voice_id": v["id"], "variants": 3, "disfluency": 3,
+        "augment": {"enabled": True, "channels": ["smartphone", "telephone"], "speed_prob": 1.0},
+        "noise": {"enabled": True, "level": 30},
+    }).json()
+    j = _wait(gen["id"], timeout=120)
+    assert j["status"] == "done" and j["total"] == 3 and all(i["status"] == "done" for i in j["items"])
+    metas = [client.get("/api/recordings/meta", params={"rel": i["files"]["wav"].split("/")[-1]}).json() for i in j["items"]]
+    assert {m["augment"]["channel"] for m in metas} <= {"smartphone", "telephone"}
+    assert all(m["augment"]["speed"] != 1.0 for m in metas)
+    assert all(m["disfluency_level"] == 3 for m in metas)
+    assert len({m["spoken_text"] for m in metas}) > 1  # different phrasing per variant
+    recs = client.get("/api/recordings").json()["items"]
+    rel = next(r["rel"] for r in recs if r["patient"] == "박변형")
+    assert client.post("/api/recordings/review", json={"rel": rel, "status": "approved"}).json()["status"] == "approved"
+    rep = client.post("/api/dataset/export", json={"name": "ds_test", "sample_rate": 16000, "only_approved": False}).json()
+    assert rep["total"] >= 3 and "metadata.csv" in rep["files"] and rep["counts"]["train"] >= 1
+    folder = rep["folder"]
+    import os
+    assert os.path.exists(os.path.join(folder, "manifest_train.jsonl")) and os.path.exists(os.path.join(folder, "README.md"))
+    assert client.delete("/api/recordings", params={"rel": rel}).json()["ok"]
+    assert client.get("/api/augment/presets").json()[0]["key"] == "studio"
+    d = client.post("/api/disfluency/preview", json={"text": "시그널.\n혈압 123에 78 입니다. 맥박 72 입니다.", "level": 3, "seed": 2}).json()
+    assert d["text"].startswith("시그널.")
+
+
+def test_cer():
+    from nursing_tts.verify import cer
+    assert cer("혈압 123에 78", "혈압 123에 78") == 0.0
+    assert 0 < cer("혈압 123에 78", "혈압 123에 79") < 0.2
+    assert cer("", "") == 0.0

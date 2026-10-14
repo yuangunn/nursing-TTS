@@ -16,7 +16,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel
 
-from . import __version__, jobs, llm, noise_library, voices as voices_mod
+from . import __version__, dataset, jobs, llm, noise_library, verify as verify_mod, voices as voices_mod
+from .audio.augment import preset_catalogue
 from .audio import noise as noise_mod
 from .audio.mixer import NoiseConfig, level_to_snr_db, mix
 from .config import data_dir, load_settings, output_dir, save_settings
@@ -65,9 +66,23 @@ class PreviewRequest(BaseModel):
     llm_polish: bool = False
 
 
+class AugmentModel(BaseModel):
+    enabled: bool = False
+    channels: list[str] = ["studio", "smartphone", "lapel", "recorder"]
+    speed_min: float = 0.92
+    speed_max: float = 1.08
+    speed_prob: float = 0.6
+    gain_db_range: float = 6.0
+    clip_prob: float = 0.1
+
+
 class GenerateRequest(PreviewRequest):
     voice_id: str = ""
+    voice_ids: list[str] = []          # rotate across these when variants > 1
+    variants: int = 1
     noise: NoiseModel = NoiseModel()
+    augment: AugmentModel = AugmentModel()
+    disfluency: int = 0
     rounds_voice: bool = False
     text_override: str | None = None   # user-edited spoken text (ground truth)
 
@@ -77,6 +92,8 @@ class BatchRequest(BaseModel):
     templates: list[str] = ["s1", "s2", "s3_1", "s3_2", "s4", "s5"]
     voice_ids: list[str] = []
     noise: NoiseModel = NoiseModel()
+    augment: AugmentModel = AugmentModel()
+    disfluency: str | int | None = "random"
     noise_prob: float = 0.5
     style: str | None = None
     llm_polish: bool = False
@@ -102,6 +119,30 @@ class SettingsModel(BaseModel):
     llm_base_url: str | None = None
     default_style: str | None = None
     noise_default_level: int | None = None
+    asr_verify: bool | None = None
+    asr_model: str | None = None
+    asr_device: str | None = None
+    cer_threshold: float | None = None
+    loudness_dbfs: float | None = None
+    default_disfluency: int | None = None
+
+
+class ReviewRequest(BaseModel):
+    rel: str
+    status: str  # approved | rejected | pending
+    note: str = ""
+
+
+class ExportRequest(BaseModel):
+    name: str = ""
+    formats: list[str] = ["ljspeech", "nemo", "whisper", "csv"]
+    split: dict[str, float] = {"train": 0.9, "val": 0.05, "test": 0.05}
+    sample_rate: int = 16000
+    include_fillers: bool = False
+    only_approved: bool = False
+    exclude_rejected: bool = True
+    exclude_failed_verify: bool = True
+    seed: int = 42
 
 
 # ---------------------------------------------------------------------------
@@ -145,7 +186,101 @@ def clear_api_key():
 @app.get("/api/engines")
 def engines():
     s = load_settings()
-    return {"selected": s.get("tts_engine", "auto"), "engines": engine_status(s)}
+    ok, msg = verify_mod.available()
+    return {"selected": s.get("tts_engine", "auto"), "engines": engine_status(s), "asr": {"available": ok, "status": msg}}
+
+
+@app.get("/api/augment/presets")
+def augment_presets():
+    return preset_catalogue()
+
+
+@app.post("/api/disfluency/preview")
+def disfluency_preview(body: dict[str, Any]):
+    from .disfluency import apply
+    text, edits = apply(body.get("text", ""), int(body.get("level", 1)), random.Random(body.get("seed")))
+    return {"text": text, "edits": edits}
+
+
+# ---------------------------------------------------------------------------
+# Recordings (QA review) & dataset export
+# ---------------------------------------------------------------------------
+
+@app.get("/api/recordings")
+def recordings(limit: int = 2000):
+    return {"folder": str(output_dir()), "items": dataset.list_recordings(limit)}
+
+
+@app.get("/api/recordings/meta")
+def recording_meta(rel: str):
+    try:
+        return dataset.load_meta(rel)
+    except FileNotFoundError:
+        raise HTTPException(404, "not found")
+
+
+@app.post("/api/recordings/review")
+def recording_review(body: ReviewRequest):
+    if body.status not in ("approved", "rejected", "pending"):
+        raise HTTPException(400, "bad status")
+    try:
+        return dataset.set_review(body.rel, body.status, body.note)
+    except FileNotFoundError:
+        raise HTTPException(404, "not found")
+
+
+@app.delete("/api/recordings")
+def recording_delete(rel: str):
+    try:
+        dataset.delete_recording(rel)
+    except FileNotFoundError:
+        raise HTTPException(404, "not found")
+    return {"ok": True}
+
+
+@app.post("/api/recordings/verify")
+def recording_verify(body: dict[str, Any]):
+    """Run (or re-run) ASR verification for one recording."""
+    ok, msg = verify_mod.available()
+    if not ok:
+        raise HTTPException(400, msg)
+    try:
+        meta = dataset.load_meta(body["rel"])
+        p = output_dir() / body["rel"]
+    except (FileNotFoundError, KeyError):
+        raise HTTPException(404, "not found")
+    meta["verify"] = verify_mod.verify(p, meta.get("spoken_text", ""), meta.get("tts_text", ""), load_settings())
+    p.with_suffix(".json").write_text(__import__("json").dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+    return meta["verify"]
+
+
+@app.post("/api/dataset/export")
+def dataset_export(body: ExportRequest):
+    try:
+        return dataset.export(body.model_dump())
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(500, f"내보내기 실패: {e}")
+
+
+@app.post("/api/noises/import-folder")
+def noises_import_folder(body: dict[str, Any]):
+    """Import every audio file in a folder (e.g. MUSAN / DEMAND / own ward recordings)."""
+    folder = Path(body.get("path", ""))
+    if not folder.is_dir():
+        raise HTTPException(400, "폴더를 찾을 수 없습니다")
+    added, failed = [], []
+    sr = int(load_settings().get("sample_rate", 24000))
+    for p in sorted(folder.rglob("*")):
+        if p.suffix.lower() not in (".wav", ".flac", ".ogg", ".mp3", ".aiff", ".aif"):
+            continue
+        try:
+            added.append(noise_library.add_custom(p, p.stem, bool(body.get("continuous", False)),
+                                                  float(body.get("gain", 0.5)), sr=sr))
+        except Exception as e:  # noqa: BLE001
+            failed.append({"file": p.name, "error": str(e)})
+        if len(added) >= int(body.get("limit", 200)):
+            break
+    return {"added": added, "failed": failed}
 
 
 # ---------------------------------------------------------------------------

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import JobProgress from "../components/JobProgress";
+import AugmentPanel from "../components/AugmentPanel";
 import NoisePanel from "../components/NoisePanel";
-import { DEFAULT_NOISE, get, Job, NoiseSettings, post, Settings, TemplateSchema, Voice } from "../lib/api";
+import { AugmentSettings, DEFAULT_AUGMENT, DEFAULT_NOISE, get, Job, NoiseSettings, post, Settings, TemplateSchema, Voice } from "../lib/api";
 
 export default function BatchPage() {
   const [templates, setTemplates] = useState<TemplateSchema[]>([]);
@@ -16,6 +17,8 @@ export default function BatchPage() {
   const [llm, setLlm] = useState(false);
   const [rounds, setRounds] = useState(false);
   const [folder, setFolder] = useState("");
+  const [augment, setAugment] = useState<AugmentSettings>({ ...DEFAULT_AUGMENT, enabled: true });
+  const [disfluency, setDisfluency] = useState<number | "random">("random");
   const [jobId, setJobId] = useState<string | null>(null);
   const [job, setJob] = useState<Job | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -40,7 +43,7 @@ export default function BatchPage() {
     try {
       const j = await post<Job>("/api/batch", {
         count, templates: sel, voice_ids: voiceIds, noise, noise_prob: noiseProb, style: style || null,
-        llm_polish: llm, rounds_voice: rounds, folder_name: folder,
+        llm_polish: llm, rounds_voice: rounds, folder_name: folder, augment, disfluency,
       });
       setJobId(j.id);
     } catch (e) {
@@ -100,6 +103,7 @@ export default function BatchPage() {
             <label><input type="checkbox" checked={rounds} onChange={(e) => setRounds(e.target.checked)} /> 일부 녹음에 다른 환자 회진 음성 섞기</label>
           </div>
         </div>
+        <AugmentPanel value={augment} onChange={setAugment} disfluency={disfluency} onDisfluency={setDisfluency} allowRandomDisfluency />
         <NoisePanel
           value={noise}
           onChange={setNoise}

@@ -66,6 +66,22 @@ export default function NoisePanel({ value, onChange, extra }: Props) {
     }
   };
 
+  const importFolder = async () => {
+    const dir = await window.nursing?.chooseDirectory();
+    if (!dir) return;
+    setErr("");
+    try {
+      const r = await fetch(apiUrl("/api/noises/import-folder"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: dir }) });
+      if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+      const j = await r.json();
+      await load();
+      onChange({ ...value, types: [...value.types, ...j.added.map((a: { id: string }) => a.id)] });
+      if (j.failed.length) setErr(`${j.failed.length}개 파일 실패: ${j.failed.map((f: { file: string }) => f.file).join(", ")}`);
+    } catch (e) {
+      setErr(String(e));
+    }
+  };
+
   const remove = async (k: string) => {
     if (!confirm("이 소음 파일을 삭제할까요?")) return;
     await fetch(apiUrl(`/api/noises/${k}`), { method: "DELETE" });
@@ -128,6 +144,9 @@ export default function NoisePanel({ value, onChange, extra }: Props) {
             <input type="file" accept="audio/*,.wav,.flac,.ogg,.mp3" style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
           </label>
         </div>
+        {window.nursing && (
+          <div className="narrow"><button onClick={importFolder} title="MUSAN, DEMAND 같은 공개 소음 데이터셋 폴더나 직접 녹음한 병동 소음 폴더를 한 번에 가져옵니다">📁 폴더째 가져오기</button></div>
+        )}
       </div>
       {err && <div className="error">{err}</div>}
     </div>

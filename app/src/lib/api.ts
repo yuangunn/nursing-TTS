@@ -154,6 +154,65 @@ export interface NoiseSettings {
   density: number;
   reverb: boolean;
 }
+export interface AugmentSettings {
+  enabled: boolean;
+  channels: string[];
+  speed_min: number;
+  speed_max: number;
+  speed_prob: number;
+  gain_db_range: number;
+  clip_prob: number;
+}
+export const DEFAULT_AUGMENT: AugmentSettings = {
+  enabled: false,
+  channels: ["studio", "smartphone", "lapel", "recorder"],
+  speed_min: 0.92,
+  speed_max: 1.08,
+  speed_prob: 0.6,
+  gain_db_range: 6,
+  clip_prob: 0.1,
+};
+export interface VerifyInfo {
+  hyp?: string;
+  cer?: number;
+  cer_phonetic?: number;
+  cer_best?: number;
+  threshold?: number;
+  passed: boolean | null;
+  error?: string;
+}
+export interface RecordingItem {
+  rel: string;
+  name: string;
+  size: number;
+  mtime: number;
+  template?: string;
+  record_kind?: string;
+  patient?: string;
+  voice_id?: string;
+  voice_name?: string;
+  engine?: string;
+  duration?: number;
+  noise?: boolean;
+  channel?: string;
+  disfluency?: number;
+  review?: string;
+  review_note?: string;
+  verify?: VerifyInfo | null;
+  signal?: string;
+  spoken_text?: string;
+  verbatim_text?: string;
+}
+export interface ExportReport {
+  name: string;
+  folder: string;
+  total: number;
+  total_duration_sec: number;
+  counts: { train: number; val: number; test: number };
+  skipped: Record<string, number>;
+  files: string[];
+  speakers: Record<string, { name: string; count: number; duration: number }>;
+}
 export interface VoiceSample {
   id: string;
   file: string;
@@ -180,6 +239,7 @@ export interface JobItem {
   duration: number;
   error: string;
   spoken_text: string;
+  verify?: VerifyInfo | null;
 }
 export interface Job {
   id: string;
@@ -218,6 +278,12 @@ export interface Settings {
   llm_base_url: string;
   default_style: string;
   noise_default_level: number;
+  asr_verify: boolean;
+  asr_model: string;
+  asr_device: string;
+  cer_threshold: number;
+  loudness_dbfs: number;
+  default_disfluency: number;
   _output_dir_resolved: string;
   _data_dir: string;
 }

@@ -10,6 +10,17 @@
 - 가상 환자 대량 생성: 환자·날짜·상태를 무작위로 만들어 N개 일괄 생성
 - BYOK LLM(선택): Anthropic 또는 OpenAI 호환 API 키를 넣으면 규칙 기반 대본을 더 자연스럽게 다듬음
 
+## 유사 도구에서 가져온 기능
+
+| 기능 | 어디서 | 이 앱에서 |
+|---|---|---|
+| ASR 되읽기 검증 (CER 기준 자동 플래그, 재검증) | TTS 데이터셋 생성기(qwen3-tts-dataset-generator 등)의 validate 단계 | 설정 → ASR 검증 (faster-whisper), 결과물 탭 CER 배지·필터 |
+| 승인/반려 리뷰, 반려 제외 내보내기 | 데이터 라벨링 도구의 QA 흐름 | 결과물·QA 탭 (A/R 버튼, 상태는 .json에 저장) |
+| LJSpeech `metadata.csv`, NeMo `manifest.jsonl`, Whisper 파인튜닝 jsonl, 화자 층화 train/val/test, report.json, 데이터셋 카드 | Piper/Coqui/NeMo/HF 학습 관례 | 결과물 탭 → 데이터셋 내보내기 (16 kHz 재샘플 포함) |
+| 말속도 섭동, 마이크/채널 시뮬레이션(스마트폰·핀마이크·녹음기·전화 대역·원거리), 음량 편차, 클리핑 | Kaldi/ESPnet ASR 증강 관례 | 증강 패널 (녹음 단위로 무작위 선택, 메타에 기록) |
+| 구어 흐트러짐: 추임새("음…"), 말 반복, 숫자 자기정정("37.4, 아니 37.1") | 현장 구술 데이터 특성 | 증강 패널 → 구어 흐트러짐 0~3. 정답 텍스트는 깔끔하게, verbatim은 별도 저장 |
+| 음량 정규화, 같은 입력의 N개 변형 생성, 소음 폴더(MUSAN/DEMAND) 일괄 가져오기 | 데이터셋 파이프라인 관례 | 설정 → 음량 정규화, 녹음 생성 → 변형 수, 소음 패널 → 폴더째 가져오기 |
+
 ## 결과물
 
 `출력폴더/{시그널발화시각}_{환자명}.wav` 와 같은 이름의 `.txt`(발화한 정답 텍스트), `.json`(구조화 데이터 + TTS 발음 텍스트 + 소음 이벤트 + 메타)이 함께 저장됩니다.
@@ -19,6 +30,8 @@
 20261018_1110_홍길동.txt   ← "2026년 10월 18일 오전 11시 10분 홍길동 님 인계 기록입니다. 과거력 HTN, 당뇨 있고 ..."
 20261018_1110_홍길동.json  ← spoken_text / tts_text / structured(form) / noise.events / seed ...
 ```
+
+내보낸 데이터셋은 `출력폴더/_exports/<이름>/`에 `wavs/`(16 kHz mono) + `metadata.csv`(LJSpeech) + `manifest_*.jsonl`(NeMo) + `whisper_*.jsonl` + `dataset.csv` + `report.json` + `README.md`(데이터셋 카드)로 저장됩니다.
 
 `tts_text`는 숫자·약어를 모두 한글 발음으로 바꾼 텍스트("혈압 백이십삼 에 구십, 에이치티엔")로, 모델이 실제로 읽은 발음의 기록입니다.
 

@@ -45,6 +45,12 @@ DEFAULTS: dict[str, Any] = {
     "llm_base_url": "",
     "default_style": "mixed",      # formal | casual | mixed
     "noise_default_level": 35,     # 0..100
+    "asr_verify": False,           # transcribe each clip with faster-whisper and flag high CER
+    "asr_model": "small",          # tiny | base | small | medium | large-v3
+    "asr_device": "auto",
+    "cer_threshold": 0.25,
+    "loudness_dbfs": -20.0,        # RMS loudness target for the speech layer
+    "default_disfluency": 0,       # 0..3
 }
 
 

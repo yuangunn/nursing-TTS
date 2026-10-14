@@ -191,6 +191,26 @@ export default function SettingsPage() {
         </div>
 
         <div className="panel">
+          <h2>ASR 검증 (품질 게이트) <span className="hint">생성 직후 Whisper로 되읽어 CER이 높으면 표시</span></h2>
+          <div className="muted" style={{ marginBottom: 6 }}>설치: <span className="kbd">pip install faster-whisper</span> (백엔드 venv). 합성이 대본과 다르게 나온 클립을 자동으로 걸러 학습 데이터 오염을 막습니다. 결과물 탭에서 개별 재검증도 가능합니다.</div>
+          <div className="row">
+            <div className="narrow">
+              <label style={{ color: "inherit", fontSize: 13 }}><input type="checkbox" checked={s.asr_verify} onChange={(e) => save({ asr_verify: e.target.checked })} /> 생성 시 자동 검증</label>
+            </div>
+            <div>
+              <label>Whisper 모델</label>
+              <select value={s.asr_model} onChange={(e) => save({ asr_model: e.target.value })}>
+                {["tiny", "base", "small", "medium", "large-v3"].map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+            <div className="narrow">
+              <label>CER 기준</label>
+              <input type="number" step={0.05} min={0.05} max={1} value={s.cer_threshold} onChange={(e) => save({ cer_threshold: Number(e.target.value) })} />
+            </div>
+          </div>
+        </div>
+
+        <div className="panel">
           <h2>기본값</h2>
           <div className="row">
             <div>
@@ -204,6 +224,14 @@ export default function SettingsPage() {
             <div>
               <label>기본 소음 크기</label>
               <input type="number" min={0} max={100} value={s.noise_default_level} onChange={(e) => save({ noise_default_level: Number(e.target.value) })} />
+            </div>
+            <div>
+              <label>음성 음량 정규화 (RMS dBFS)</label>
+              <input type="number" step={1} min={-35} max={-10} value={s.loudness_dbfs} onChange={(e) => save({ loudness_dbfs: Number(e.target.value) })} />
+            </div>
+            <div>
+              <label>기본 구어 흐트러짐 (0~3)</label>
+              <input type="number" min={0} max={3} value={s.default_disfluency} onChange={(e) => save({ default_disfluency: Number(e.target.value) })} />
             </div>
           </div>
         </div>

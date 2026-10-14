@@ -2,10 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import FieldInput from "../components/FieldInput";
 import JobProgress from "../components/JobProgress";
 import NoisePanel from "../components/NoisePanel";
+import AugmentPanel from "../components/AugmentPanel";
 import PatientPanel from "../components/PatientPanel";
 import Visualizer from "../components/Visualizer";
 import { useEnergy } from "../lib/energy";
-import { apiUrl, DEFAULT_NOISE, DEFAULT_PATIENT, get, Job, NoiseSettings, nowLocalIso, Patient, post, Settings, TemplateSchema, Voice } from "../lib/api";
+import { apiUrl, AugmentSettings, DEFAULT_AUGMENT, DEFAULT_NOISE, DEFAULT_PATIENT, get, Job, NoiseSettings, nowLocalIso, Patient, post, Settings, TemplateSchema, Voice } from "../lib/api";
 
 interface Preview {
   spoken_text: string;
@@ -29,6 +30,9 @@ export default function RecordPage() {
   const [llm, setLlm] = useState(false);
   const [noise, setNoise] = useState<NoiseSettings>(DEFAULT_NOISE);
   const [rounds, setRounds] = useState(false);
+  const [augment, setAugment] = useState<AugmentSettings>(DEFAULT_AUGMENT);
+  const [disfluency, setDisfluency] = useState<number | "random">(0);
+  const [variants, setVariants] = useState(1);
   const [voices, setVoices] = useState<Voice[]>([]);
   const [voiceId, setVoiceId] = useState("");
   const [jobId, setJobId] = useState<string | null>(null);
@@ -110,6 +114,7 @@ export default function RecordPage() {
       const job = await post<Job>("/api/generate", {
         template: tkey, form, patient, datetime: when, style, seed, llm_polish: llm && !edited,
         voice_id: voiceId, noise, rounds_voice: rounds, text_override: edited ?? undefined,
+        augment, disfluency: disfluency === "random" ? 1 : disfluency, variants,
       });
       setJobId(job.id);
     } catch (e) {
@@ -216,6 +221,8 @@ export default function RecordPage() {
           }
         />
 
+        <AugmentPanel value={augment} onChange={setAugment} disfluency={disfluency} onDisfluency={setDisfluency} />
+
         <div className="panel highlight">
           <h2>녹음 생성</h2>
           <div className="row">
@@ -229,17 +236,28 @@ export default function RecordPage() {
               </select>
             </div>
             <div className="narrow">
+              <label>변형 수</label>
+              <input type="number" min={1} max={20} value={variants} onChange={(e) => setVariants(Math.max(1, Math.min(20, Number(e.target.value))))} style={{ width: 70 }} title="같은 체크 상태로 말투·소음이 다른 녹음을 여러 개 생성" />
+            </div>
+            <div className="narrow">
               <label>
                 <input type="checkbox" checked={llm} disabled={!settings || settings.llm_provider === "none" || edited !== null} onChange={(e) => setLlm(e.target.checked)} /> 생성 시 LLM 다듬기
               </label>
             </div>
             <div className="narrow">
-              <button className="primary" onClick={generate} disabled={!preview || (selectedEngineClones && !voiceId)}>🎙 발화 + 녹음 저장</button>
+              <button className="primary" onClick={generate} disabled={!preview || (selectedEngineClones && !voiceId)}>🎙 발화 + 녹음 저장{variants > 1 ? ` ×${variants}` : ""}</button>
             </div>
           </div>
           {!voices.length && <div className="muted">등록된 목소리가 없습니다. "목소리 등록" 탭에서 먼저 녹음하세요. (테스트는 설정에서 시스템/무음 엔진 선택)</div>}
           {err && <div className="error">{err}</div>}
           <JobProgress jobId={jobId} onDone={(j) => { setResult(j); }} />
+          {result && result.total > 1 && (
+            <ul className="list" style={{ marginTop: 8 }}>
+              {result.items.map((i) => (
+                <li key={i.index}><div className="grow">{i.files?.wav?.split(/[\\/]/).pop()} <span className="muted">{i.duration}s</span></div>{i.status === "error" ? <span className="badge bad" title={i.error}>오류</span> : <span className="badge ok">완료</span>}</li>
+              ))}
+            </ul>
+          )}
           {doneItem?.status === "done" && (
             <div style={{ marginTop: 8 }}>
               <div className="ok-text">저장됨: {doneItem.files.wav} ({doneItem.duration}s)</div>
