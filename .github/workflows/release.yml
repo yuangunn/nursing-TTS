@@ -12,55 +12,15 @@ on:
 permissions:
   contents: write
 
-jobs:
-  build:
-    name: Build (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-latest, windows-latest]
-    defaults:
-      run:
-        working-directory: app
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: app/package-lock.json
-      - run: npm ci
-      - name: Build renderer + main
-        run: npm run build
-      - name: Package (macOS dmg + zip, arm64 & x64)
-        if: runner.os == 'macOS'
-        run: npx electron-builder --mac --publish never
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
-      - name: Package (Windows nsis)
-        if: runner.os == 'Windows'
-        run: npx electron-builder --win --publish never
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.os }}
-          path: |
-            app/release/*.dmg
-            app/release/*.zip
-            app/release/*.exe
-          if-no-files-found: error
+env:
+  RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
 
-  release:
-    name: Publish GitHub release
-    needs: build
+jobs:
+  prepare:
+    name: Create draft release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          path: dist
-          merge-multiple: true
-      - run: ls -la dist
       - name: Release notes
         run: |
           cat > notes.md <<'MD'
@@ -80,13 +40,56 @@ jobs:
           - 코드 서명/공증 없음 (베타)
           - 목소리 복제 품질은 선택한 모델과 GPU에 따라 다릅니다
           MD
-      - uses: softprops/action-gh-release@v2
+      - name: Create release if missing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "release $RELEASE_TAG already exists"
+          else
+            gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+              --title "$RELEASE_TAG" --notes-file notes.md --prerelease --target "$GITHUB_SHA"
+          fi
+
+  build:
+    name: Build (${{ matrix.os }})
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    defaults:
+      run:
+        working-directory: app
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
-          name: ${{ github.event.inputs.tag || github.ref_name }}
-          prerelease: true
-          body_path: notes.md
-          files: |
-            dist/*.dmg
-            dist/*.zip
-            dist/*.exe
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - name: Build renderer + main
+        run: npm run build
+      - name: Package (macOS dmg + zip, arm64 & x64)
+        if: runner.os == 'macOS'
+        run: npx electron-builder --mac --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - name: Package (Windows nsis)
+        if: runner.os == 'Windows'
+        run: npx electron-builder --win --publish never
+      - name: List outputs
+        run: ls -la release
+      # Upload straight to the GitHub release: release assets do not count
+      # against the Actions artifact storage quota.
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          files=(release/*.dmg release/*.zip release/*.exe)
+          if [ ${#files[@]} -eq 0 ]; then echo "no installers found"; exit 1; fi
+          gh release upload "$RELEASE_TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
