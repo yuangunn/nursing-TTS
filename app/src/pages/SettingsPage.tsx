@@ -221,6 +221,31 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        <div className="panel">
+          <h2>회진 대화 소음 <span className="hint">등록 목소리로 읽은 뒤 역할마다 음높이(반음)와 말속도(1 = 그 목소리 본래 속도)를 바꿉니다</span></h2>
+          <div className="row">
+            {(["doctor", "patient", "nurse"] as const).map((role) => (
+              <div key={role}>
+                <label>{{ doctor: "의사", patient: "환자", nurse: "다른 간호사" }[role]}</label>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <input type="number" step={0.5} min={-12} max={12} style={{ width: 70 }} title="반음 (−: 낮게, +: 높게)"
+                    value={s.rounds_shift?.[role] ?? 0}
+                    onChange={(e) => save({ rounds_shift: { ...s.rounds_shift, [role]: Number(e.target.value) } })} />
+                  <span className="muted">반음</span>
+                  <input type="number" step={0.05} min={0.6} max={1.6} style={{ width: 70 }} title="말속도 배율"
+                    value={s.rounds_tempo?.[role] ?? 1}
+                    onChange={(e) => save({ rounds_tempo: { ...s.rounds_tempo, [role]: Number(e.target.value) } })} />
+                  <span className="muted">배속</span>
+                </div>
+              </div>
+            ))}
+            <div>
+              <label>줄마다 속도 흔들기 (±)</label>
+              <input type="number" step={0.01} min={0} max={0.3} value={s.rounds_tempo_jitter ?? 0.08} onChange={(e) => save({ rounds_tempo_jitter: Number(e.target.value) })} />
+            </div>
+          </div>
+        </div>
+
         <BackendHelp dir={backendDir} log={log} />
       </div>
     </div>

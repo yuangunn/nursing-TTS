@@ -51,6 +51,10 @@ DEFAULTS: dict[str, Any] = {
     "auto_style_expand": True,     # derive ~고요,/~어요. from formal phrases
     "signal_format": "strict",     # strict | <format key> | random
     "signal_aliases": False,       # allow kind aliases (간호정보조사지, 퇴원 교육 ...) in the signal
+    # rounds-dialogue noise: per-role pitch shift (semitones) and tempo (1.0 = the registered voice's own pace)
+    "rounds_shift": {"doctor": -4.0, "patient": -1.0, "nurse": 3.0},
+    "rounds_tempo": {"doctor": 1.05, "patient": 0.9, "nurse": 1.15},
+    "rounds_tempo_jitter": 0.08,   # +-random tempo per line so speakers don't sound metronomic
 }
 
 

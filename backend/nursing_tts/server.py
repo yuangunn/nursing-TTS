@@ -130,6 +130,9 @@ class SettingsModel(BaseModel):
     auto_style_expand: bool | None = None
     signal_format: str | None = None
     signal_aliases: bool | None = None
+    rounds_shift: dict[str, float] | None = None
+    rounds_tempo: dict[str, float] | None = None
+    rounds_tempo_jitter: float | None = None
 
 
 class ReviewRequest(BaseModel):
@@ -786,7 +789,10 @@ def noises_rounds(body: dict[str, Any] | None = None):
         ok, status = engine.available()
         if not ok:
             raise HTTPException(400, f"시스템 TTS를 쓸 수 없습니다 ({status})")
-    audio, dialogue = render(engine, rng, sr=sr, turns=int(body.get("turns", 6)), ref=ref)
+    audio, dialogue = render(engine, rng, sr=sr, turns=int(body.get("turns", 6)), ref=ref,
+                             shift=body.get("shift") or settings.get("rounds_shift"),
+                             tempo=body.get("tempo") or settings.get("rounds_tempo"),
+                             jitter=float(settings.get("rounds_tempo_jitter", 0.08)))
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
         tmp_path = Path(tmp.name)
     try:
