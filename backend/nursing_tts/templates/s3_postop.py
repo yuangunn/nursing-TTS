@@ -10,7 +10,7 @@ TEMPLATE = RecordTemplate(
     intros=["{name}님 진단명 {dx}, {surgery_en}, {surgery_abbr} 수술후 간호기록 시작합니다.",
             "진단명 {dx}, {surgery} 환자분 수술 후 간호기록입니다.",
             "{dx}(으)로 {surgery} 시행하신 {name}님 수술 후 간호기록 시작합니다."],
-    closings=["이상 {surgery_abbr} 수술후 간호기록 마치겠습니다.", "이상 수술 후 간호기록 마치겠습니다.", "수술후 간호기록 이상입니다."],
+    closings=["여기까지 {name} 님 수술 후 간호기록 마치겠습니다.", "이상 {surgery_abbr} 수술후 간호기록 마치겠습니다.", "이상 수술 후 간호기록 마치겠습니다.", "수술후 간호기록 이상입니다."],
     sections=[
         Section("op", "수술/검사 정보", hint="시행 수술명/검사명, 시행 일시, POD", fields=[
             sel("timing", "시점", [

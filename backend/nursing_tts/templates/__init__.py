@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from .base import RecordTemplate
-from . import s1_admission, s2_preop, s3_postop, s3_2_event, s4_discharge, s5_handover
+from . import s1_admission, s2_preop, s3_postop, s3_2_event, s4_discharge, s5_handover, s6_progress
 from .extra_phrases import EXTRA
 
 TEMPLATES: dict[str, RecordTemplate] = {
@@ -13,6 +13,7 @@ TEMPLATES: dict[str, RecordTemplate] = {
         s3_2_event.TEMPLATE,
         s4_discharge.TEMPLATE,
         s5_handover.TEMPLATE,
+        s6_progress.TEMPLATE,
     )
 }
 

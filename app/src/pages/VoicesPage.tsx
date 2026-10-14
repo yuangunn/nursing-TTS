@@ -19,6 +19,7 @@ export default function VoicesPage() {
   const [err, setErr] = useState("");
   const [testUrl, setTestUrl] = useState("");
   const [testNote, setTestNote] = useState("");
+  const [msgLong, setMsgLong] = useState("");
   const timer = useRef<number | null>(null);
   const setEnergy = useEnergy();
 
@@ -98,6 +99,33 @@ export default function VoicesPage() {
     } finally {
       setBusy("");
     }
+  };
+
+  const uploadLong = async (file: File) => {
+    if (!voice) return;
+    setErr("");
+    setBusy("긴 녹음을 6~14초 조각으로 자르고 전사하는 중… (Whisper 설치 시 수십 초)");
+    try {
+      const fd = new FormData();
+      fd.append("file", file, file.name);
+      fd.append("max_clips", "8");
+      fd.append("transcribe", "true");
+      const r = await fetch(apiUrl(`/api/voices/${voice.id}/samples/from-long`), { method: "POST", body: fd });
+      if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+      const j = await r.json();
+      await load();
+      setMsgLong(`${j.added.length}개 샘플 추가${j.transcribed ? " (자동 전사됨 — 내용을 확인해 고쳐 주세요)" : " (전사 없음 — faster-whisper 설치 시 자동 전사, 지금은 각 샘플의 대본을 직접 입력)"}`);
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const editTranscript = async (sid: string, text: string) => {
+    if (!voice) return;
+    await fetch(apiUrl(`/api/voices/${voice.id}/samples/${sid}`), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ transcript: text }) });
+    await load();
   };
 
   const removeSample = async (sid: string) => {
@@ -205,10 +233,19 @@ export default function VoicesPage() {
                 <div className="narrow">
                   <label style={{ display: "inline-block" }}>
                     <span className="filebtn">파일로 추가</span>
-                    <input type="file" accept="audio/*,.wav,.flac,.ogg,.mp3,.m4a" style={{ display: "none" }} disabled={!transcript.trim()}
+                    <input type="file" accept="audio/*,.wav,.flac,.ogg,.mp3,.m4a,.aac,.webm" style={{ display: "none" }} disabled={!transcript.trim()}
                       onChange={(e) => e.target.files?.[0] && upload(e.target.files[0], e.target.files[0].name)} />
                   </label>
                 </div>
+              </div>
+              <div className="row" style={{ marginTop: 10 }}>
+                <div className="narrow">
+                  <label style={{ display: "inline-block" }}>
+                    <span className="filebtn">🎞 긴 녹음(2~3분)에서 샘플 자동 추출</span>
+                    <input type="file" accept="audio/*,.wav,.flac,.ogg,.mp3,.m4a,.aac,.webm" style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && uploadLong(e.target.files[0])} />
+                  </label>
+                </div>
+                <div className="muted">실제 녹음한 간호기록 파일(m4a/mp3/wav)을 올리면 무음 구간 기준으로 6~14초 조각을 골라 샘플로 등록합니다. {msgLong}</div>
               </div>
               {busy && <div className="muted">{busy}</div>}
               {err && <div className="error">{err}</div>}
@@ -221,8 +258,9 @@ export default function VoicesPage() {
                   <li key={s.id}>
                     <button className="small" title="기본으로" onClick={() => setPrimary(s.id)}>{voice.primary_sample === s.id ? "★" : "☆"}</button>
                     <div className="grow">
-                      <div><b>{scripts.find((x) => x.id === s.script_id)?.title || "직접 입력"}</b> <span className="muted">{s.duration}s</span></div>
-                      <div className="muted" style={{ fontSize: 12 }}>{s.transcript}</div>
+                      <div><b>{scripts.find((x) => x.id === s.script_id)?.title || (s.script_id === "auto" ? "긴 녹음에서 추출" : "직접 입력")}</b> <span className="muted">{s.duration}s</span></div>
+                      <input type="text" defaultValue={s.transcript} placeholder="이 샘플에서 실제로 말한 내용 (전사)" style={{ fontSize: 12, marginTop: 2 }}
+                        onBlur={(e) => e.target.value !== s.transcript && editTranscript(s.id, e.target.value)} />
                       <audio controls preload="none" src={apiUrl(`/api/voices/${voice.id}/samples/${s.id}/audio`)} style={{ height: 28 }} />
                     </div>
                     <button className="small danger" onClick={() => removeSample(s.id)}>삭제</button>

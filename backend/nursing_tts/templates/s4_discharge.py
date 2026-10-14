@@ -9,7 +9,7 @@ TEMPLATE = RecordTemplate(
     intros=["{name}님 {dx} 환자분, {surgery_en}, {surgery_abbr} POD {pod}. 퇴원 간호기록 시작합니다.",
             "{dx}(으)로 {surgery} 시행하신 {name}님 POD {pod}, 퇴원 교육 기록입니다.",
             "{surgery_abbr} POD {pod} {name}님 퇴원 간호기록 시작합니다."],
-    closings=["이상 퇴원 간호기록 마치겠습니다.", "이상 퇴원 교육 기록 마칩니다.", "퇴원 간호기록 이상입니다."],
+    closings=["여기까지 {name} 님 퇴원 교육 마치겠습니다.", "이상 퇴원 간호기록 마치겠습니다.", "이상 퇴원 교육 기록 마칩니다.", "퇴원 간호기록 이상입니다."],
     sections=[
         Section("info", "퇴원 정보", hint="퇴원 예정일, 입원 경과 요약", fields=[
             txt("discharge_date", "퇴원 예정일", placeholder="예: 내일 10월 18일 오전",

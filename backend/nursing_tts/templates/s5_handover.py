@@ -10,7 +10,7 @@ TEMPLATE = RecordTemplate(
     intros=["{name}님 인수인계 시작합니다. {name}님 {age}세 {sex}, {dx}(으)로 {op_date} {surgery_ko} 시행하고 오늘 POD {pod}, {dept} {prof} 교수 환자입니다.",
             "{name}님 {age}세 {sex}, {dx}, {surgery} POD {pod}, {dept} {prof} 교수님 환자분입니다.",
             "{dx} {surgery_abbr} POD {pod} {prof} 교수님 환자 {name}님 {age}세 {sex} 인계드리겠습니다."],
-    closings=["이상 인계기록지 마치겠습니다.", "이상 인계 마치겠습니다.", "인계 이상입니다.", "이상으로 {name}님 인계 마치겠습니다."],
+    closings=["여기까지 {name} 님 인계 마치겠습니다.", "이상 인계기록지 마치겠습니다.", "이상 인계 마치겠습니다.", "인계 이상입니다.", "이상으로 {name}님 인계 마치겠습니다."],
     sections=[
         Section("b", "B 배경", hint="주요 과거력, 알레르기, 격리, 코드 상태(DNR), 보호자", fields=[
             multi("history", "과거력", [

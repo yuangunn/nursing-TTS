@@ -36,6 +36,10 @@ SURGERY_KO = {
     "PPPD": "유문보존 췌십이지장절제술",
     "Hepatectomy": "간절제술",
     "Thyroidectomy": "갑상선절제술",
+    "ORIF ankle": "발목 골절 관혈적 정복 및 내고정술",
+    "Shoulder arthroplasty": "어깨 관절 치환술",
+    "Total laparoscopic hysterectomy": "복강경 전자궁절제술",
+    "Cataract surgery": "백내장 수술",
 }
 
 SURGERY_ABBR = {
@@ -49,6 +53,8 @@ SURGERY_ABBR = {
     "Laparoscopic appendectomy": "lapa appe",
     "Total knee replacement arthroplasty": "TKRA",
     "Total hip replacement arthroplasty": "THRA",
+    "ORIF ankle": "ankle ORIF",
+    "Total laparoscopic hysterectomy": "TLH",
 }
 
 
@@ -146,7 +152,10 @@ def realize_vitals(value: dict[str, Any], rng: random.Random, verb_style: str = 
         return ""
     lead = rng.choice(_vf("lead"))
     joiner = rng.choice([", ", ", ", " "])
-    ending = rng.choice(_vf("ending_formal") if verb_style == "formal" else _vf("ending"))
+    if verb_style == "chart":
+        ending = rng.choice(["측정됨.", "체크됨.", "확인됨.", "임."])
+    else:
+        ending = rng.choice(_vf("ending_formal") if verb_style == "formal" else _vf("ending"))
     body = joiner.join(parts)
     return f"{lead}{body} {ending}".replace("  ", " ")
 
@@ -178,6 +187,8 @@ def _finish(phrase: str | None, local: dict[str, Any], rng: random.Random, style
     text = phrase_store.stylize(text, rng, style, allow_connective=not force_close)
     if force_close and _is_connective(text):
         text = close_sentence(text)
+        if style == "chart":
+            text = phrase_store.chart_form(text)
     return text
 
 
@@ -185,7 +196,7 @@ def _choose(variants: list[str], rng: random.Random, style: str, force_close: bo
     if not variants:
         return None
     pool = variants
-    if style == "formal":
+    if style in ("formal", "chart"):
         pool = [v for v in variants if not _is_connective(v)] or variants
     elif style == "casual":
         pool = [v for v in variants if _is_connective(v) or "셨" in v or "시고" in v] or variants

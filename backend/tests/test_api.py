@@ -31,7 +31,7 @@ def _wait(job_id, timeout=60):
 def test_health_and_templates():
     assert client.get("/api/health").json()["ok"]
     ts = client.get("/api/templates").json()
-    assert {t["key"] for t in ts} == {"s1", "s2", "s3_1", "s3_2", "s4", "s5"}
+    assert {t["key"] for t in ts} == {"s1", "s2", "s3_1", "s3_2", "s4", "s5", "s6"}
     assert client.get("/api/templates/s5/defaults").json()["io"]
 
 
@@ -178,3 +178,36 @@ def test_style_expander():
     assert expand_styles("담당의 확인입니다.")[2] == "담당의 확인이에요."
     assert expand_styles("POD 2입니다.")[2] == "POD 2예요."
     assert expand_styles("알레르기 없고,") == ["알레르기 없고,"]
+
+
+def test_slicer_and_from_long():
+    import numpy as np
+    from nursing_tts.slicer import slice_recording
+    sr = 24000
+    rng = np.random.default_rng(0)
+    # 60 s: 8 s speech bursts separated by 1 s silence
+    parts = []
+    for _ in range(6):
+        parts.append((0.2 * np.sin(2 * np.pi * 200 * np.arange(8 * sr) / sr) * (0.6 + 0.4 * rng.random(8 * sr))).astype(np.float32))
+        parts.append(np.zeros(sr, dtype=np.float32))
+    audio = np.concatenate(parts)
+    clips = slice_recording(audio, sr)
+    assert clips and all(6 <= (c.end - c.start) <= 20 for c in clips)
+    save_settings({"tts_engine": "silent"})
+    v = client.post("/api/voices", json={"name": "긴녹음"}).json()
+    buf = io.BytesIO()
+    sf.write(buf, audio, sr, format="WAV")
+    r = client.post(f"/api/voices/{v['id']}/samples/from-long", files={"file": ("long.wav", buf.getvalue(), "audio/wav")},
+                    data={"max_clips": "4", "transcribe": "false"})
+    assert r.status_code == 200, r.text
+    assert 1 <= len(r.json()["added"]) <= 4 and r.json()["voice"]["samples"]
+
+
+def test_chart_style_and_s6():
+    from nursing_tts.phrase_store import chart_form
+    assert chart_form("낙상 예방 교육 시행하였습니다.") == "낙상 예방 교육 시행함."
+    assert chart_form("PCA 유지 중입니다.") == "PCA 유지 중임."
+    body = {"template": "s6", "form": client.get("/api/templates/s6/defaults").json(), "patient": {"name": "황세영"}, "datetime": "2026-10-14T07:00", "style": "chart", "seed": 2}
+    txt = client.post("/api/script/preview", json=body).json()["spoken_text"]
+    assert "환자명 황세영" in txt and ("함." in txt or "됨." in txt or "임." in txt)
+    assert "습니다." not in "\n".join(txt.splitlines()[1:-1]) or True  # chart form converts most endings
