@@ -1,0 +1,23 @@
+[project]
+name = "nursing-tts-backend"
+version = "0.1.0"
+description = "Nursing narrative voice-record generator backend (Korean)"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "pydantic>=2.7",
+  "numpy>=1.26",
+  "scipy>=1.12",
+  "soundfile>=0.12",
+  "python-multipart>=0.0.9",
+  "httpx>=0.27",
+  "anthropic>=0.40",
+]
+
+[project.optional-dependencies]
+f5 = ["torch>=2.3", "torchaudio>=2.3", "f5-tts>=1.0"]
+test = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

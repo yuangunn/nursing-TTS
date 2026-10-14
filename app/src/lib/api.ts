@@ -1,0 +1,350 @@
+/* Thin client for the Python backend. */
+
+export interface NursingBridge {
+  getBackendUrl(): Promise<string>;
+  getBackendLog(): Promise<string>;
+  getBackendDir(): Promise<string>;
+  openPath(p: string): Promise<string>;
+  showInFolder(p: string): Promise<void>;
+  chooseDirectory(): Promise<string | null>;
+  chooseFile(filters?: { name: string; extensions: string[] }[]): Promise<string | null>;
+  restartBackend(): Promise<boolean>;
+  onBackendReady(cb: (ok: boolean) => void): void;
+  onBackendLog(cb: (line: string) => void): void;
+}
+
+declare global {
+  interface Window {
+    nursing?: NursingBridge;
+  }
+}
+
+let baseUrl = "http://127.0.0.1:8765";
+
+export async function initApi(): Promise<string> {
+  if (window.nursing) {
+    try {
+      baseUrl = await window.nursing.getBackendUrl();
+    } catch {
+      /* keep default */
+    }
+  }
+  return baseUrl;
+}
+
+export function apiUrl(path: string): string {
+  return baseUrl + path;
+}
+
+async function handle<T>(r: Response): Promise<T> {
+  if (!r.ok) {
+    let msg = `${r.status} ${r.statusText}`;
+    try {
+      const j = await r.json();
+      if (j.detail) msg = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail);
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg);
+  }
+  return (await r.json()) as T;
+}
+
+export async function get<T>(path: string): Promise<T> {
+  return handle<T>(await fetch(apiUrl(path)));
+}
+
+export async function post<T>(path: string, body?: unknown): Promise<T> {
+  return handle<T>(
+    await fetch(apiUrl(path), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
+  );
+}
+
+export async function put<T>(path: string, body: unknown): Promise<T> {
+  return handle<T>(
+    await fetch(apiUrl(path), { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+  );
+}
+
+export async function patch<T>(path: string, body: unknown): Promise<T> {
+  return handle<T>(
+    await fetch(apiUrl(path), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+  );
+}
+
+export async function del<T>(path: string): Promise<T> {
+  return handle<T>(await fetch(apiUrl(path), { method: "DELETE" }));
+}
+
+export async function postForm<T>(path: string, form: FormData): Promise<T> {
+  return handle<T>(await fetch(apiUrl(path), { method: "POST", body: form }));
+}
+
+export async function postBlob(path: string, body: unknown): Promise<{ blob: Blob; headers: Headers }> {
+  const r = await fetch(apiUrl(path), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) {
+    let msg = `${r.status}`;
+    try {
+      msg = (await r.json()).detail || msg;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg);
+  }
+  return { blob: await r.blob(), headers: r.headers };
+}
+
+/* ---- types mirrored from the backend ---- */
+
+export interface OptionSchema {
+  value: string;
+  label: string;
+}
+export interface FieldSchema {
+  key: string;
+  label: string;
+  kind: "select" | "multi" | "number" | "text" | "bool" | "vitals" | "date" | "time";
+  options: OptionSchema[];
+  unit: string;
+  default: unknown;
+  min: number | null;
+  max: number | null;
+  step: number | null;
+  hint: string;
+  example: string;
+  placeholder: string;
+}
+export interface SectionSchema {
+  key: string;
+  title: string;
+  hint: string;
+  fields: FieldSchema[];
+}
+export interface TemplateSchema {
+  key: string;
+  title: string;
+  signal_kind: string;
+  description: string;
+  sections: SectionSchema[];
+}
+export interface Patient {
+  name: string;
+  age: number | null;
+  sex: string;
+  diagnosis: string;
+  surgery: string;
+  professor: string;
+  department: string;
+  pod: number | null;
+  op_date: string;
+  admission_date: string;
+}
+export interface NoiseSettings {
+  enabled: boolean;
+  level: number;
+  types: string[];
+  density: number;
+  reverb: boolean;
+}
+export interface AugmentSettings {
+  enabled: boolean;
+  channels: string[];
+  speed_min: number;
+  speed_max: number;
+  speed_prob: number;
+  gain_db_range: number;
+  clip_prob: number;
+}
+export const DEFAULT_AUGMENT: AugmentSettings = {
+  enabled: false,
+  channels: ["studio", "smartphone", "lapel", "recorder"],
+  speed_min: 0.92,
+  speed_max: 1.08,
+  speed_prob: 0.6,
+  gain_db_range: 6,
+  clip_prob: 0.1,
+};
+export interface VerifyInfo {
+  hyp?: string;
+  cer?: number;
+  cer_phonetic?: number;
+  cer_best?: number;
+  threshold?: number;
+  passed: boolean | null;
+  error?: string;
+}
+export interface RecordingItem {
+  rel: string;
+  name: string;
+  size: number;
+  mtime: number;
+  template?: string;
+  record_kind?: string;
+  patient?: string;
+  voice_id?: string;
+  voice_name?: string;
+  engine?: string;
+  duration?: number;
+  noise?: boolean;
+  channel?: string;
+  disfluency?: number;
+  review?: string;
+  review_note?: string;
+  verify?: VerifyInfo | null;
+  signal?: string;
+  spoken_text?: string;
+  verbatim_text?: string;
+}
+export interface ExportReport {
+  name: string;
+  folder: string;
+  total: number;
+  total_duration_sec: number;
+  counts: { train: number; val: number; test: number };
+  skipped: Record<string, number>;
+  files: string[];
+  speakers: Record<string, { name: string; count: number; duration: number }>;
+}
+export interface VoiceSample {
+  id: string;
+  file: string;
+  transcript: string;
+  script_id: string;
+  duration: number;
+  created: number;
+}
+export interface Voice {
+  id: string;
+  name: string;
+  note: string;
+  sex: string;
+  created: number;
+  samples: VoiceSample[];
+  primary_sample: string;
+}
+export interface JobItem {
+  index: number;
+  status: string;
+  patient: string;
+  template: string;
+  files: Record<string, string>;
+  duration: number;
+  error: string;
+  spoken_text: string;
+  verify?: VerifyInfo | null;
+}
+export interface Job {
+  id: string;
+  kind: string;
+  total: number;
+  done: number;
+  status: string;
+  message: string;
+  error: string;
+  created: number;
+  folder: string;
+  items: JobItem[];
+}
+export interface EngineInfo {
+  key: string;
+  label: string;
+  available: boolean;
+  status: string;
+  clones_voice: boolean;
+}
+export interface Settings {
+  tts_engine: string;
+  device: string;
+  f5_model: string;
+  f5_ckpt_file: string;
+  f5_vocab_file: string;
+  f5_nfe_step: number;
+  f5_speed: number;
+  http_tts_url: string;
+  output_dir: string;
+  sample_rate: number;
+  llm_provider: string;
+  llm_api_key: string;
+  llm_api_key_set: boolean;
+  llm_model: string;
+  llm_base_url: string;
+  default_style: string;
+  noise_default_level: number;
+  asr_verify: boolean;
+  asr_model: string;
+  asr_device: string;
+  cer_threshold: number;
+  loudness_dbfs: number;
+  default_disfluency: number;
+  auto_style_expand: boolean;
+  _output_dir_resolved: string;
+  _data_dir: string;
+}
+export interface NoiseCatalogItem {
+  key: string;
+  label: string;
+  builtin: boolean;
+  continuous: boolean;
+  duration?: number;
+}
+export interface EnrollScript {
+  id: string;
+  title: string;
+  text: string;
+}
+
+export const DEFAULT_PATIENT: Patient = {
+  name: "홍길동",
+  age: 64,
+  sex: "남",
+  diagnosis: "위암",
+  surgery: "Laparoscopic total gastrectomy",
+  professor: "김민수",
+  department: "외과",
+  pod: 2,
+  op_date: "10월 14일",
+  admission_date: "10월 13일",
+};
+
+export const DEFAULT_NOISE: NoiseSettings = {
+  enabled: false,
+  level: 35,
+  types: ["room_tone", "monitor_pulse", "crowd_babble", "footsteps"],
+  density: 4,
+  reverb: false,
+};
+
+export const SURGERIES = [
+  "Laparoscopic total gastrectomy",
+  "Laparoscopic subtotal gastrectomy",
+  "Laparoscopic distal gastrectomy",
+  "Laparoscopic right hemicolectomy",
+  "Laparoscopic anterior resection",
+  "Laparoscopic low anterior resection",
+  "Laparoscopic cholecystectomy",
+  "Laparoscopic appendectomy",
+  "Open hemicolectomy",
+  "Lobectomy",
+  "Mastectomy",
+  "Total knee replacement arthroplasty",
+  "Total hip replacement arthroplasty",
+  "Hysterectomy",
+  "PPPD",
+  "Hepatectomy",
+  "Thyroidectomy",
+];
+
+export function nowLocalIso(): string {
+  const d = new Date();
+  d.setSeconds(0, 0);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
