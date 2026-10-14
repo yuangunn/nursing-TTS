@@ -108,3 +108,28 @@ def test_rounds_pitch_shift_moves_fundamental():
     peak_hz = np.fft.rfftfreq(sr, 1 / sr)[np.argmax(spec)]
     assert 200 <= peak_hz <= 240, peak_hz
     assert pitch_shift(tone, sr, 0) is tone
+
+
+def test_rounds_tempo_per_role_and_settings_override():
+    import random
+    from nursing_tts.rounds import render, time_stretch
+
+    sr = 24000
+    t = np.arange(2 * sr) / sr
+    tone = (0.3 * np.sin(2 * np.pi * 440 * t)).astype(np.float32)
+    fast = time_stretch(tone, 1.25)
+    assert abs(len(fast) / sr - 1.6) < 0.1
+    assert time_stretch(tone, 1.0) is tone
+
+    class Tone:
+        key, label, clones_voice = "tone", "tone", True
+
+        def synthesize(self, text, ref, seed=None):
+            return tone.copy(), sr
+
+    rng = random.Random(5)
+    slow, d = render(Tone(), rng, sr=sr, turns=3, ref=(__import__("pathlib").Path("x.wav"), ""),
+                     shift={"doctor": 0, "patient": 0, "nurse": 0}, tempo={"doctor": 0.7, "patient": 0.7, "nurse": 0.7}, jitter=0)
+    fast, _ = render(Tone(), random.Random(5), sr=sr, turns=3, ref=(__import__("pathlib").Path("x.wav"), ""),
+                     shift={"doctor": 0, "patient": 0, "nurse": 0}, tempo={"doctor": 1.4, "patient": 1.4, "nurse": 1.4}, jitter=0)
+    assert len(slow) > len(fast) * 1.3

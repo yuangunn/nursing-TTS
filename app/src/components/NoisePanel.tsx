@@ -166,7 +166,7 @@ export default function NoisePanel({ value, onChange, extra, voiceId }: Props) {
           <div className="narrow"><button onClick={importFolder} title="MUSAN, DEMAND 같은 공개 소음 데이터셋 폴더나 직접 녹음한 병동 소음 폴더를 한 번에 가져옵니다">📁 폴더째 가져오기</button></div>
         )}
         <div className="narrow">
-          <button onClick={makeRounds} disabled={making} title="의사·환자·간호사 회진 대화를 선택한(없으면 첫) 등록 목소리로 읽고 역할마다 음높이를 바꿔(중년 남성·다른 여성·다른 간호사) 옆 침상에서 들리듯 멀리 보낸 소음 클립을 만듭니다. 복제 엔진이 없으면 시스템 TTS. 누를 때마다 다른 대화가 나옵니다">
+          <button onClick={makeRounds} disabled={making} title="의사·환자·간호사 회진 대화를 선택한(없으면 첫) 등록 목소리로 읽고 역할마다 음높이를 바꿔(중년 남성·다른 여성·다른 간호사) 옆 침상에서 들리듯 멀리 보낸 소음 클립을 만듭니다. 역할별 반음·말속도는 설정 탭 '회진 대화 소음'에서 조절. 복제 엔진이 없으면 시스템 TTS. 누를 때마다 다른 대화가 나옵니다">
             {making ? "만드는 중… (목소리 합성 30~60초)" : "🩺 회진 대화 만들기 (내 목소리 톤 변조)"}
           </button>
         </div>

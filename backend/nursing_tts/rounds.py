@@ -2,9 +2,10 @@
 
 The real "회진" sound in a ward is a conversation two beds away: a doctor asking, the patient
 answering, a nurse reporting.  We script a short exchange, read every line with the registered
-nurse voice (clone engine) and shift the pitch per role so it sounds like a middle-aged man, an
-older woman and another nurse, then push it far away (band-pass + room) with the mixer's extra-voice
-treatment.  Without a clone engine the OS voice is used instead.  Saved as a user noise clip.
+nurse voice (clone engine), then shift pitch and tempo per role so it sounds like a middle-aged
+man, an older woman and another nurse, and push it far away (band-pass + room) with the mixer's
+extra-voice treatment.  Without a clone engine the OS voice is used instead.  Saved as a user
+noise clip.  Per-role pitch/tempo live in settings (``rounds_shift``, ``rounds_tempo``).
 """
 from __future__ import annotations
 
@@ -42,8 +43,9 @@ NURSE = [
     "오늘 복도 세 바퀴 걸으셨고 통증 삼 점입니다.",
 ]
 
-# Pitch shift (semitones) from the registered voice: middle-aged man / older woman / another nurse.
-ROLE_SHIFT = {"doctor": -7.0, "patient": -3.0, "nurse": 2.0}
+# Defaults (settings override): pitch in semitones from the registered voice, tempo 1.0 = its own pace.
+ROLE_SHIFT = {"doctor": -4.0, "patient": -1.0, "nurse": 3.0}
+ROLE_TEMPO = {"doctor": 1.05, "patient": 0.9, "nurse": 1.15}
 # OS-voice fallback: only tempo/pitch via resampling tells the speakers apart.
 _SPEED = {"doctor": 0.9, "patient": 1.1, "nurse": 1.0}
 
@@ -71,11 +73,27 @@ def pitch_shift(audio: np.ndarray, sr: int, semitones: float) -> np.ndarray:
         return speed_perturb(audio, 2 ** (semitones / 12))
 
 
+def time_stretch(audio: np.ndarray, rate: float) -> np.ndarray:
+    """Tempo without pitch change (rate > 1 = faster); resampling fallback changes pitch too."""
+    if abs(rate - 1.0) < 0.01:
+        return audio
+    try:
+        import librosa  # type: ignore
+
+        return librosa.effects.time_stretch(audio.astype(np.float32), rate=rate).astype(np.float32)
+    except ImportError:
+        return speed_perturb(audio, rate)
+
+
 def render(engine, rng: random.Random, sr: int = 24000, turns: int = 6,
-           ref: tuple[Path, str] | None = None) -> tuple[np.ndarray, list[tuple[str, str]]]:
+           ref: tuple[Path, str] | None = None, shift: dict | None = None, tempo: dict | None = None,
+           jitter: float = 0.08) -> tuple[np.ndarray, list[tuple[str, str]]]:
     """Render a rounds conversation as far-away chatter. Returns (audio, dialogue).
 
-    ``ref`` = (sample path, transcript) of a registered voice for a cloning engine; None = OS voice."""
+    ``ref`` = (sample path, transcript) of a registered voice for a cloning engine; None = OS voice.
+    ``shift``/``tempo`` map role -> semitones / tempo factor; each line also gets +-``jitter`` tempo."""
+    shift = {**ROLE_SHIFT, **(shift or {})}
+    tempo = {**ROLE_TEMPO, **(tempo or {})}
     dialogue = make_dialogue(rng, turns)
     pieces: list[np.ndarray] = []
     for role, line in dialogue:
@@ -84,7 +102,11 @@ def render(engine, rng: random.Random, sr: int = 24000, turns: int = 6,
             from .audio.io import resample
             audio = resample(audio, asr, sr)
         audio = trim_silence(audio.astype(np.float32), sr)
-        audio = pitch_shift(audio, sr, ROLE_SHIFT[role]) if ref is not None else speed_perturb(audio, _SPEED[role])
+        if ref is not None:
+            audio = pitch_shift(audio, sr, float(shift[role]))
+            audio = time_stretch(audio, float(tempo[role]) * (1 + rng.uniform(-jitter, jitter)))
+        else:
+            audio = speed_perturb(audio, _SPEED[role])
         pieces.append(audio)
         pieces.append(np.zeros(int(natural_pause(rng) * sr), dtype=np.float32))
     joined = np.concatenate(pieces[:-1]) if pieces else np.zeros(sr, dtype=np.float32)

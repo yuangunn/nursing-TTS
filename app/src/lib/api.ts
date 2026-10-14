@@ -318,6 +318,9 @@ export interface Settings {
   auto_style_expand: boolean;
   signal_format: string;
   signal_aliases: boolean;
+  rounds_shift: Record<string, number>;   // 회진 대화: 역할별 반음 (doctor/patient/nurse)
+  rounds_tempo: Record<string, number>;   // 회진 대화: 역할별 말속도 (1 = 등록 목소리 속도)
+  rounds_tempo_jitter: number;
   _output_dir_resolved: string;
   _data_dir: string;
 }
