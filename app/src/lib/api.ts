@@ -12,8 +12,37 @@ export interface NursingBridge {
   backendInstalled(): Promise<boolean>;
   setupBackend(withF5?: boolean): Promise<{ ok: boolean; message: string }>;
   appVersion(): Promise<string>;
+  cancelSetup(): Promise<boolean>;
+  checkEnvironment(): Promise<EnvInfo>;
+  openExternal(url: string): Promise<void>;
+  onSetupProgress(cb: (p: SetupProgress) => void): () => void;
   onBackendReady(cb: (ok: boolean) => void): void;
   onBackendLog(cb: (line: string) => void): void;
+}
+
+export interface PythonInfo { found: boolean; version: string; path: string; ok: boolean }
+export interface EnvInfo {
+  platform: string;
+  arch: string;
+  appVersion: string;
+  python: PythonInfo;
+  diskFreeGb: number | null;
+  backendInstalled: boolean;
+  backendRunning: boolean;
+  f5Installed: boolean;
+  venvDir: string;
+  backendDir: string;
+  dataDir: string;
+}
+export type SetupPhase = "venv" | "pip" | "deps" | "f5" | "start" | "done" | "error" | "cancelled";
+export interface SetupProgress {
+  phase: SetupPhase;
+  pct: number;
+  message: string;
+  detail: string;
+  elapsed: number;
+  eta: number | null;
+  withF5: boolean;
 }
 
 declare global {

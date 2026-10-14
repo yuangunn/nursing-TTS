@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import Scene from "./components/Scene";
-import { get, initApi } from "./lib/api";
+import Sidebar, { Tab } from "./components/Sidebar";
+import SetupWizard from "./components/SetupWizard";
+import GettingStarted from "./components/GettingStarted";
+import InstallProgress from "./components/InstallProgress";
+import { initApi } from "./lib/api";
+import { isOnboarded, useAppStatus } from "./lib/onboarding";
 import RecordPage from "./pages/RecordPage";
 import VoicesPage from "./pages/VoicesPage";
 import BatchPage from "./pages/BatchPage";
@@ -9,81 +14,87 @@ import ResultsPage from "./pages/ResultsPage";
 import PhrasesPage from "./pages/PhrasesPage";
 import { EnergyContext } from "./lib/energy";
 
-type Tab = "record" | "voices" | "batch" | "results" | "phrases" | "settings";
+const TITLES: Record<Tab, { t: string; d: string }> = {
+  voices: { t: "1 · 목소리 등록", d: "간호사 목소리 샘플을 녹음하거나 파일로 올립니다. 10초짜리 3개면 충분합니다." },
+  record: { t: "2 · 녹음 만들기", d: "기록 종류와 가상 환자, 상태를 고르면 대본이 바로 만들어지고, 버튼 하나로 녹음·정답 텍스트가 저장됩니다." },
+  batch: { t: "3 · 대량 생성", d: "가상 환자를 자동으로 만들어 녹음을 한꺼번에 생성합니다." },
+  results: { t: "4 · 결과물 · 검수", d: "생성된 녹음을 듣고 승인/반려한 뒤 학습용 데이터셋으로 내보냅니다." },
+  phrases: { t: "말투 관리", d: "요소별 말투 변형을 보고 고치거나 추가합니다." },
+  settings: { t: "설정", d: "음성 엔진, 저장 위치, 백엔드 설치 상태." },
+};
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("record");
-  const [backendOk, setBackendOk] = useState<boolean | null>(null);
-  const [engine, setEngine] = useState<string>("");
+  const [ready, setReady] = useState(false);
+  const [wizard, setWizard] = useState(false);
+  const [version, setVersion] = useState("");
   const [energy, setEnergy] = useState(0);
+  const [status, refresh] = useAppStatus();
 
   useEffect(() => {
-    let alive = true;
-    let id: number | undefined;
     (async () => {
       await initApi();
-      const check = async () => {
-        try {
-          await get("/api/health");
-          const e = await get<{ selected: string; engines: { key: string; label: string; available: boolean }[] }>("/api/engines");
-          if (!alive) return;
-          setBackendOk(true);
-          const sel = e.selected === "auto" ? e.engines.find((x) => x.available) : e.engines.find((x) => x.key === e.selected);
-          setEngine(sel ? sel.label : "엔진 없음");
-        } catch {
-          if (alive) setBackendOk(false);
-        }
-      };
-      check();
-      id = window.setInterval(check, 5000);
+      try { setVersion(window.nursing ? await window.nursing.appVersion() : "dev"); } catch { setVersion(""); }
+      setWizard(!isOnboarded());
+      setReady(true);
     })();
-    return () => {
-      alive = false;
-      if (id) window.clearInterval(id);
-    };
+    const open = () => setWizard(true);
+    window.addEventListener("nursing:wizard", open);
+    return () => window.removeEventListener("nursing:wizard", open);
   }, []);
 
-  const tabs: { key: Tab; label: string; icon: string }[] = [
-    { key: "record", label: "녹음 생성", icon: "◉" },
-    { key: "batch", label: "대량 생성", icon: "⧉" },
-    { key: "voices", label: "목소리 등록", icon: "♪" },
-    { key: "results", label: "결과물·QA", icon: "✓" },
-    { key: "phrases", label: "말투 관리", icon: "❝" },
-    { key: "settings", label: "설정", icon: "⚙" },
-  ];
+  if (!ready) return <div className="boot"><div className="logo" /><div>불러오는 중…</div></div>;
+
+  if (wizard) {
+    return (
+      <>
+        <Scene energy={0.2} />
+        <SetupWizard status={status} refresh={refresh} onFinish={(goto) => { setWizard(false); setTab(goto); refresh(); }} />
+      </>
+    );
+  }
+
+  const title = TITLES[tab];
+  const backendDown = status.checked && !status.backendOk;
 
   return (
     <EnergyContext.Provider value={setEnergy}>
       <Scene energy={energy} />
-      <div className="app">
-        <div className="topbar">
-          <div className="brand">
-            <div className="logo" />
+      <div className="shell">
+        <Sidebar tab={tab} onTab={setTab} status={status} version={version} />
+        <div className="main">
+          <div className="page-head">
             <div>
-              <h1>간호기록 음성 녹음 생성기</h1>
-              <small>Nursing Narrative · Voice Studio</small>
+              <h2>{title.t}</h2>
+              <div className="muted">{title.d}</div>
             </div>
+            <button className="ghost small" onClick={() => setWizard(true)} title="처음 설정 마법사를 다시 엽니다">? 도움말 · 처음 설정</button>
           </div>
-          <nav className="tabs">
-            {tabs.map((t) => (
-              <button key={t.key} className={tab === t.key ? "active" : ""} onClick={() => setTab(t.key)}>
-                <span style={{ marginRight: 6, opacity: 0.8 }}>{t.icon}</span>{t.label}
-              </button>
-            ))}
-          </nav>
-          <div className="status">
-            <span className={"dot " + (backendOk === null ? "" : backendOk ? "ok" : "bad")} />
-            {backendOk === null ? "백엔드 연결 중…" : backendOk ? `연결됨 · ${engine}` : "백엔드 연결 안 됨 (설정 탭에서 로그 확인)"}
-          </div>
-        </div>
-        <div className="content">
-          <div key={tab} className="fade-in">
-            {tab === "record" && <RecordPage />}
-            {tab === "batch" && <BatchPage />}
-            {tab === "voices" && <VoicesPage />}
-            {tab === "results" && <ResultsPage />}
-            {tab === "phrases" && <PhrasesPage />}
-            {tab === "settings" && <SettingsPage />}
+          <div className="content">
+            {backendDown && tab !== "settings" && (
+              <div className="callout bad backend-down">
+                <div>
+                  <b>백엔드가 꺼져 있습니다.</b> {status.installed === false ? "아직 설치되지 않았습니다. 아래에서 설치하면 자동으로 켜집니다." : "재시작해 보고, 계속 안 되면 설정의 로그를 확인하세요."}
+                </div>
+                {status.installed === false ? (
+                  <InstallProgress withF5={false} compact onDone={() => refresh()} />
+                ) : (
+                  <div className="row" style={{ marginTop: 8 }}>
+                    <div className="narrow"><button className="primary" onClick={async () => { await window.nursing?.restartBackend(); refresh(); }}>백엔드 재시작</button></div>
+                    <div className="narrow"><button onClick={() => setTab("settings")}>설정·로그 보기</button></div>
+                  </div>
+                )}
+              </div>
+            )}
+            {tab === "record" && !backendDown && <GettingStarted status={status} onTab={setTab} onWizard={() => setWizard(true)} />}
+            <div key={tab} className="fade-in">
+              {tab === "record" && <RecordPage status={status} onTab={setTab} />}
+              {tab === "batch" && <BatchPage />}
+              {tab === "voices" && <VoicesPage />}
+              {tab === "results" && <ResultsPage />}
+              {tab === "phrases" && <PhrasesPage />}
+              {tab === "settings" && <SettingsPage />}
+            </div>
           </div>
         </div>
       </div>

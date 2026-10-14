@@ -4,14 +4,15 @@ interface Props {
   patient: Patient;
   onChange: (p: Patient) => void;
   onRandom?: () => void;
+  step?: number;
 }
 
-export default function PatientPanel({ patient, onChange, onRandom }: Props) {
+export default function PatientPanel({ patient, onChange, onRandom, step }: Props) {
   const set = (k: keyof Patient, v: unknown) => onChange({ ...patient, [k]: v });
   return (
     <div className="panel">
       <h2>
-        가상 환자 정보
+        {step && <span className="step-badge">{step}</span>} 가상 환자 정보 <span className="hint">가명이면 됩니다 · 🎲로 자동 생성</span>
         {onRandom && (
           <button className="small" style={{ marginLeft: "auto" }} onClick={onRandom}>🎲 가상 환자 + 상태 무작위 생성</button>
         )}

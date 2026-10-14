@@ -7,7 +7,9 @@ import PatientPanel from "../components/PatientPanel";
 import SignalSelect from "../components/SignalSelect";
 import Visualizer from "../components/Visualizer";
 import { useEnergy } from "../lib/energy";
-import { apiUrl, AugmentSettings, DEFAULT_AUGMENT, DEFAULT_NOISE, DEFAULT_PATIENT, get, Job, NoiseSettings, nowLocalIso, Patient, post, Settings, TemplateSchema, Voice } from "../lib/api";
+import { apiUrl, AugmentSettings, DEFAULT_AUGMENT, DEFAULT_NOISE, DEFAULT_PATIENT, get, Job, NoiseSettings, nowLocalIso, Patient, post, put, Settings, TemplateSchema, Voice } from "../lib/api";
+import { AppStatus } from "../lib/onboarding";
+import { Tab } from "../components/Sidebar";
 
 interface Preview {
   signal_format?: string;
@@ -20,7 +22,12 @@ interface Preview {
   llm_polished: boolean;
 }
 
-export default function RecordPage() {
+interface Props {
+  status?: AppStatus;
+  onTab?: (t: Tab) => void;
+}
+
+export default function RecordPage({ status, onTab }: Props) {
   const [templates, setTemplates] = useState<TemplateSchema[]>([]);
   const [tkey, setTkey] = useState("s1");
   const [form, setForm] = useState<Record<string, unknown>>({});
@@ -56,7 +63,10 @@ export default function RecordPage() {
       try {
         const ts = await get<TemplateSchema[]>("/api/templates");
         setTemplates(ts);
-        setVoices(await get<Voice[]>("/api/voices"));
+        const vs = await get<Voice[]>("/api/voices");
+        setVoices(vs);
+        const first = vs.find((v) => v.samples.length);
+        if (first) setVoiceId((cur) => cur || first.id);
         const s = await get<Settings>("/api/settings");
         setSettings(s);
         setStyle(s.default_style || "mixed");
@@ -75,7 +85,10 @@ export default function RecordPage() {
     }).catch(() => undefined);
   }, [tkey]);
 
-  const refreshVoices = () => get<Voice[]>("/api/voices").then(setVoices).catch(() => undefined);
+  const refreshVoices = () => get<Voice[]>("/api/voices").then((vs) => { setVoices(vs); const first = vs.find((v) => v.samples.length); if (first) setVoiceId((cur) => cur || first.id); }).catch(() => undefined);
+  const useSystemVoice = async () => {
+    try { setSettings(await put<Settings>("/api/settings", { tts_engine: "system" })); } catch (e) { setErr(String(e)); }
+  };
 
   const doPreview = useCallback(async (opts?: { newSeed?: boolean; llm?: boolean }) => {
     if (!template) return;
@@ -157,7 +170,7 @@ export default function RecordPage() {
     <div className="cols">
       <div>
         <div className="panel">
-          <h2>기록 종류</h2>
+          <h2><span className="step-badge">1</span> 기록 종류 <span className="hint">어떤 간호기록을 읽을지 고릅니다</span></h2>
           <div className="checks">
             {templates.map((t) => (
               <label key={t.key}>
@@ -187,15 +200,15 @@ export default function RecordPage() {
           </div>
         </div>
 
-        <PatientPanel patient={patient} onChange={setPatient} onRandom={randomize} />
+        <PatientPanel patient={patient} onChange={setPatient} onRandom={randomize} step={2} />
 
         <div className="panel">
-          <h2>환자 상태 체크 <span className="hint">체크/선택한 항목만 발화됩니다</span></h2>
+          <h2><span className="step-badge">3</span> 환자 상태 체크 <span className="hint">체크/선택한 항목만 발화됩니다 · 비워 두면 기본 상태로 읽습니다</span></h2>
           {template?.sections.filter((s) => s.group !== "protocol").map((s) => renderSection(s))}
         </div>
 
         <div className="panel">
-          <h2>간호 프로토콜 체크리스트 <span className="hint">정규 차팅 · 간호진단별 중재 항목, 체크한 항목이 "~함" 기록체 또는 선택한 말투로 발화됩니다</span>
+          <h2><span className="step-badge">4</span> 간호 프로토콜 체크리스트 <span className="hint">정규 차팅 · 간호진단별 중재 항목, 체크한 항목이 "~함" 기록체 또는 선택한 말투로 발화됩니다</span>
             <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
               <button className="small" onClick={() => setCollapsed((c) => { const n = { ...c }; template?.sections.filter((x) => x.group === "protocol").forEach((x) => { n[x.key] = false; }); return n; })}>모두 펼치기</button>
               <button className="small" onClick={() => setCollapsed((c) => { const n = { ...c }; template?.sections.filter((x) => x.group === "protocol").forEach((x) => { n[x.key] = true; }); return n; })}>모두 접기</button>
@@ -209,8 +222,8 @@ export default function RecordPage() {
       <div>
         <div className="panel">
           <h2>
-            발화 대본 미리보기
-            <span className="hint">같은 체크 상태에서도 매번 다른 말투로 생성됩니다</span>
+            <span className="step-badge">5</span> 대본 확인
+            <span className="hint">왼쪽 선택에 따라 자동으로 바뀝니다 · 직접 고쳐도 됩니다</span>
             <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
               <button className="small" onClick={() => doPreview({ newSeed: true })}>🔀 다른 말투로</button>
               <button className="small" disabled={!settings || settings.llm_provider === "none"} title={settings?.llm_provider === "none" ? "설정에서 LLM API 키를 등록하세요" : ""} onClick={() => doPreview({ llm: true })}>✨ LLM으로 다듬기</button>
@@ -241,20 +254,34 @@ export default function RecordPage() {
           </div>
         </div>
 
-        <NoisePanel
-          value={noise}
-          onChange={setNoise}
-          extra={
-            <label title="등록된 다른 목소리로 회진 대화를 합성해 멀리서 들리게 섞습니다 (목소리 2개 이상 필요)">
-              <input type="checkbox" checked={rounds} onChange={(e) => setRounds(e.target.checked)} /> 다른 환자 회진 음성 (TTS)
-            </label>
-          }
-        />
-
-        <AugmentPanel value={augment} onChange={setAugment} disfluency={disfluency} onDisfluency={setDisfluency} />
+        <details className="adv">
+          <summary><span className="step-badge">6</span><span className="lbl">소리 옵션</span> <span className="hint">병동 소음 · 녹음 장비 다양화 · 구어 흐트러짐 (기본값으로 두어도 됩니다){noise.enabled ? " · 소음 켜짐" : ""}{augment.enabled ? " · 증강 켜짐" : ""}</span></summary>
+          <div className="inner">
+            <NoisePanel
+              value={noise}
+              onChange={setNoise}
+              extra={
+                <label title="등록된 다른 목소리로 회진 대화를 합성해 멀리서 들리게 섞습니다 (목소리 2개 이상 필요)">
+                  <input type="checkbox" checked={rounds} onChange={(e) => setRounds(e.target.checked)} /> 다른 환자 회진 음성 (TTS)
+                </label>
+              }
+            />
+            <AugmentPanel value={augment} onChange={setAugment} disfluency={disfluency} onDisfluency={setDisfluency} />
+          </div>
+        </details>
 
         <div className="panel highlight">
-          <h2>녹음 생성</h2>
+          <h2><span className="step-badge">7</span> 녹음 생성 <span className="hint">wav + 정답 txt + json이 출력 폴더에 저장됩니다</span></h2>
+          {selectedEngineClones && !voices.some((v) => v.samples.length) && (
+            <div className="empty" style={{ marginBottom: 12 }}>
+              <b>아직 등록된 간호사 목소리가 없습니다</b>
+              목소리를 등록하면 그 목소리로 녹음이 만들어집니다. 먼저 흐름만 확인하려면 이 PC의 시스템 음성으로 체험할 수 있습니다.
+              <div className="row">
+                <div className="narrow"><button className="primary" onClick={() => onTab?.("voices")}>목소리 등록하러 가기</button></div>
+                <div className="narrow"><button onClick={useSystemVoice}>시스템 음성으로 체험하기</button></div>
+              </div>
+            </div>
+          )}
           <div className="row">
             <div>
               <label>목소리 (등록된 간호사)</label>
@@ -278,7 +305,7 @@ export default function RecordPage() {
               <button className="primary" onClick={generate} disabled={!preview || (selectedEngineClones && !voiceId)}>🎙 발화 + 녹음 저장{variants > 1 ? ` ×${variants}` : ""}</button>
             </div>
           </div>
-          {!voices.length && <div className="muted">등록된 목소리가 없습니다. "목소리 등록" 탭에서 먼저 녹음하세요. (테스트는 설정에서 시스템/무음 엔진 선택)</div>}
+          {!selectedEngineClones && <div className="muted">현재 엔진({status?.engineLabel || settings?.tts_engine})은 목소리를 복제하지 않습니다. 등록한 목소리로 만들려면 설정에서 복제 엔진을 고르세요.</div>}
           {err && <div className="error">{err}</div>}
           <JobProgress jobId={jobId} onDone={(j) => { setResult(j); }} />
           {result && result.total > 1 && (
