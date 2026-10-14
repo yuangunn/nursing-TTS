@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel
 
-from . import __version__, dataset, jobs, llm, noise_library, phrase_store, verify as verify_mod, voices as voices_mod
+from . import __version__, dataset, jobs, llm, noise_library, phrase_store, signal as signal_mod, verify as verify_mod, voices as voices_mod
 from .templates.extra_phrases import VITALS_FORMS
 from .audio.augment import preset_catalogue
 from .audio import noise as noise_mod
@@ -65,6 +65,8 @@ class PreviewRequest(BaseModel):
     style: str = "mixed"
     seed: int | None = None
     llm_polish: bool = False
+    signal_format: str | None = None   # strict | <key> | random | literal template; None -> settings default
+    signal_aliases: bool | None = None
 
 
 class AugmentModel(BaseModel):
@@ -95,6 +97,8 @@ class BatchRequest(BaseModel):
     noise: NoiseModel = NoiseModel()
     augment: AugmentModel = AugmentModel()
     disfluency: str | int | None = "random"
+    signal_format: str = "random"
+    signal_aliases: bool | None = None
     noise_prob: float = 0.5
     style: str | None = None
     llm_polish: bool = False
@@ -127,6 +131,8 @@ class SettingsModel(BaseModel):
     loudness_dbfs: float | None = None
     default_disfluency: int | None = None
     auto_style_expand: bool | None = None
+    signal_format: str | None = None
+    signal_aliases: bool | None = None
 
 
 class ReviewRequest(BaseModel):
@@ -249,6 +255,10 @@ def _phrase_tree() -> list[dict[str, Any]]:
         for k, label in [("lead", "앞머리 (활력징후는…)"), ("bp", "혈압 {sbp} {dbp}"), ("hr", "맥박 {hr}"), ("rr", "호흡 {rr}"), ("bt", "체온 {bt} / {bt_casual}"),
                          ("spo2", "산소포화도 {spo2}"), ("o2_with", "산소 적용 중 ({o2}, {base})"), ("o2_room", "room air ({base})"), ("ending", "맺음말 (혼합)"), ("ending_formal", "맺음말 (격식)")]]}]}
     out.append(vitals)
+    out.append({"key": "_signal", "title": "시그널(녹음 시작 문장) 형식", "sections": [{"key": "signal", "title": "형식", "fields": [
+        {"key": "formats", "label": "시그널 템플릿 ({date} {time} {name} {kind})", "kind": "signal",
+         "slots": [{"slot": "phrases", "label": "형식 목록 (무작위 모드에서 사용)", "builtin": signal_mod.builtin_written_templates(),
+                    "override": phrase_store.get_override("_signal", "formats", "phrases")}]}]}]})
     return out
 
 
@@ -313,6 +323,13 @@ def phrases_sample(body: dict[str, Any]):
     ctx["_template"] = template
     ctx.update({"drain_amount": 20, "bt_peak": 37.4, "bt_now": 36.9, "sbp": 123, "dbp": 78, "hr": 72, "event": "발열"})
     samples: list[str] = []
+    if template == "_signal":
+        from datetime import datetime as _dt
+        tpls = [p for p in phrases if "{name}" in p] or signal_mod.builtin_written_templates()
+        for _ in range(4):
+            w, _t, _k = signal_mod.render(_dt(2026, 10, 12, 21, 42), "강신자", "간호정보조사", rng.choice(tpls), rng)
+            samples.append(w + ("  ✔ 파서 인식" if signal_mod.parse(w).ok else "  ✖ 파서가 못 잡음"))
+        return {"samples": samples}
     if template == "_vitals":
         from .generator import realize_vitals
         v = {"sbp": 123, "dbp": 78, "hr": 72, "rr": 18, "bt": 37.1, "spo2": 97, "o2": "room air"}
@@ -477,7 +494,10 @@ def preview(req: PreviewRequest):
     if req.template not in TEMPLATES:
         raise HTTPException(404, "unknown template")
     when = datetime.fromisoformat(req.datetime) if req.datetime else datetime.now().replace(second=0, microsecond=0)
-    script = build_script(req.template, req.form, Patient(**req.patient.model_dump()), when, style=req.style, seed=req.seed)
+    st = load_settings()
+    script = build_script(req.template, req.form, Patient(**req.patient.model_dump()), when, style=req.style, seed=req.seed,
+                          signal_format=req.signal_format or st.get("signal_format", "strict"),
+                          signal_aliases=bool(st.get("signal_aliases", False) if req.signal_aliases is None else req.signal_aliases))
     spoken = script.spoken_text
     polished = False
     if req.llm_polish:
@@ -489,7 +509,21 @@ def preview(req: PreviewRequest):
             raise HTTPException(502, f"LLM 호출 실패: {e}")
     return {"spoken_text": spoken, "tts_text": script.tts_text, "signal": script.signal, "seed": script.seed,
             "sentences": script.sentences, "llm_polished": polished,
+            "signal_format": script.structured.get("signal_format"), "signal_parse": script.structured.get("signal_parse"),
             "filename": f"{when.strftime('%Y%m%d_%H%M')}_{jobs.safe_filename(req.patient.name)}"}
+
+
+@app.get("/api/signal/formats")
+def signal_formats():
+    custom = phrase_store.get_override("_signal", "formats", "phrases") or []
+    return {"formats": signal_mod.FORMATS, "custom": [c for c in custom if "{name}" in c],
+            "kind_aliases": signal_mod.KIND_ALIASES, "default": load_settings().get("signal_format", "strict")}
+
+
+@app.post("/api/signal/parse")
+def signal_parse(body: dict[str, Any]):
+    """Tolerant trigger detection: finds date/time/name/kind/verb in any text (first ~200 chars)."""
+    return signal_mod.parse(body.get("text", "")).to_dict()
 
 
 @app.post("/api/random-patient")

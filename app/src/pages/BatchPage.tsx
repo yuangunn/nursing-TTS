@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import JobProgress from "../components/JobProgress";
 import AugmentPanel from "../components/AugmentPanel";
 import NoisePanel from "../components/NoisePanel";
+import SignalSelect from "../components/SignalSelect";
 import { AugmentSettings, DEFAULT_AUGMENT, DEFAULT_NOISE, get, Job, NoiseSettings, post, Settings, TemplateSchema, Voice } from "../lib/api";
 
 export default function BatchPage() {
@@ -19,6 +20,8 @@ export default function BatchPage() {
   const [folder, setFolder] = useState("");
   const [augment, setAugment] = useState<AugmentSettings>({ ...DEFAULT_AUGMENT, enabled: true });
   const [disfluency, setDisfluency] = useState<number | "random">("random");
+  const [signalFormat, setSignalFormat] = useState("random");
+  const [signalAliases, setSignalAliases] = useState<boolean | null>(true);
   const [jobId, setJobId] = useState<string | null>(null);
   const [job, setJob] = useState<Job | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -44,6 +47,7 @@ export default function BatchPage() {
       const j = await post<Job>("/api/batch", {
         count, templates: sel, voice_ids: voiceIds, noise, noise_prob: noiseProb, style: style || null,
         llm_polish: llm, rounds_voice: rounds, folder_name: folder, augment, disfluency,
+        signal_format: signalFormat || "random", signal_aliases: signalAliases,
       });
       setJobId(j.id);
     } catch (e) {
@@ -81,6 +85,10 @@ export default function BatchPage() {
               <label>저장 폴더 이름 (출력 폴더 하위)</label>
               <input type="text" value={folder} placeholder="비우면 batch_날짜시각" onChange={(e) => setFolder(e.target.value)} />
             </div>
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <SignalSelect value={signalFormat} onChange={setSignalFormat} allowDefault={false} aliases={signalAliases} onAliases={setSignalAliases} />
+            <div className="example">트리거 검출 모델이 다양한 시작 문장을 배우도록 대량 생성에서는 무작위 혼합을 권장합니다. 내보내기 manifest에 시그널 문장·구간·환자명·시각·기록종류 라벨이 함께 저장됩니다.</div>
           </div>
           <div className="field">
             <label>기록 종류 (무작위로 섞임)</label>

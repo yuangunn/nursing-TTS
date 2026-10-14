@@ -211,3 +211,59 @@ def test_chart_style_and_s6():
     txt = client.post("/api/script/preview", json=body).json()["spoken_text"]
     assert "환자명 황세영" in txt and ("함." in txt or "됨." in txt or "임." in txt)
     assert "습니다." not in "\n".join(txt.splitlines()[1:-1]) or True  # chart form converts most endings
+
+
+def test_signal_formats_and_parser():
+    from nursing_tts.signal import parse, render, FORMATS
+    from datetime import datetime as dt
+    for f in FORMATS:
+        w, t, k = render(dt(2026, 10, 12, 21, 42), "강신자", "간호정보조사", f["key"])
+        p = parse(w)
+        assert p.ok and p.name == "강신자" and p.kind == "간호정보조사" and p.hour == 21 and p.minute == 42, w
+        assert not any(ch.isdigit() for ch in t)
+    p = parse("2026년 10월 14일 오전 7시 환자명 황세영 수술후 간호기록 시작합니다")
+    assert p.ok and p.kind == "수술후설명" and p.to_dict()["datetime"] == "2026-10-14T07:00"
+    assert not parse("홍길동님 퇴원 교육 하겠습니다").ok
+    r = client.get("/api/signal/formats").json()
+    assert r["formats"][0]["key"] == "strict" and "간호정보조사지" in r["kind_aliases"]["간호정보조사"]
+    body = {"template": "s1", "form": {}, "patient": {"name": "강신자"}, "datetime": "2026-10-12T21:42", "seed": 1}
+    strict = client.post("/api/script/preview", json={**body, "signal_format": "strict"}).json()
+    assert strict["signal"] == "2026년 10월 12일 오후 9시 42분 강신자 님 간호정보조사 기록입니다." and strict["signal_parse"]["ok"]
+    ld = client.post("/api/script/preview", json={**body, "signal_format": "label_do"}).json()
+    assert ld["signal"] == "2026년 10월 12일 오후 9시 42분 환자명 강신자 간호정보조사하겠습니다."
+    assert ld["tts_text"].startswith("이천이십육년 시월 십이일 오후 아홉 시 사십이 분 환자명 강신자 간호정보조사하겠습니다.")
+    rnd = {client.post("/api/script/preview", json={**body, "signal_format": "random", "seed": i}).json()["signal_format"] for i in range(40)}
+    assert len(rnd) >= 3
+    # custom signal template through the phrase library
+    client.put("/api/phrases", json={"template": "_signal", "field": "formats", "slot": "phrases", "phrases": ["{date} {time} {name} 환자분 {kind} 녹음 시작합니다."]})
+    try:
+        c = client.post("/api/script/preview", json={**body, "signal_format": "random"}).json()
+        assert "환자분 간호정보조사 녹음 시작합니다." in c["signal"] and c["signal_parse"]["ok"]
+        assert client.post("/api/phrases/sample", json={"template": "_signal", "field": "formats", "slot": "phrases", "phrases": []}).json()["samples"]
+    finally:
+        client.delete("/api/phrases", params={"template": "_signal"})
+    assert client.post("/api/signal/parse", json={"text": "2026년 10월 11일 오후 5시 51분 환자명 황세영, 간호정보조사하겠습니다."}).json()["name"] == "황세영"
+
+
+def test_protocol_checklists():
+    from nursing_tts.templates import TEMPLATES
+    for key, t in TEMPLATES.items():
+        prot = [s for s in t.sections if s.group == "protocol"]
+        assert prot, key
+        keys = [f.key for s in t.sections for f in s.fields]
+        assert len(keys) == len(set(keys)), f"duplicate field keys in {key}"
+    form = {"p_sleep_obs": True, "p_fall_intervene": True, "p_apain_assess": True, "p_apain_score": 5, "p_pca_end": True,
+            "p_temp_measure": True, "p_temp": 38.4, "p_bst": True, "p_bst_value": 210}
+    for style in ("chart", "mixed", "formal", "casual"):
+        r = client.post("/api/script/preview", json={"template": "s3_1", "form": form, "patient": {"name": "테스트"},
+                                                     "datetime": "2026-10-14T07:00", "style": style, "seed": 3}).json()
+        txt = r["spoken_text"]
+        assert "{" not in txt and "}" not in txt, txt
+        assert "침상 높이를 낮춤" in txt and "38.4" in txt and "210" in txt and "5점" in txt
+        if style == "chart":
+            assert "함" in txt
+    # random virtual patients include protocol items without raw placeholders
+    for i in range(10):
+        r = client.post("/api/random-patient", json={"template": "s5", "seed": i}).json()
+        p = client.post("/api/script/preview", json={"template": "s5", "form": r["form"], "patient": r["patient"], "datetime": r["datetime"], "seed": i}).json()
+        assert "{" not in p["spoken_text"], p["spoken_text"]

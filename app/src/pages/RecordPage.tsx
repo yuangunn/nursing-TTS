@@ -4,11 +4,14 @@ import JobProgress from "../components/JobProgress";
 import NoisePanel from "../components/NoisePanel";
 import AugmentPanel from "../components/AugmentPanel";
 import PatientPanel from "../components/PatientPanel";
+import SignalSelect from "../components/SignalSelect";
 import Visualizer from "../components/Visualizer";
 import { useEnergy } from "../lib/energy";
 import { apiUrl, AugmentSettings, DEFAULT_AUGMENT, DEFAULT_NOISE, DEFAULT_PATIENT, get, Job, NoiseSettings, nowLocalIso, Patient, post, Settings, TemplateSchema, Voice } from "../lib/api";
 
 interface Preview {
+  signal_format?: string;
+  signal_parse?: { ok: boolean; name?: string; kind?: string; datetime?: string | null; format?: string; missing?: string[] | null };
   spoken_text: string;
   tts_text: string;
   signal: string;
@@ -33,6 +36,8 @@ export default function RecordPage() {
   const [augment, setAugment] = useState<AugmentSettings>(DEFAULT_AUGMENT);
   const [disfluency, setDisfluency] = useState<number | "random">(0);
   const [variants, setVariants] = useState(1);
+  const [signalFormat, setSignalFormat] = useState("");
+  const [signalAliases, setSignalAliases] = useState<boolean | null>(null);
   const [voices, setVoices] = useState<Voice[]>([]);
   const [voiceId, setVoiceId] = useState("");
   const [jobId, setJobId] = useState<string | null>(null);
@@ -78,6 +83,7 @@ export default function RecordPage() {
     try {
       const p = await post<Preview>("/api/script/preview", {
         template: tkey, form, patient, datetime: when, style, seed: s, llm_polish: opts?.llm ?? false,
+        signal_format: signalFormat || undefined, signal_aliases: signalAliases ?? undefined,
       });
       setPreview(p);
       setSeed(p.seed);
@@ -86,7 +92,7 @@ export default function RecordPage() {
     } catch (e) {
       setErr(String(e));
     }
-  }, [template, tkey, form, patient, when, style, seed]);
+  }, [template, tkey, form, patient, when, style, seed, signalFormat, signalAliases]);
 
   // auto preview on changes (debounced), keeping the seed so edits are stable
   useEffect(() => {
@@ -97,7 +103,7 @@ export default function RecordPage() {
       if (debounce.current) window.clearTimeout(debounce.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form, patient, when, style, tkey, template]);
+  }, [form, patient, when, style, tkey, template, signalFormat, signalAliases]);
 
   const randomize = async () => {
     const r = await post<{ patient: Patient; form: Record<string, unknown>; datetime: string }>("/api/random-patient", { template: tkey });
@@ -115,11 +121,32 @@ export default function RecordPage() {
         template: tkey, form, patient, datetime: when, style, seed, llm_polish: llm && !edited,
         voice_id: voiceId, noise, rounds_voice: rounds, text_override: edited ?? undefined,
         augment, disfluency: disfluency === "random" ? 1 : disfluency, variants,
+        signal_format: signalFormat || undefined, signal_aliases: signalAliases ?? undefined,
       });
       setJobId(job.id);
     } catch (e) {
       setErr(String(e));
     }
+  };
+
+  const renderSection = (s: TemplateSchema["sections"][number], protocol = false) => {
+    const isCollapsed = collapsed[s.key] ?? protocol;
+    const checked = protocol ? s.fields.filter((f) => f.kind === "bool" && form[f.key]).length : 0;
+    return (
+      <div className="section" key={s.key}>
+        <div className="section-head" onClick={() => setCollapsed((c) => ({ ...c, [s.key]: !isCollapsed }))}>
+          <strong>{isCollapsed ? "▸" : "▾"} {s.title}<span className="hint">{s.hint}</span></strong>
+          {protocol && checked > 0 && <span className="badge ok">{checked}개 체크</span>}
+        </div>
+        {!isCollapsed && (
+          <div className={s.fields.length > 3 ? "grid2" : ""}>
+            {s.fields.map((f) => (
+              <FieldInput key={f.key} field={f} value={form[f.key]} onChange={(v) => setForm((prev) => ({ ...prev, [f.key]: v }))} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
   };
 
   const selectedEngineClones = settings ? settings.tts_engine !== "silent" && settings.tts_engine !== "system" : true;
@@ -139,6 +166,7 @@ export default function RecordPage() {
             ))}
           </div>
           {template && <div className="muted" style={{ marginTop: 6 }}>{template.description} · 시그널 기록종류: <b>{template.signal_kind}</b></div>}
+          <SignalSelect value={signalFormat} onChange={setSignalFormat} aliases={signalAliases} onAliases={setSignalAliases} />
           <div className="row" style={{ marginTop: 10 }}>
             <div>
               <label>시그널 발화 시각 (파일명에 사용)</label>
@@ -163,20 +191,18 @@ export default function RecordPage() {
 
         <div className="panel">
           <h2>환자 상태 체크 <span className="hint">체크/선택한 항목만 발화됩니다</span></h2>
-          {template?.sections.map((s) => (
-            <div className="section" key={s.key}>
-              <div className="section-head" onClick={() => setCollapsed((c) => ({ ...c, [s.key]: !c[s.key] }))}>
-                <strong>{collapsed[s.key] ? "▸" : "▾"} {s.title}<span className="hint">{s.hint}</span></strong>
-              </div>
-              {!collapsed[s.key] && (
-                <div className={s.fields.length > 3 ? "grid2" : ""}>
-                  {s.fields.map((f) => (
-                    <FieldInput key={f.key} field={f} value={form[f.key]} onChange={(v) => setForm((prev) => ({ ...prev, [f.key]: v }))} />
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
+          {template?.sections.filter((s) => s.group !== "protocol").map((s) => renderSection(s))}
+        </div>
+
+        <div className="panel">
+          <h2>간호 프로토콜 체크리스트 <span className="hint">정규 차팅 · 간호진단별 중재 항목, 체크한 항목이 "~함" 기록체 또는 선택한 말투로 발화됩니다</span>
+            <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+              <button className="small" onClick={() => setCollapsed((c) => { const n = { ...c }; template?.sections.filter((x) => x.group === "protocol").forEach((x) => { n[x.key] = false; }); return n; })}>모두 펼치기</button>
+              <button className="small" onClick={() => setCollapsed((c) => { const n = { ...c }; template?.sections.filter((x) => x.group === "protocol").forEach((x) => { n[x.key] = true; }); return n; })}>모두 접기</button>
+              <button className="small danger" onClick={() => setForm((prev) => { const n = { ...prev }; template?.sections.filter((x) => x.group === "protocol").forEach((x) => x.fields.forEach((f) => { if (f.kind === "bool") delete n[f.key]; })); return n; })}>체크 해제</button>
+            </span>
+          </h2>
+          {template?.sections.filter((s) => s.group === "protocol").map((s) => renderSection(s, true))}
         </div>
       </div>
 
@@ -209,6 +235,9 @@ export default function RecordPage() {
           <div className="muted" style={{ marginTop: 6 }}>
             {edited !== null ? <span className="badge warn">직접 수정됨 — 수정한 텍스트가 그대로 녹음·저장됩니다</span> : preview?.llm_polished ? <span className="badge">LLM 다듬기 적용됨</span> : "대본을 직접 고쳐도 됩니다 (첫 줄 시그널은 형식을 유지하세요)."}
             {preview && <> · 파일명: <b>{preview.filename}.wav</b> / .txt / .json</>}
+            {preview?.signal_parse && (preview.signal_parse.ok
+              ? <> · <span className="badge ok">시그널 인식 ✔ {preview.signal_parse.name} / {preview.signal_parse.kind} / {preview.signal_parse.datetime}</span></>
+              : <> · <span className="badge bad">시그널 인식 실패 (누락: {(preview.signal_parse.missing || []).join(", ")})</span></>)}
           </div>
         </div>
 

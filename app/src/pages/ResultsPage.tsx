@@ -219,7 +219,7 @@ export default function ResultsPage() {
             </h2>
             <Visualizer autoPlay src={apiUrl(`/api/output/file?rel=${encodeURIComponent(sel.rel)}`)} onEnergy={setEnergy} height={130} />
             <div className="muted" style={{ margin: "8px 0" }}>
-              {sel.record_kind} · {sel.voice_name || "목소리 없음"} · {sel.engine} · {sel.duration}s · 소음 {sel.noise ? "O" : "X"} · 장비 {sel.channel || "-"} · 흐트러짐 {sel.disfluency ?? 0}
+              {sel.record_kind} · {sel.voice_name || "목소리 없음"} · {sel.engine} · {sel.duration}s · 소음 {sel.noise ? "O" : "X"} · 장비 {sel.channel || "-"} · 흐트러짐 {sel.disfluency ?? 0} · 시그널 {sel.signal_format || "-"}
             </div>
             <div className="preview" style={{ minHeight: 120 }}>
               <span className="signal">{(sel.spoken_text || "").split("\n")[0]}</span>{"\n" + (sel.spoken_text || "").split("\n").slice(1).join("\n")}
