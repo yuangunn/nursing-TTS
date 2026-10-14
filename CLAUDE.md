@@ -59,4 +59,6 @@ F5-TTS(로컬 복제)는 `backend/requirements-f5.txt`를 `-c backend/constraint
 
 ## 환경 메모
 - `pkill -f`로 프로세스를 죽일 때 자기 셸까지 죽는 경우가 있다 → `pgrep -f "[n]ursing_tts"` 처럼 대괄호 트릭을 쓴다.
-- 백엔드 기본 포트 8765 (`NURSING_TTS_PORT`로 변경). 앱은 이미 떠 있는 백엔드가 있으면 재사용한다.
+- 백엔드 기본 포트 8765 (`NURSING_TTS_PORT`로 변경). 앱은 이미 떠 있는 **우리** 백엔드(`/api/health`가 `{"ok":true}`)만 재사용하고, 다른 프로그램이 8765를 쓰고 있으면 8766~으로 옮긴다. 렌더러는 `get-backend-url`로 실제 포트를 받는다.
+- 앱 데이터 폴더(`userData/venv`)에 예전 빌드가 만든 Python 3.9 venv가 남아 있을 수 있다. `findPython`은 `pyvenv.cfg`로 3.10 미만을 걸러 "설치 안 됨"으로 취급한다 (마법사가 다시 만든다).
+- Node 24에서 `npm ci` 뒤 `node_modules/electron/dist`만 있고 `path.txt`가 없으면(Electron 바이너리 추출이 조용히 중단됨) `~/Library/Caches/electron/*/electron-v*.zip`을 `ditto -x -k`로 `dist/`에 풀고 `path.txt`에 `Electron.app/Contents/MacOS/Electron`을 쓰면 된다.
