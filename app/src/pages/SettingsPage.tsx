@@ -250,10 +250,42 @@ export default function SettingsPage() {
 }
 
 function BackendHelp({ dir, log }: { dir: string; log: string }) {
+  const [installed, setInstalled] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState("");
+  const [version, setVersion] = useState("");
+  useEffect(() => {
+    window.nursing?.backendInstalled().then(setInstalled).catch(() => setInstalled(null));
+    window.nursing?.appVersion().then(setVersion).catch(() => undefined);
+  }, [log]);
+  const setup = async (f5: boolean) => {
+    if (!window.nursing) return;
+    setBusy(true);
+    setResult("설치 중… (수 분 소요, 아래 로그 참고)");
+    try {
+      const r = await window.nursing.setupBackend(f5);
+      setResult(r.message);
+      setInstalled(r.ok);
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <div className="panel">
-      <h2>백엔드 로그 <button className="small" style={{ marginLeft: "auto" }} onClick={async () => { await window.nursing?.restartBackend(); }}>백엔드 재시작</button></h2>
-      <div className="muted" style={{ marginBottom: 6 }}>백엔드 폴더: {dir || "(브라우저 모드)"} · 처음 실행 전 <span className="kbd">scripts/setup-backend.sh</span> (mac) / <span className="kbd">scripts\setup-backend.ps1</span> (Windows) 실행 필요</div>
+      <h2>백엔드 {version && <span className="badge">앱 v{version}</span>}
+        <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+          {installed !== null && <span className={"badge " + (installed ? "ok" : "warn")}>{installed ? "Python 환경 있음" : "Python 환경 없음"}</span>}
+          <button className="small" onClick={async () => { await window.nursing?.restartBackend(); }}>백엔드 재시작</button>
+        </span>
+      </h2>
+      {window.nursing && (
+        <div className="row">
+          <div className="narrow"><button className="primary" disabled={busy} onClick={() => setup(false)}>{installed ? "백엔드 재설치/업데이트" : "⬇ 백엔드 설치 (처음 한 번)"}</button></div>
+          <div className="narrow"><button disabled={busy} onClick={() => setup(true)} title="PyTorch + F5-TTS까지 설치 (수 GB)">+ F5-TTS 포함 설치</button></div>
+          <div className="muted">Python 3.10 이상이 PC에 있어야 합니다 (mac: <span className="kbd">brew install python</span>). 환경은 앱 데이터 폴더에 만들어집니다.{result && <> · {result}</>}</div>
+        </div>
+      )}
+      <div className="muted" style={{ marginBottom: 6 }}>백엔드 폴더: {dir || "(브라우저 모드)"}{!window.nursing && <> · 개발 모드에서는 <span className="kbd">scripts/setup-backend.sh</span> (mac) / <span className="kbd">scripts\setup-backend.ps1</span> (Windows)</>}</div>
       <div className="log">{log || "(로그 없음)"}</div>
     </div>
   );

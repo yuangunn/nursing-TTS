@@ -1,0 +1,92 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v0.1.0-beta)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - name: Build renderer + main
+        run: npm run build
+      - name: Package (macOS dmg + zip, arm64 & x64)
+        if: runner.os == 'macOS'
+        run: npx electron-builder --mac --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - name: Package (Windows nsis)
+        if: runner.os == 'Windows'
+        run: npx electron-builder --win --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}
+          path: |
+            app/release/*.dmg
+            app/release/*.zip
+            app/release/*.exe
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - run: ls -la dist
+      - name: Release notes
+        run: |
+          cat > notes.md <<'MD'
+          ## 간호기록 음성 녹음 생성기 — beta
+
+          ### 설치 (macOS)
+          1. Apple Silicon은 `-arm64.dmg`, Intel Mac은 `-x64.dmg`를 받아 앱을 Applications로 끌어다 놓습니다.
+          2. 서명되지 않은 베타 빌드라 첫 실행 시 차단됩니다. **Finder에서 앱을 우클릭 → 열기**를 하거나 터미널에서
+             `xattr -dr com.apple.quarantine /Applications/NursingTTS.app` 을 실행한 뒤 여세요.
+          3. Python 3.10 이상이 필요합니다 (`brew install python`). 앱 실행 후 **설정 탭 → "백엔드 설치"** 를 한 번 누르면 Python 환경이 앱 데이터 폴더에 만들어지고 백엔드가 자동으로 시작됩니다.
+          4. 목소리 복제 엔진은 설정에서 선택합니다. 로컬 F5-TTS는 "+ F5-TTS 포함 설치", Qwen3-TTS 등은 README의 래퍼 서버 안내를 참고하세요. 엔진 없이도 시스템 TTS로 파이프라인을 확인할 수 있습니다.
+
+          ### 설치 (Windows)
+          `-win-x64.exe` 설치 파일 실행 → 설정 탭 → "백엔드 설치". Python 3.10 이상(python.org, "Add to PATH" 체크) 필요.
+
+          ### 알려진 제한
+          - 코드 서명/공증 없음 (베타)
+          - 목소리 복제 품질은 선택한 모델과 GPU에 따라 다릅니다
+          MD
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: ${{ github.event.inputs.tag || github.ref_name }}
+          prerelease: true
+          body_path: notes.md
+          files: |
+            dist/*.dmg
+            dist/*.zip
+            dist/*.exe
