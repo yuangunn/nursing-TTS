@@ -230,6 +230,8 @@ def random_form(template_key: str, rng: random.Random, patient: Patient | None =
         elif f.kind == "number":
             form[f.key] = _random_number(f, rng)
         elif f.kind == "bool":
+            if f.key.startswith("p_"):
+                continue  # protocol items are chosen per protocol below
             form[f.key] = rng.random() < 0.8 if f.default else rng.random() < 0.3
         elif f.kind == "text":
             pool = TEXT_POOLS.get(f"{template_key}.{f.key}", TEXT_POOLS.get(f.key))
@@ -246,6 +248,18 @@ def random_form(template_key: str, rng: random.Random, patient: Patient | None =
                 form[f.key] = random_vitals(rng, "fever")
             else:
                 form[f.key] = random_vitals(rng)
+    # protocol checklist: pick 1-4 protocols for this recording, then 1-4 items each
+    prot_secs = [sec for sec in t.sections if sec.group == "protocol"]
+    if prot_secs:
+        chosen = rng.sample(prot_secs, k=min(len(prot_secs), rng.choices([0, 1, 2, 3, 4], weights=[15, 30, 30, 15, 10])[0]))
+        # fall high / low are mutually exclusive
+        keys = {sec.key for sec in chosen}
+        if "prot_fall_high" in keys and "prot_fall_low" in keys:
+            chosen = [sec for sec in chosen if sec.key != rng.choice(["prot_fall_high", "prot_fall_low"])]
+        for sec in chosen:
+            bools = [f for f in sec.fields if f.kind == "bool"]
+            for f in rng.sample(bools, k=min(len(bools), rng.randint(1, 4))):
+                form[f.key] = True
     # keep things consistent
     if patient is not None and patient.diagnosis in DX_DETAILS:
         d = DX_DETAILS[patient.diagnosis]

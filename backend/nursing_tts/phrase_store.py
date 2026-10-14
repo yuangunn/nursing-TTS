@@ -146,9 +146,25 @@ def chart_form(phrase: str) -> str:
     return p
 
 
+_FROM_CHART: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(r"하심\.$"), "하셨습니다."), (re.compile(r"고 있음\.$"), "고 있습니다."), (re.compile(r"있음\.$"), "있습니다."),
+    (re.compile(r"없음\.$"), "없습니다."), (re.compile(r"됨\.$"), "되었습니다."), (re.compile(r"함\.$"), "하였습니다."),
+    (re.compile(r"임\.$"), "입니다."), (re.compile(r"심\.$"), "셨습니다."),
+]
+
+
+def formal_from_chart(phrase: str) -> str:
+    """'수면양상을 관찰함.' -> '수면양상을 관찰하였습니다.' (used for spoken styles)."""
+    p = phrase.strip()
+    for rx, rep in _FROM_CHART:
+        if rx.search(p):
+            return rx.sub(rep, p)
+    return p
+
+
 def expand_styles(phrase: str) -> list[str]:
     """Return [formal, connective, casual] variants of a formal phrase (deduplicated)."""
-    p = phrase.strip()
+    p = formal_from_chart(phrase.strip())
     for rx, conn, casual in _END_RULES:
         m = rx.search(p)
         if not m:
@@ -183,6 +199,8 @@ def stylize(text: str, rng: random.Random, style: str = "mixed", allow_connectiv
         # 기록체: "~함/~됨/~임". Connectives stay as they are ("~하고,").
         return chart_form(text)
     variants = expand_styles(text)
+    if len(variants) == 1 and variants[0] != text:
+        return variants[0]
     if len(variants) == 1:
         return text
     formal, conn, casual = variants

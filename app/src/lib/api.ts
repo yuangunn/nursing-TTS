@@ -126,6 +126,7 @@ export interface SectionSchema {
   key: string;
   title: string;
   hint: string;
+  group?: string;
   fields: FieldSchema[];
 }
 export interface TemplateSchema {
@@ -202,6 +203,7 @@ export interface RecordingItem {
   signal?: string;
   spoken_text?: string;
   verbatim_text?: string;
+  signal_format?: string;
 }
 export interface ExportReport {
   name: string;
@@ -285,6 +287,8 @@ export interface Settings {
   loudness_dbfs: number;
   default_disfluency: number;
   auto_style_expand: boolean;
+  signal_format: string;
+  signal_aliases: boolean;
   _output_dir_resolved: string;
   _data_dir: string;
 }

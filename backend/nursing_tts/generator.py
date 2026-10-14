@@ -10,6 +10,7 @@ from typing import Any
 from . import korean
 from .grammar import close_sentence, fix_josa
 from . import phrase_store
+from . import signal as signal_mod
 from .templates.extra_phrases import VITALS_FORMS
 from .templates import get_template
 from .templates.base import Field, RecordTemplate
@@ -111,11 +112,13 @@ class Script:
 # Signal line
 # ---------------------------------------------------------------------------
 
-def signal_line(when: datetime, patient_name: str, kind: str) -> tuple[str, str]:
-    """Return (written, tts) signal: 「2026년 10월 5일 오전 10시 30분 홍길동 님 간호정보조사 기록입니다.」"""
-    written = f"{korean.written_date(when.year, when.month, when.day)} {korean.written_time(when.hour, when.minute)} {patient_name} 님 {kind} 기록입니다."
-    tts = f"{korean.read_date(when.year, when.month, when.day)} {korean.read_time(when.hour, when.minute)} {patient_name} 님 {kind} 기록입니다."
-    return written, tts
+def signal_line(when: datetime, patient_name: str, kind: str, fmt: str = "strict", rng: random.Random | None = None,
+                use_aliases: bool = False) -> tuple[str, str, str]:
+    """Return (written, tts, format_key).  Default is the mandatory spec form:
+    「2026년 10월 5일 오전 10시 30분 홍길동 님 간호정보조사 기록입니다.」"""
+    custom = phrase_store.get_override("_signal", "formats", "phrases")
+    templates = [t for t in custom if "{name}" in t] if custom else None
+    return signal_mod.render(when, patient_name, kind, fmt, rng, use_aliases, templates)
 
 
 # ---------------------------------------------------------------------------
@@ -198,6 +201,9 @@ def _choose(variants: list[str], rng: random.Random, style: str, force_close: bo
     pool = variants
     if style in ("formal", "chart"):
         pool = [v for v in variants if not _is_connective(v)] or variants
+    if style != "chart":
+        # parenthetical chart forms "사정함(부위, 점수)" read badly aloud; prefer spoken variants
+        pool = [v for v in pool if "(" not in v] or pool
     elif style == "casual":
         pool = [v for v in variants if _is_connective(v) or "셨" in v or "시고" in v] or variants
     if force_close:
@@ -308,7 +314,7 @@ def _sentences_from(text: str) -> list[str]:
 
 def build_script(template_key: str, form: dict[str, Any], patient: Patient, when: datetime,
                  style: str = "mixed", seed: int | None = None,
-                 include_closing: bool = True) -> Script:
+                 include_closing: bool = True, signal_format: str = "strict", signal_aliases: bool = False) -> Script:
     rng = random.Random(seed)
     if seed is None:
         seed = rng.randrange(1, 2**31)
@@ -317,14 +323,39 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
     ctx = patient.context(rng)
     ctx["style"] = style
     ctx["_template"] = template.key
-    # Scalar form values are available as placeholders too ({event}, {bt_peak}, ...)
+    # Scalar form values are available as placeholders too ({event}, {bt_peak}, ...).
+    # Select values map to their option label; multi values to a comma list of nouns.
+    fmap = template.field_map()
     for k, v in form.items():
+        f = fmap.get(k)
+        if isinstance(v, list) and f is not None and f.kind == "multi":
+            nouns = [next((o.nouns[0] if o.nouns else o.label) for o in f.options if o.value == x) for x in v if any(o.value == x for o in f.options)]
+            if nouns:
+                ctx.setdefault(k, ", ".join(nouns))
+            continue
         if isinstance(v, (str, int, float)) and not isinstance(v, bool):
             if isinstance(v, float) and v.is_integer():
                 v = int(v)
-            ctx.setdefault(k, v)
+            if f is not None and f.kind == "select":
+                o = next((o for o in f.options if o.value == v), None)
+                ctx.setdefault(k, o.label if o else v)
+            else:
+                ctx.setdefault(k, v)
+    # Defaults for detail fields that were left empty, so phrases never show raw braces
+    for k, f in fmap.items():
+        if k in ctx or f.default is None or isinstance(f.default, (dict, bool)):
+            continue
+        if isinstance(f.default, list):
+            if f.kind == "multi":
+                nouns = [next((o.nouns[0] if o.nouns else o.label) for o in f.options if o.value == x) for x in f.default if any(o.value == x for o in f.options)]
+                if nouns:
+                    ctx[k] = ", ".join(nouns)
+            continue
+        o = next((o for o in f.options if o.value == f.default), None) if f.kind == "select" else None
+        ctx[k] = o.label if o else f.default
 
-    sig_written, sig_tts = signal_line(when, patient.name, template.signal_kind)
+    sig_written, sig_tts, sig_key = signal_line(when, patient.name, template.signal_kind, signal_format,
+                                                random.Random(seed + 3), signal_aliases)
     paragraphs: list[str] = [sig_written]
     tts_paragraphs: list[str] = [sig_tts]
 
@@ -383,6 +414,8 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
             "style": style,
             "form": form,
             "sections": structured,
+            "signal_format": sig_key,
+            "signal_parse": signal_mod.parse(spoken_text).to_dict(),
         },
         seed=seed,
     )

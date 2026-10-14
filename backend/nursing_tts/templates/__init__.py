@@ -4,6 +4,7 @@ from __future__ import annotations
 from .base import RecordTemplate
 from . import s1_admission, s2_preop, s3_postop, s3_2_event, s4_discharge, s5_handover, s6_progress
 from .extra_phrases import EXTRA
+from .protocols import protocol_sections
 
 TEMPLATES: dict[str, RecordTemplate] = {
     t.key: t for t in (
@@ -44,6 +45,10 @@ def _apply_extras() -> None:
 
 
 _apply_extras()
+
+for _t in TEMPLATES.values():
+    if not any(sec.group == "protocol" for sec in _t.sections):
+        _t.sections.extend(protocol_sections(_t.key))
 
 # Signal record kinds required by the recording spec.
 RECORD_KINDS = ["간호정보조사", "퇴원간호", "수술전설명", "수술후설명", "인계"]

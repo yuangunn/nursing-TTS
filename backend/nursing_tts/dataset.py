@@ -41,7 +41,8 @@ def list_recordings(limit: int = 2000) -> list[dict[str, Any]]:
                 "review": (meta.get("review") or {}).get("status", "pending"),
                 "review_note": (meta.get("review") or {}).get("note", ""),
                 "verify": meta.get("verify"), "signal": meta.get("signal"), "spoken_text": meta.get("spoken_text"),
-                "verbatim_text": meta.get("verbatim_text"),
+                "verbatim_text": meta.get("verbatim_text"), "signal_format": meta.get("signal_format"),
+                "signal_parse": meta.get("signal_parse"), "datetime": meta.get("datetime"),
             })
         out.append(item)
     return out
@@ -140,11 +141,17 @@ def export(opts: dict[str, Any]) -> dict[str, Any]:
         audio, _ = read_audio(src_wav, sr)
         write_wav(dst, audio, sr)
         dur = round(len(audio) / sr, 3)
+        sp = r.get("signal_parse") or {}
+        sig_text = r.get("signal") or ""
         manifests[part].append({
             "id": dst.stem, "file": f"wavs/{out_name}", "text": r["text"], "duration": dur,
             "speaker": r.get("voice_id") or "unknown", "speaker_name": r.get("voice_name") or "",
             "record_kind": r.get("record_kind"), "template": r.get("template"), "noise": bool(r.get("noise")),
             "channel": r.get("channel"), "cer": (r.get("verify") or {}).get("cer_best"),
+            # trigger labels: the signal sentence, its char span in `text`, and its parsed fields
+            "signal_text": sig_text, "signal_end_char": len(sig_text) if sig_text and r["text"].startswith(sig_text) else (sp.get("end") or 0),
+            "signal_format": r.get("signal_format"), "patient_name": sp.get("name") or r.get("patient"),
+            "signal_datetime": sp.get("datetime") or r.get("datetime"), "signal_kind": sp.get("kind") or r.get("record_kind"),
         })
 
     written: list[str] = []
@@ -171,7 +178,9 @@ def export(opts: dict[str, Any]) -> dict[str, Any]:
             with p.open("w", encoding="utf-8") as f:
                 for m in manifests[part]:
                     f.write(json.dumps({"audio_filepath": m["file"], "duration": m["duration"], "text": m["text"],
-                                        "speaker": m["speaker"]}, ensure_ascii=False) + "\n")
+                                        "speaker": m["speaker"], "signal_text": m["signal_text"], "signal_end_char": m["signal_end_char"],
+                                        "signal_format": m["signal_format"], "patient_name": m["patient_name"],
+                                        "signal_datetime": m["signal_datetime"], "signal_kind": m["signal_kind"]}, ensure_ascii=False) + "\n")
             written.append(p.name)
     if "whisper" in formats:
         for part in ("train", "val", "test"):
@@ -187,7 +196,8 @@ def export(opts: dict[str, Any]) -> dict[str, Any]:
         p = dest / "dataset.csv"
         with p.open("w", encoding="utf-8", newline="") as f:
             w = csv.DictWriter(f, fieldnames=["id", "file", "split", "text", "duration", "speaker", "speaker_name",
-                                              "record_kind", "template", "noise", "channel", "cer"])
+                                              "record_kind", "template", "noise", "channel", "cer", "signal_text",
+                                              "signal_end_char", "signal_format", "patient_name", "signal_datetime", "signal_kind"])
             w.writeheader()
             for part in ("train", "val", "test"):
                 for m in manifests[part]:
@@ -220,5 +230,5 @@ def _dataset_card(r: dict[str, Any]) -> str:
              "## 파일", "", *[f"- `{f}`" for f in r["files"]], "",
              "## 화자", "", *[f"- {k}: {v['name'] or ''} · {v['count']}개 · {v['duration'] / 60:.1f}분" for k, v in r["speakers"].items()], "",
              "## 기록 종류", "", *[f"- {k}: {v}" for k, v in r["by_record_kind"].items()], "",
-             "형식: `metadata*.csv` (LJSpeech `id|text|text`), `manifest_*.jsonl` (NeMo), `whisper_*.jsonl` (HF Whisper 파인튜닝), `dataset.csv`."]
+             "형식: `metadata*.csv` (LJSpeech `id|text|text`), `manifest_*.jsonl` (NeMo + 시그널 라벨: signal_text / signal_end_char / signal_format / patient_name / signal_datetime / signal_kind), `whisper_*.jsonl` (HF Whisper 파인튜닝), `dataset.csv`."]
     return "\n".join(lines) + "\n"

@@ -78,12 +78,14 @@ class Section:
     title: str
     fields: list[Field]
     hint: str = ""
+    group: str = ""   # "" = template's own content, "protocol" = nursing protocol checklist
 
     def to_schema(self) -> dict[str, Any]:
         return {
             "key": self.key,
             "title": self.title,
             "hint": self.hint,
+            "group": self.group,
             "fields": [f.to_schema() for f in self.fields],
         }
 

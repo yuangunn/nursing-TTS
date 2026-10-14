@@ -158,7 +158,9 @@ def generate_one(spec: dict[str, Any], settings: dict[str, Any], custom_noises: 
     patient = Patient(**{k: v for k, v in (spec.get("patient") or {}).items() if k in Patient.__dataclass_fields__})
     when = _parse_dt(spec.get("datetime"))
     style = spec.get("style") or settings.get("default_style", "mixed")
-    script = build_script(template_key, spec.get("form") or {}, patient, when, style=style, seed=seed)
+    sig_fmt = spec.get("signal_format") or settings.get("signal_format", "strict")
+    script = build_script(template_key, spec.get("form") or {}, patient, when, style=style, seed=seed,
+                          signal_format=sig_fmt, signal_aliases=bool(spec.get("signal_aliases", settings.get("signal_aliases", False))))
 
     spoken = script.spoken_text
     polished = False
@@ -172,6 +174,11 @@ def generate_one(spec: dict[str, Any], settings: dict[str, Any], custom_noises: 
         script.tts_text = "\n".join([sig_tts] + [to_tts_text(l, random.Random(seed + 7 + i)) for i, l in enumerate(lines[1:])])
         script.sentences = [x.strip() for x in re.split(r"(?<=[.!?])\s+", script.spoken_text) if x.strip()]
         spoken = script.spoken_text
+        from .signal import parse as _parse_sig
+        _ps = _parse_sig(lines[0] if lines else "")
+        script.structured["signal_format"] = _ps.format if _ps.ok else "custom"
+        if not _ps.ok:
+            script.structured["signal_warning"] = f"시그널 인식 실패 (누락: {', '.join(_ps.missing or [])})"
     elif spec.get("llm_polish"):
         new = llm.polish(spoken, settings)
         if new != spoken:
@@ -247,6 +254,8 @@ def generate_one(spec: dict[str, Any], settings: dict[str, Any], custom_noises: 
     meta = {
         "file": wav_path.name,
         "signal": script.signal,
+        "signal_format": script.structured.get("signal_format"),
+        "signal_parse": __import__("nursing_tts.signal", fromlist=["parse"]).parse(script.spoken_text).to_dict(),
         "record_kind": get_template(template_key).signal_kind,
         "template": template_key,
         "datetime": when.isoformat(timespec="minutes"),
@@ -365,6 +374,7 @@ def start_batch(opts: dict[str, Any], custom_noises: list[NoiseClip]) -> Job:
             "style": style, "seed": rng.randrange(1 << 30), "voice_id": rng.choice(voice_ids), "noise": n,
             "llm_polish": bool(opts.get("llm_polish")), "rounds_voice": bool(opts.get("rounds_voice")) and rng.random() < 0.4,
             "folder": str(folder), "disfluency": dis_level, "augment": opts.get("augment") or {},
+            "signal_format": opts.get("signal_format") or "random", "signal_aliases": opts.get("signal_aliases"),
         })
     job = Job(id=uuid.uuid4().hex[:8], kind="batch", total=count, items=[JobItem(index=i) for i in range(count)],
               folder=str(folder))

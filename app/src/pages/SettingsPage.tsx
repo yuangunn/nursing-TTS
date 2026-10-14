@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { del, EngineInfo, get, put, Settings } from "../lib/api";
+import SignalSelect from "../components/SignalSelect";
 
 export default function SettingsPage() {
   const [s, setS] = useState<Settings | null>(null);
@@ -208,6 +209,12 @@ export default function SettingsPage() {
               <input type="number" step={0.05} min={0.05} max={1} value={s.cer_threshold} onChange={(e) => save({ cer_threshold: Number(e.target.value) })} />
             </div>
           </div>
+        </div>
+
+        <div className="panel">
+          <h2>시그널 기본 형식</h2>
+          <SignalSelect value={s.signal_format || "strict"} onChange={(v) => save({ signal_format: v || "strict" })} allowDefault={false} aliases={s.signal_aliases} onAliases={(v) => save({ signal_aliases: v })} />
+          <div className="muted" style={{ marginTop: 6 }}>필수 형식은 「연도년 월월 일일 시간시 분분 환자명 님 기록종류 기록입니다」입니다. 다른 형식은 말투 관리 탭의 "시그널 형식"에서 추가할 수 있고, 파서가 날짜·시각·환자명·기록종류를 잡아내는지 예시 보기로 확인됩니다.</div>
         </div>
 
         <div className="panel">

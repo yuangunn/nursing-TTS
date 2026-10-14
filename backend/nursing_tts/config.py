@@ -52,6 +52,8 @@ DEFAULTS: dict[str, Any] = {
     "loudness_dbfs": -20.0,        # RMS loudness target for the speech layer
     "default_disfluency": 0,       # 0..3
     "auto_style_expand": True,     # derive ~고요,/~어요. from formal phrases
+    "signal_format": "strict",     # strict | <format key> | random
+    "signal_aliases": False,       # allow kind aliases (간호정보조사지, 퇴원 교육 ...) in the signal
 }
 
 
