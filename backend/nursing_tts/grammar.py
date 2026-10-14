@@ -101,6 +101,10 @@ def close_sentence(fragment: str) -> str:
             stem = stem[: -len(ending)]
             break
     else:
+        # "NRS 3점으로," / "저위험으로," -> "...입니다."
+        for ending in ("으로", "로"):
+            if stem.endswith(ending):
+                return stem[: -len(ending)] + "입니다."
         return stem + "."
     for rx, suffix in _STEM_RULES:
         if rx.search(stem):

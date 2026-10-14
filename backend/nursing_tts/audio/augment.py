@@ -116,6 +116,8 @@ def augment(audio: np.ndarray, sr: int, cfg: AugmentConfig, rng: np.random.Gener
     out = audio.astype(np.float32)
     if cfg.speed_prob > 0 and rng.random() < cfg.speed_prob:
         f = float(rng.uniform(cfg.speed_min, cfg.speed_max))
+        if abs(f - 1.0) < 0.01:  # make the perturbation audible
+            f = 1.0 + (0.01 if f >= 1.0 else -0.01)
         out = speed_perturb(out, f)
         info["speed"] = round(f, 3)
     choices = [c for c in cfg.channels if c in PRESETS] or ["studio"]

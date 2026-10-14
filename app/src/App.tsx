@@ -6,9 +6,10 @@ import VoicesPage from "./pages/VoicesPage";
 import BatchPage from "./pages/BatchPage";
 import SettingsPage from "./pages/SettingsPage";
 import ResultsPage from "./pages/ResultsPage";
+import PhrasesPage from "./pages/PhrasesPage";
 import { EnergyContext } from "./lib/energy";
 
-type Tab = "record" | "voices" | "batch" | "results" | "settings";
+type Tab = "record" | "voices" | "batch" | "results" | "phrases" | "settings";
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("record");
@@ -47,6 +48,7 @@ export default function App() {
     { key: "batch", label: "대량 생성", icon: "⧉" },
     { key: "voices", label: "목소리 등록", icon: "♪" },
     { key: "results", label: "결과물·QA", icon: "✓" },
+    { key: "phrases", label: "말투 관리", icon: "❝" },
     { key: "settings", label: "설정", icon: "⚙" },
   ];
 
@@ -80,6 +82,7 @@ export default function App() {
             {tab === "batch" && <BatchPage />}
             {tab === "voices" && <VoicesPage />}
             {tab === "results" && <ResultsPage />}
+            {tab === "phrases" && <PhrasesPage />}
             {tab === "settings" && <SettingsPage />}
           </div>
         </div>

@@ -146,3 +146,35 @@ def test_cer():
     assert cer("혈압 123에 78", "혈압 123에 78") == 0.0
     assert 0 < cer("혈압 123에 78", "혈압 123에 79") < 0.2
     assert cer("", "") == 0.0
+
+
+def test_phrase_library():
+    tree = client.get("/api/phrases").json()
+    assert tree["total_variants"] > 1000 and any(t["key"] == "_vitals" for t in tree["templates"])
+    s5 = next(t for t in tree["templates"] if t["key"] == "s5")
+    f = next(f for sec in s5["sections"] for f in sec["fields"] if f["key"] == "sleep")
+    slot = next(sl for sl in f["slots"] if sl["slot"] == "good")
+    assert slot["override"] is None and len(slot["builtin"]) >= 3
+    r = client.put("/api/phrases", json={"template": "s5", "field": "sleep", "slot": "good", "phrases": ["커스텀 수면 문장입니다."]}).json()
+    assert r["override"] == ["커스텀 수면 문장입니다."]
+    body = {"template": "s5", "form": {"sleep": "good"}, "patient": {"name": "테스트"}, "datetime": "2026-10-18T11:10", "seed": 1}
+    txt = client.post("/api/script/preview", json=body).json()["spoken_text"]
+    assert "커스텀 수면 문장" in txt
+    smp = client.post("/api/phrases/sample", json={"template": "s5", "field": "sleep", "slot": "good", "phrases": ["샘플 문장입니다."]}).json()
+    assert smp["samples"] and all("샘플 문장" in x for x in smp["samples"])
+    exp = client.get("/api/phrases/export").json()
+    assert exp["s5"]["sleep"]["good"]
+    assert client.delete("/api/phrases", params={"template": "s5", "field": "sleep", "slot": "good"}).json()["ok"]
+    assert client.get("/api/phrases/export").json().get("s5", {}).get("sleep", {}).get("good") is None
+    assert client.post("/api/phrases/import", json={"data": exp}).json()["slots"] == 1
+    client.delete("/api/phrases", params={"template": "s5"})
+    v = client.post("/api/phrases/sample", json={"template": "_vitals", "field": "bp", "slot": "phrases", "phrases": []}).json()
+    assert len(v["samples"]) == 4 and "123" in v["samples"][0]
+
+
+def test_style_expander():
+    from nursing_tts.phrase_store import expand_styles
+    assert expand_styles("수면 양호합니다.") == ["수면 양호합니다.", "수면 양호하고요,", "수면 양호해요."]
+    assert expand_styles("담당의 확인입니다.")[2] == "담당의 확인이에요."
+    assert expand_styles("POD 2입니다.")[2] == "POD 2예요."
+    assert expand_styles("알레르기 없고,") == ["알레르기 없고,"]

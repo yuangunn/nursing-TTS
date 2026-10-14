@@ -51,6 +51,7 @@ DEFAULTS: dict[str, Any] = {
     "cer_threshold": 0.25,
     "loudness_dbfs": -20.0,        # RMS loudness target for the speech layer
     "default_disfluency": 0,       # 0..3
+    "auto_style_expand": True,     # derive ~고요,/~어요. from formal phrases
 }
 
 

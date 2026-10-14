@@ -16,7 +16,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel
 
-from . import __version__, dataset, jobs, llm, noise_library, verify as verify_mod, voices as voices_mod
+from . import __version__, dataset, jobs, llm, noise_library, phrase_store, verify as verify_mod, voices as voices_mod
+from .templates.extra_phrases import VITALS_FORMS
 from .audio.augment import preset_catalogue
 from .audio import noise as noise_mod
 from .audio.mixer import NoiseConfig, level_to_snr_db, mix
@@ -125,6 +126,7 @@ class SettingsModel(BaseModel):
     cer_threshold: float | None = None
     loudness_dbfs: float | None = None
     default_disfluency: int | None = None
+    auto_style_expand: bool | None = None
 
 
 class ReviewRequest(BaseModel):
@@ -200,6 +202,177 @@ def disfluency_preview(body: dict[str, Any]):
     from .disfluency import apply
     text, edits = apply(body.get("text", ""), int(body.get("level", 1)), random.Random(body.get("seed")))
     return {"text": text, "edits": edits}
+
+
+# ---------------------------------------------------------------------------
+# Phrase library (view / manage spoken variants per element)
+# ---------------------------------------------------------------------------
+
+def _phrase_tree() -> list[dict[str, Any]]:
+    out = []
+    for key, t in TEMPLATES.items():
+        sections = []
+        for sec in t.sections:
+            fields = []
+            for f in sec.fields:
+                slots = []
+                if f.kind in ("select",):
+                    for o in f.options:
+                        slots.append({"slot": o.value, "label": o.label, "builtin": o.phrases,
+                                      "override": phrase_store.get_override(key, f.key, o.value)})
+                elif f.kind == "multi":
+                    slots.append({"slot": "phrases", "label": "선택 항목 나열 ({v})", "builtin": f.phrases,
+                                  "override": phrase_store.get_override(key, f.key, "phrases")})
+                    slots.append({"slot": "none", "label": "해당 없음일 때", "builtin": f.none_phrases,
+                                  "override": phrase_store.get_override(key, f.key, "none")})
+                elif f.kind == "bool":
+                    slots.append({"slot": "phrases", "label": "체크했을 때", "builtin": f.phrases,
+                                  "override": phrase_store.get_override(key, f.key, "phrases")})
+                    slots.append({"slot": "false", "label": "체크 안 했을 때", "builtin": f.false_phrases,
+                                  "override": phrase_store.get_override(key, f.key, "false")})
+                elif f.kind == "vitals":
+                    continue
+                else:
+                    slots.append({"slot": "phrases", "label": "값 삽입 문장 ({v})", "builtin": f.phrases,
+                                  "override": phrase_store.get_override(key, f.key, "phrases")})
+                fields.append({"key": f.key, "label": f.label, "kind": f.kind, "unit": f.unit, "placeholder": f.placeholder,
+                               "example": f.example, "slots": slots})
+            sections.append({"key": sec.key, "title": sec.title, "fields": fields})
+        meta = [
+            {"key": "intros", "label": "도입부 (시그널 다음 문장)", "kind": "meta", "slots": [{"slot": "phrases", "label": "변형", "builtin": t.intros, "override": phrase_store.get_override(key, "intros", "phrases")}]},
+            {"key": "closings", "label": "종료 문장", "kind": "meta", "slots": [{"slot": "phrases", "label": "변형", "builtin": t.closings, "override": phrase_store.get_override(key, "closings", "phrases")}]},
+        ]
+        sections.insert(0, {"key": "_meta", "title": "도입·종료", "fields": meta})
+        out.append({"key": key, "title": t.title, "sections": sections})
+    vitals = {"key": "_vitals", "title": "활력징후 읽기 형식 (모든 템플릿 공통)", "sections": [{"key": "vitals", "title": "V/S", "fields": [
+        {"key": k, "label": label, "kind": "vitals_form", "slots": [{"slot": "phrases", "label": "형식", "builtin": VITALS_FORMS[k], "override": phrase_store.get_override("_vitals", k, "phrases")}]}
+        for k, label in [("lead", "앞머리 (활력징후는…)"), ("bp", "혈압 {sbp} {dbp}"), ("hr", "맥박 {hr}"), ("rr", "호흡 {rr}"), ("bt", "체온 {bt} / {bt_casual}"),
+                         ("spo2", "산소포화도 {spo2}"), ("o2_with", "산소 적용 중 ({o2}, {base})"), ("o2_room", "room air ({base})"), ("ending", "맺음말 (혼합)"), ("ending_formal", "맺음말 (격식)")]]}]}
+    out.append(vitals)
+    return out
+
+
+class PhraseUpdate(BaseModel):
+    template: str
+    field: str
+    slot: str
+    phrases: list[str]
+
+
+@app.get("/api/phrases")
+def phrases_tree():
+    ok = bool(load_settings().get("auto_style_expand", True))
+    tree = _phrase_tree()
+    total = 0
+    overridden = 0
+    for t in tree:
+        for sec in t["sections"]:
+            for f in sec["fields"]:
+                for sl in f["slots"]:
+                    total += len(sl["override"] if sl["override"] is not None else sl["builtin"])
+                    overridden += 1 if sl["override"] is not None else 0
+    return {"templates": tree, "auto_style_expand": ok, "total_variants": total, "effective_variants": total * (3 if ok else 1),
+            "overridden_slots": overridden}
+
+
+@app.put("/api/phrases")
+def phrases_set(body: PhraseUpdate):
+    phrase_store.set_override(body.template, body.field, body.slot, body.phrases)
+    return {"ok": True, "override": phrase_store.get_override(body.template, body.field, body.slot)}
+
+
+@app.delete("/api/phrases")
+def phrases_reset(template: str, field: str | None = None, slot: str | None = None):
+    phrase_store.reset_override(template, field, slot)
+    return {"ok": True}
+
+
+@app.get("/api/phrases/export")
+def phrases_export():
+    return phrase_store.all_overrides()
+
+
+@app.post("/api/phrases/import")
+def phrases_import(body: dict[str, Any]):
+    n = phrase_store.import_overrides(body.get("data") or {}, replace=bool(body.get("replace", False)))
+    return {"ok": True, "slots": n}
+
+
+@app.post("/api/phrases/sample")
+def phrases_sample(body: dict[str, Any]):
+    """Render a few example sentences for one element (with the style expander applied)."""
+    from .generator import Patient as _P, realize_field
+    from .templates.base import Field as _F
+    template = body.get("template", "")
+    field_key = body.get("field", "")
+    slot = body.get("slot", "phrases")
+    phrases = [p for p in (body.get("phrases") or []) if p and p.strip()]
+    style = body.get("style", "mixed")
+    rng = random.Random(body.get("seed"))
+    ctx = _P(op_date="10월 14일").context(rng)
+    ctx["_template"] = template
+    ctx.update({"drain_amount": 20, "bt_peak": 37.4, "bt_now": 36.9, "sbp": 123, "dbp": 78, "hr": 72, "event": "발열"})
+    samples: list[str] = []
+    if template == "_vitals":
+        from .generator import realize_vitals
+        v = {"sbp": 123, "dbp": 78, "hr": 72, "rr": 18, "bt": 37.1, "spo2": 97, "o2": "room air"}
+        for _ in range(4):
+            samples.append(realize_vitals(v, rng, style))
+        return {"samples": samples}
+    if field_key in ("intros", "closings"):
+        from .generator import _fmt
+        from .grammar import fix_josa
+        for _ in range(min(4, len(phrases)) or 1):
+            samples.append(fix_josa(_fmt(rng.choice(phrases), ctx)) if phrases else "")
+        return {"samples": samples}
+    t = TEMPLATES.get(template)
+    f = t.field_map().get(field_key) if t else None
+    if f is None:
+        raise HTTPException(404, "unknown field")
+    # Build a temporary field whose list is replaced by the candidate phrases.
+    import copy
+    tmp: _F = copy.deepcopy(f)
+    value: Any
+    if f.kind == "select":
+        o = next((o for o in tmp.options if o.value == slot), None)
+        if o is None:
+            raise HTTPException(404, "unknown option")
+        o.phrases = phrases
+        value = slot
+    elif f.kind == "multi":
+        if slot == "none":
+            tmp.none_phrases = phrases
+            value = ["none"]
+        else:
+            tmp.phrases = phrases
+            real = [o.value for o in tmp.options if o.value != "none"]
+            value = real[:2]
+    elif f.kind == "bool":
+        if slot == "false":
+            tmp.false_phrases = phrases
+            value = False
+        else:
+            tmp.phrases = phrases
+            value = True
+    elif f.kind == "number":
+        tmp.phrases = phrases
+        value = f.default if f.default is not None else 3
+    else:
+        tmp.phrases = phrases
+        value = f.default or (f.placeholder.replace("예: ", "") if f.placeholder else "예시 값")
+    tmp.speak_prob = 1.0
+    phrase_store_backup = phrase_store.get_override(template, field_key, slot)
+    try:
+        phrase_store.set_override(template, field_key, slot, phrases)
+        for _ in range(4):
+            out = realize_field(tmp, value, ctx, rng, style, force_close=(_ % 2 == 1))
+            samples.append(out or "")
+    finally:
+        if phrase_store_backup is None:
+            phrase_store.reset_override(template, field_key, slot)
+        else:
+            phrase_store.set_override(template, field_key, slot, phrase_store_backup)
+    return {"samples": samples}
 
 
 # ---------------------------------------------------------------------------

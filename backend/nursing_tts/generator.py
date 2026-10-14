@@ -9,6 +9,8 @@ from typing import Any
 
 from . import korean
 from .grammar import close_sentence, fix_josa
+from . import phrase_store
+from .templates.extra_phrases import VITALS_FORMS
 from .templates import get_template
 from .templates.base import Field, RecordTemplate
 
@@ -114,63 +116,38 @@ def signal_line(when: datetime, patient_name: str, kind: str) -> tuple[str, str]
 # Vitals realizer (shared by several templates)
 # ---------------------------------------------------------------------------
 
-def _bp_phrase(sbp: Any, dbp: Any, rng: random.Random) -> str:
-    forms = [
-        f"혈압 {sbp}에 {dbp}",
-        f"혈압은 {sbp}에 {dbp}",
-        f"BP {sbp}/{dbp}",
-        f"혈압 {sbp}/{dbp}",
-        f"비피 {sbp}에 {dbp}",
-    ]
-    return rng.choice(forms)
-
-
-def _hr_phrase(hr: Any, rng: random.Random) -> str:
-    return rng.choice([f"맥박 {hr}", f"맥박은 {hr}", f"HR {hr}", f"PR {hr}", f"심박 {hr}"])
-
-
-def _rr_phrase(rr: Any, rng: random.Random) -> str:
-    return rng.choice([f"호흡 {rr}", f"호흡은 {rr}회", f"RR {rr}", f"호흡수 {rr}회"])
-
-
-def _bt_phrase(bt: float, rng: random.Random) -> str:
-    casual = korean.temperature_casual(bt)
-    return rng.choice([
-        f"체온 {bt}", f"체온은 {bt}도", f"BT {bt}", f"열은 {casual}", f"체온 {casual}", f"BT {bt}도",
-    ])
-
-
-def _spo2_phrase(spo2: Any, o2: str, rng: random.Random) -> str:
-    base = rng.choice([f"산소포화도 {spo2}%", f"SpO2 {spo2}%", f"샛 {spo2}", f"SpO2 {spo2}"])
-    if o2 and o2 not in ("room air", "none", ""):
-        return rng.choice([f"{o2} 적용 중 {base}", f"{base}, {o2} 적용 중", f"{o2} 에 {base}"])
-    if o2 == "room air":
-        return rng.choice([f"room air 에 {base}", f"{base} room air", base])
-    return base
+def _vf(key: str) -> list[str]:
+    return phrase_store.effective("_vitals", key, "phrases", VITALS_FORMS[key])
 
 
 def realize_vitals(value: dict[str, Any], rng: random.Random, verb_style: str = "mixed") -> str:
     """value: {sbp, dbp, hr, rr, bt, spo2, o2}"""
     parts: list[str] = []
-    if value.get("sbp") and value.get("dbp"):
-        parts.append(_bp_phrase(value["sbp"], value["dbp"], rng))
-    if value.get("hr"):
-        parts.append(_hr_phrase(value["hr"], rng))
-    if value.get("rr"):
-        parts.append(_rr_phrase(value["rr"], rng))
-    if value.get("bt"):
-        parts.append(_bt_phrase(float(value["bt"]), rng))
-    if value.get("spo2"):
-        parts.append(_spo2_phrase(value["spo2"], str(value.get("o2") or ""), rng))
+    v = dict(value)
+    if v.get("bt"):
+        v["bt_casual"] = korean.temperature_casual(float(v["bt"]))
+    if v.get("sbp") and v.get("dbp"):
+        parts.append(rng.choice(_vf("bp")).format(**v))
+    if v.get("hr"):
+        parts.append(rng.choice(_vf("hr")).format(**v))
+    if v.get("rr"):
+        parts.append(rng.choice(_vf("rr")).format(**v))
+    if v.get("bt"):
+        parts.append(rng.choice(_vf("bt")).format(**v))
+    if v.get("spo2"):
+        base = rng.choice(_vf("spo2")).format(**v)
+        o2 = str(v.get("o2") or "")
+        if o2 and o2 not in ("room air", "none", ""):
+            base = rng.choice(_vf("o2_with")).format(base=base, o2=o2)
+        elif o2 == "room air":
+            base = rng.choice(_vf("o2_room")).format(base=base)
+        parts.append(base)
     if not parts:
         return ""
-    lead = rng.choice(["활력징후 ", "활력징후는 ", "V/S ", "바이탈 ", ""])
+    lead = rng.choice(_vf("lead"))
     joiner = rng.choice([", ", ", ", " "])
-    endings_mixed = ["입니다.", "이고요,", "나오셨습니다.", "나오셨구요,", "측정됩니다.", "체크됩니다.", "입니다."]
-    endings_formal = ["입니다.", "측정되었습니다.", "체크되었습니다."]
-    ending = rng.choice(endings_formal if verb_style == "formal" else endings_mixed)
+    ending = rng.choice(_vf("ending_formal") if verb_style == "formal" else _vf("ending"))
     body = joiner.join(parts)
-    # avoid "..., 맥박 72 이고요" with trailing connective where it reads odd
     return f"{lead}{body} {ending}".replace("  ", " ")
 
 
@@ -191,6 +168,17 @@ def _fmt(phrase: str, ctx: dict[str, Any]) -> str:
     except (KeyError, IndexError):
         # leave unknown placeholders intact rather than crash
         return re.sub(r"\{(\w+)\}", lambda m: str(ctx.get(m.group(1), m.group(0))), phrase)
+
+
+def _finish(phrase: str | None, local: dict[str, Any], rng: random.Random, style: str, force_close: bool) -> str | None:
+    """Format placeholders, then derive the register (formal / ~고요, / ~어요.)."""
+    if phrase is None:
+        return None
+    text = _fmt(phrase, local)
+    text = phrase_store.stylize(text, rng, style, allow_connective=not force_close)
+    if force_close and _is_connective(text):
+        text = close_sentence(text)
+    return text
 
 
 def _choose(variants: list[str], rng: random.Random, style: str, force_close: bool) -> str | None:
@@ -224,16 +212,17 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
         option = next((o for o in f.options if o.value == value), None)
         if option is None:
             return None
-        phrase = _choose(option.phrases, rng, style, force_close)
+        phrase = _choose(phrase_store.effective(ctx.get("_template", ""), f.key, option.value, option.phrases), rng, style, force_close)
         if phrase is None:
             return None
         local["v"] = option.label
-        return _fmt(phrase, local)
+        return _finish(phrase, local, rng, style, force_close)
     if f.kind == "multi":
         values = [v for v in value if v not in f.skip_values]
+        tk = ctx.get("_template", "")
         if not values or values == ["none"]:
-            phrase = _choose(f.none_phrases, rng, style, force_close)
-            return _fmt(phrase, local) if phrase else None
+            phrase = _choose(phrase_store.effective(tk, f.key, "none", f.none_phrases), rng, style, force_close)
+            return _finish(phrase, local, rng, style, force_close)
         options = [o for o in f.options if o.value in values and o.value != "none"]
         # Each option may have its own full phrase; otherwise use the list form.
         nouns = [rng.choice(o.nouns) if o.nouns else o.label for o in options]
@@ -244,8 +233,8 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
         else:
             local["v"] = nouns[0] if nouns else ""
         local["count"] = len(nouns)
-        phrase = _choose(f.phrases, rng, style, force_close)
-        return _fmt(phrase, local) if phrase else None
+        phrase = _choose(phrase_store.effective(tk, f.key, "phrases", f.phrases), rng, style, force_close)
+        return _finish(phrase, local, rng, style, force_close)
     if f.kind == "number":
         if rng.random() > f.speak_prob:
             return None
@@ -253,18 +242,22 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
         if isinstance(v, float) and v.is_integer():
             v = int(v)
         local["v"] = v
-        phrase = _choose(f.phrases, rng, style, force_close)
-        return _fmt(phrase, local) if phrase else None
+        phrase = _choose(phrase_store.effective(ctx.get("_template", ""), f.key, "phrases", f.phrases), rng, style, force_close)
+        return _finish(phrase, local, rng, style, force_close)
     if f.kind == "text":
         if rng.random() > f.speak_prob:
             return None
         local["v"] = str(value).strip()
-        phrase = _choose(f.phrases, rng, style, force_close)
-        return _fmt(phrase, local) if phrase else None
+        # Nominalised free text ("…옅어지고 있음", "…시행함") must not get "입니다" glued on.
+        if re.search(r"(음|됨|함|임|없음|있음)$", local["v"]):
+            return _fmt("{v}.", local)
+        phrase = _choose(phrase_store.effective(ctx.get("_template", ""), f.key, "phrases", f.phrases), rng, style, force_close)
+        return _finish(phrase, local, rng, style, force_close)
     if f.kind == "bool":
-        phrases = f.phrases if value else f.false_phrases
+        tk = ctx.get("_template", "")
+        phrases = phrase_store.effective(tk, f.key, "phrases", f.phrases) if value else phrase_store.effective(tk, f.key, "false", f.false_phrases)
         phrase = _choose(phrases, rng, style, force_close)
-        return _fmt(phrase, local) if phrase else None
+        return _finish(phrase, local, rng, style, force_close)
     if f.kind == "vitals":
         if not isinstance(value, dict):
             return None
@@ -312,6 +305,7 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
     template: RecordTemplate = get_template(template_key)
     ctx = patient.context(rng)
     ctx["style"] = style
+    ctx["_template"] = template.key
     # Scalar form values are available as placeholders too ({event}, {bt_peak}, ...)
     for k, v in form.items():
         if isinstance(v, (str, int, float)) and not isinstance(v, bool):
@@ -323,8 +317,9 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
     paragraphs: list[str] = [sig_written]
     tts_paragraphs: list[str] = [sig_tts]
 
-    if template.intros:
-        intro = fix_josa(_fmt(rng.choice(template.intros), ctx))
+    intros = phrase_store.effective(template.key, "intros", "phrases", template.intros)
+    if intros:
+        intro = fix_josa(_fmt(rng.choice(intros), ctx))
         paragraphs.append(intro)
 
     structured: dict[str, Any] = {}
@@ -354,8 +349,9 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
         if fragments:
             paragraphs.append(_join_fragments(fragments))
 
-    if include_closing and template.closings:
-        paragraphs.append(fix_josa(_fmt(rng.choice(template.closings), ctx)))
+    closings = phrase_store.effective(template.key, "closings", "phrases", template.closings)
+    if include_closing and closings:
+        paragraphs.append(fix_josa(_fmt(rng.choice(closings), ctx)))
 
     spoken_text = "\n".join(paragraphs)
     # TTS layer: signal line already phonetic; convert the rest.

@@ -200,7 +200,7 @@ def random_form(template_key: str, rng: random.Random, patient: Patient | None =
     form: dict[str, Any] = {}
     for _, f in t.iter_fields():
         if f.kind == "select":
-            if f.default is not None and rng.random() < 0.55:
+            if f.default is not None and rng.random() < 0.3:
                 form[f.key] = f.default
             else:
                 form[f.key] = rng.choice(f.options).value

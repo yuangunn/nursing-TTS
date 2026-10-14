@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from .base import RecordTemplate
 from . import s1_admission, s2_preop, s3_postop, s3_2_event, s4_discharge, s5_handover
+from .extra_phrases import EXTRA
 
 TEMPLATES: dict[str, RecordTemplate] = {
     t.key: t for t in (
@@ -14,6 +15,34 @@ TEMPLATES: dict[str, RecordTemplate] = {
         s5_handover.TEMPLATE,
     )
 }
+
+
+
+def _apply_extras() -> None:
+    """Append the extra variant pack to the built-in option/field phrase lists (idempotent)."""
+    for (tkey, fkey, slot), phrases in EXTRA.items():
+        targets = TEMPLATES.values() if tkey == "*" else [TEMPLATES[tkey]] if tkey in TEMPLATES else []
+        for t in targets:
+            f = t.field_map().get(fkey)
+            if f is None:
+                continue
+            if slot == "phrases":
+                lst = f.phrases
+            elif slot == "none":
+                lst = f.none_phrases
+            elif slot == "false":
+                lst = f.false_phrases
+            else:
+                o = next((o for o in f.options if o.value == slot), None)
+                if o is None:
+                    continue
+                lst = o.phrases
+            for ph in phrases:
+                if ph not in lst:
+                    lst.append(ph)
+
+
+_apply_extras()
 
 # Signal record kinds required by the recording spec.
 RECORD_KINDS = ["간호정보조사", "퇴원간호", "수술전설명", "수술후설명", "인계"]

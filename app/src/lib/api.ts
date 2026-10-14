@@ -284,6 +284,7 @@ export interface Settings {
   cer_threshold: number;
   loudness_dbfs: number;
   default_disfluency: number;
+  auto_style_expand: boolean;
   _output_dir_resolved: string;
   _data_dir: string;
 }
