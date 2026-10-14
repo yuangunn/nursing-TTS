@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+backend/.venv/
+backend/*.egg-info/
+.pytest_cache/
+
+# Node / Electron
+node_modules/
+app/dist/
+app/dist-electron/
+app/release/
+*.log
+
+# Local data
+backend/local_data/
+output/
+.DS_Store
