@@ -260,6 +260,7 @@ export default function RecordPage({ status, onTab }: Props) {
             <NoisePanel
               value={noise}
               onChange={setNoise}
+              voiceId={voiceId}
               extra={
                 <label title="등록된 다른 목소리로 회진 대화를 합성해 멀리서 들리게 섞습니다 (목소리 2개 이상 필요)">
                   <input type="checkbox" checked={rounds} onChange={(e) => setRounds(e.target.checked)} /> 다른 환자 회진 음성 (TTS)
