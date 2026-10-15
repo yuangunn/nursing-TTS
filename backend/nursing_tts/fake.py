@@ -77,7 +77,7 @@ TEXT_POOLS: dict[str, list[str]] = {
                   "내일 아침 랩 F/U 예정"],
     "s5.plan": ["오전에 강화폐활량계 교육 재확인", "내일 수술 준비 및 금식 확인", "퇴원 교육 시행", "오전 외래 CT 이송 준비", "PICC 드레싱 교환"],
     "s3_1.plan": [], "s2.plan": [], "s4.plan": [],
-    "discharge_date": ["내일 오전", "오늘 오후", "모레 오전", "내일 10월 18일 오전"],
+    "discharge_date": ["오늘 오전", "오늘 오전 10시", "오늘 11시", "오늘 점심 전", "오늘 오후"],
     "course": ["수술 후 특이 합병증 없이 회복", "수술 후 발열 있었으나 호전", "수술 후 장폐색 없이 식이 진행 양호"],
     "discharge_meds": ["아세트아미노펜 650mg 하루 세 번 식후 5일분, 위장운동촉진제 하루 세 번 식전 2주분, 철분제 하루 한 번",
                        "아세트아미노펜 650mg 하루 세 번 3일분, 세파클러 하루 세 번 5일분", "진통제 5일분과 변비약 2주분"],
@@ -404,6 +404,11 @@ def random_form(template_key: str, rng: random.Random, patient: Patient | None =
         elif f.kind == "text":
             pool = (sc_pools.get(f"{template_key}.{f.key}") or sc_pools.get(f.key)
                     or TEXT_POOLS.get(f"{template_key}.{f.key}", TEXT_POOLS.get(f.key)))
+            if pool and template_key == "s4" and f.key == "special_edu":
+                # discharge education: two or three items from the ward leaflet summary, one record
+                k = min(len(pool), rng.choice([1, 2, 2, 3]))
+                form[f.key] = " ".join(_fill(x, patient, sc).rstrip(".") + "." for x in rng.sample(list(pool), k)).rstrip(".")
+                continue
             if pool:
                 val = _fill(rng.choice(pool), patient, sc)
                 if val and val not in ("없음", "허용 약 없음", "특이 질문 없음", "검사 없음", "배액관 없음", "특이사항 없음", "항생제 없음", "특이 소견 없음", "변화 없음"):

@@ -147,3 +147,20 @@ def test_lmp_only_for_gynecologic_surgery_patients():
             other += 1
             assert "lmp" not in f, (p.surgery or p.regimen, p.department, p.sex)
     assert gyn > 10 and other > 10
+
+
+def test_discharge_record_is_same_day_with_ward_leaflet_education():
+    rng = random.Random(21)
+    want = {"THA": "탈구", "C-sec": "오로", "Lapa chole": "복대", "Bilateral total thyroidectomy": "목운동", "TKA": "양반다리",
+            "TLH c BSO": "통목욕", "Hernioplasty": "치료식", "TSA": "보조기", "AC": "마스크"}
+    for key, word in want.items():
+        seen = ""
+        for _ in range(30):
+            p = random_patient(rng, "s4", scenario=key)
+            f = random_form("s4", rng, p)
+            assert "내일" not in f["discharge_date"] and "모레" not in f["discharge_date"], f["discharge_date"]
+            assert "{" not in f["special_edu"]
+            seen += f["special_edu"]
+            s = build_script("s4", f, p, random_datetime(rng), style="mixed", seed=1)
+            assert "퇴원 당일 재교육" not in s.spoken_text and "내일 오전 퇴원" not in s.spoken_text
+        assert word in seen, (key, word)
