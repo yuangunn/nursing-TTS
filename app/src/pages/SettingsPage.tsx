@@ -215,6 +215,14 @@ export default function SettingsPage() {
               <input type="number" step={1} min={-35} max={-10} value={s.loudness_dbfs} onChange={(e) => save({ loudness_dbfs: Number(e.target.value) })} />
             </div>
             <div>
+              <label>바닥 소음 (dBFS, 소음 꺼도 깔림)</label>
+              <input type="number" step={1} min={-80} max={0} value={s.floor_dbfs ?? -56} title="말 사이 공백이 완전 무음이 되지 않게 깔리는 룸톤. 실제 녹음은 −52~−58. 0이면 없음" onChange={(e) => save({ floor_dbfs: Number(e.target.value) })} />
+            </div>
+            <div>
+              <label>기본 울림 (0~0.3)</label>
+              <input type="number" step={0.01} min={0} max={0.3} value={s.room_wet ?? 0.06} title="모든 녹음에 아주 약하게 적용되는 병실 울림. 소리 옵션의 '병실 울림'을 켜면 그쪽이 우선" onChange={(e) => save({ room_wet: Number(e.target.value) })} />
+            </div>
+            <div>
               <label>기본 구어 흐트러짐 (0~3)</label>
               <input type="number" min={0} max={3} value={s.default_disfluency} onChange={(e) => save({ default_disfluency: Number(e.target.value) })} />
             </div>

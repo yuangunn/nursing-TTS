@@ -117,6 +117,15 @@ nurse10~12는 7~9보다 느리고(본인 말이 느린 편이라는 사용자 �
 ### 병동 시나리오 지식베이스 (2026-10-15, 사용자 요청)
 사용자 병동의 수술·항암 목록으로 `clinical.py`를 만들었다. 수술 30종(GS: TM c ALND, partial mastectomy c SLNB, NSM c SLNB, breast mass excision, lapa chole, BTT, MRND, LAR, lapa RHC, ileostomy repair, hernioplasty, rectal prolapse OP / OBGY: TLH c BSO, TAH, staging lapa, C-sec, lapa BOCE, myomectomy / URO: TURB, RALRP, partial nephrectomy / ENT: ESS, tracheostomy / OS: TKA, THA, TSA, meniscectomy, meniscal repair, ORIF, BKA, rotator cuff repair / PS: breast recon)과 항암 14종(유방: AC, TCHP, HP, TCH, K+AC, K+TC, H / 대장·췌장: mFOLFOX6, mFOLFIRI, FOLFIRINOX, A-FOLFIRI, E-FOLFIRI / 자궁내막: T+C+Jemperli)마다 개연성 있는 진단명(3~6개)·주 호소·현병력·나이/성별·재원 기간과, 템플릿 필드 제한(배액관 종류·식이·소변줄·장치·추후 계획·이벤트 종류)·글 풀(통증 양상·배액·퇴원약·운전/복직·수술/항암별 특이 교육)을 적었다. 가상 환자는 여기서만 뽑히므로 「갑상선암인데 JP 배액관, 덤핑 교육」 같은 조합이 나오지 않는다. FOLFIRINOX는 대장이 아니라 췌장암 regimen이라 췌장암으로 두었다. 항암 입원은 S1·S4·S5·S6만 만들고 인계 인트로는 「항암 3차 D1」로 읽는다. S3-1·S4·S5에 수술/항암별 특이 교육 필드가 추가됐다(자동 채움).
 
+### 사용자 청취 피드백 반영 (2026-10-15 저녁, 0.6B vs 1.7B 같은 대본 비교 후)
+"1.7B가 확실히 낫다. 둘 다 말투가 이상하다"는 피드백에서 구체 항목을 고쳤다.
+- PICC를 "픽"으로 읽지 않는다(이 병동은 "피아이씨씨"). `korean.py`
+- "POD 3"은 "피오디 삼일째"로 읽는다(병동 관행). `korean.py` 규칙 + 등록 대본
+- "풀코드"는 이 병동에서 쓰지 않는 말이라 인계 B 항목을 「DNR / 연명의료」(해당 없음·DNR 동의서·연명의료계획서)로 바꾸고 기본은 말하지 않음
+- 문장 끝이 뚝 끊기는 느낌: 조각 끝 무음 자르기가 자연 감쇠까지 잘라내고 있었다 → 양끝 0.18초 보존 + 30 ms 페이드. `tts/base.py`
+- 말 사이 공백이 완전 무음이라 볼륨 갭이 컸다 → 소음을 꺼도 항상 −56 dBFS 룸톤 바닥(실녹음 바닥 −52~−58)과 아주 약한 울림(wet 0.06)을 깐다. 설정 「바닥 소음」「기본 울림」으로 조절, 0이면 예전처럼. `mixer.py`
+- 이 Mac(16 GB)에서 100건 연속 생성은 스왑이 차서 전체가 멈춘다 → 대량 생성은 RTX 5070 Ti 노트북 HTTP 래퍼로, Mac은 0.6B·배치 4 정도만. 큐 복구(디스크 저장)와 메모리 가드는 다음 작업
+
 ### 목소리 다양화: 공개 데이터 조사와 결정 (2026-10-15)
 사용자가 커뮤니티 RVC .pth + w-okada/voice-changer를 제안했으나, 출처·동의 불명 음성(스트리머·아이돌)이 대부분이고 부정경쟁방지법상 음성 보호 대상이라 쓰지 않기로 했다. 공개 데이터를 먼저 조사했다.
 

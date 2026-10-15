@@ -123,6 +123,8 @@ def _noise_cfg(raw: dict[str, Any] | None, settings: dict[str, Any], rng: random
         density=float(raw.get("density", 4.0)),
         reverb=bool(raw.get("reverb", False)),
         seed=rng.randrange(1 << 30),
+        floor_dbfs=float(settings.get("floor_dbfs", -56.0) or 0),
+        room_wet=float(settings.get("room_wet", 0.06) or 0),
     )
 
 

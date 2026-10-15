@@ -189,7 +189,7 @@ ABBREVIATIONS: dict[str, list[str]] = {
     "SSI": ["에스에스아이", "슬라이딩"], "RI": ["알아이"],
     "Lasix": ["라식스"], "KCl": ["케이씨엘"], "NaCl": ["엔에이씨엘"], "MgSO4": ["마그네슘"],
     # lines / tubes / drains
-    "JP": ["제이피"], "PIV": ["피아이브이", "말초 라인"], "PICC": ["픽", "피아이씨씨"], "C-line": ["씨라인"],
+    "JP": ["제이피"], "PIV": ["피아이브이", "말초 라인"], "PICC": ["피아이씨씨"], "C-line": ["씨라인"],  # "픽"은 이 병동에서 안 씀
     "CVC": ["씨브이씨"], "Foley": ["폴리"], "foley": ["폴리"], "catheter": ["카테터"],
     "L-tube": ["엘튜브"], "NG": ["엔지"], "NGT": ["엔지티"], "T-tube": ["티튜브"], "PCD": ["피씨디"],
     "PTBD": ["피티비디"], "ENBD": ["이엔비디"], "chest tube": ["체스트 튜브"], "Rt": ["라이트"], "Lt": ["레프트"],
@@ -321,6 +321,9 @@ def to_tts_text(spoken: str, rng: random.Random | None = None) -> str:
 
     # 3. ranges "150~180" -> "150 에서 180"
     text = _RANGE.sub(lambda m: f"{m.group(1)} 에서 {m.group(2)}", text)
+
+    # 3-. "POD 3" / "POD#3" is said "피오디 삼일째" on this ward (not "피오디 삼")
+    text = re.sub(r"(?<![A-Za-z])POD\s*#?\s*(\d+)(?![\d])", lambda m: f"피오디 {sino(int(m.group(1)))}일째", text)
 
     # 3a. any "q{n}h" not in the dictionary (q24h, q2h ...) -> "{n} 시간마다"
     text = re.sub(r"(?<![A-Za-z0-9])q\s*(\d+)\s*h(?![A-Za-z0-9])",  # \b fails before Hangul ("q24h이고")
