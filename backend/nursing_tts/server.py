@@ -112,6 +112,7 @@ class SettingsModel(BaseModel):
     device: str | None = None
     qwen_model: str | None = None
     qwen_idle_unload_min: int | None = None
+    qwen_batch: int | None = None
     http_tts_url: str | None = None
     output_dir: str | None = None
     sample_rate: int | None = None
@@ -151,6 +152,7 @@ class ExportRequest(BaseModel):
     exclude_rejected: bool = True
     exclude_failed_verify: bool = True
     seed: int = 42
+    max_clip_sec: float = 0            # >0: cut long recordings at sentence segments (30 for Whisper fine-tuning)
 
 
 # ---------------------------------------------------------------------------

@@ -44,10 +44,11 @@ class QwenEngine:
     clones_voice = True
 
     def __init__(self, model: str = "Qwen/Qwen3-TTS-12Hz-1.7B-Base", device: str = "auto", sr: int = 24000,
-                 idle_unload_min: float = 10):
+                 idle_unload_min: float = 10, batch: int = 8):
         self.model = model
         self.device_pref = device
         self.sr = sr
+        self.batch = max(1, int(batch or 1))  # sentence chunks per generate call (decode is memory-bound, so batching is ~free)
         self.idle_unload_s = float(idle_unload_min or 0) * 60
         self._m = None
         self._prompts: dict[tuple, object] = {}  # ponytail: unbounded; a few voices × samples, cleared on unload
@@ -99,9 +100,16 @@ class QwenEngine:
             pass
 
     def synthesize(self, text: str, ref: tuple[Path, str] | None, seed: int | None = None) -> tuple[np.ndarray, int]:
+        wavs, sr = self.synthesize_many([text], ref, seed)
+        return wavs[0], sr
+
+    def synthesize_many(self, texts: list[str], ref: tuple[Path, str] | None,
+                        seed: int | None = None) -> tuple[list[np.ndarray], int]:
+        """Batched generation: ``self.batch`` texts per call share one voice prompt."""
         if ref is None:
             raise RuntimeError("Qwen3-TTS는 참조 음성(등록된 목소리)이 필요합니다.")
         ref_path, ref_text = ref
+        out: list[np.ndarray] = []
         with self._lock:
             m = self._load()
             key = (str(ref_path), ref_path.stat().st_mtime, ref_text)
@@ -111,15 +119,19 @@ class QwenEngine:
                 prompt = m.create_voice_clone_prompt(ref_audio=(audio, sr), ref_text=ref_text or None,
                                                      x_vector_only_mode=not ref_text)
                 self._prompts[key] = prompt
-            if seed is not None:
-                import torch
-                torch.manual_seed(seed)
-            wavs, sr = m.generate_voice_clone(text=text, language="Korean", voice_clone_prompt=prompt)
+            for start in range(0, len(texts), self.batch):
+                group = texts[start:start + self.batch]
+                if seed is not None:
+                    import torch
+                    torch.manual_seed(seed + start)
+                wavs, sr = m.generate_voice_clone(text=group, language="Korean", voice_clone_prompt=prompt)
+                out.extend(np.asarray(w, dtype=np.float32) for w in wavs)
             self._last_used = time.time()
-        audio = np.asarray(wavs[0], dtype=np.float32)
-        if audio.ndim > 1:
-            audio = audio.mean(axis=-1)
-        if sr != self.sr:
-            audio = resample(audio, sr, self.sr)
-            sr = self.sr
-        return audio, sr
+        fixed: list[np.ndarray] = []
+        for audio in out:
+            if audio.ndim > 1:
+                audio = audio.mean(axis=-1)
+            if sr != self.sr:
+                audio = resample(audio, sr, self.sr)
+            fixed.append(audio)
+        return fixed, self.sr

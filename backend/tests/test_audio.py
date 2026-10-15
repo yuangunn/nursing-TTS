@@ -133,3 +133,48 @@ def test_rounds_tempo_per_role_and_settings_override():
     fast, _ = render(Tone(), random.Random(5), sr=sr, turns=3, ref=(__import__("pathlib").Path("x.wav"), ""),
                      shift={"doctor": 0, "patient": 0, "nurse": 0}, tempo={"doctor": 1.4, "patient": 1.4, "nurse": 1.4}, jitter=0)
     assert len(slow) > len(fast) * 1.3
+
+
+def test_synthesize_paragraphs_uses_batched_engine():
+    from nursing_tts.tts.base import synthesize_paragraphs
+
+    class Batched:
+        key, label, clones_voice = "b", "b", True
+        calls: list[list[str]] = []
+
+        def synthesize(self, text, ref, seed=None):
+            raise AssertionError("batched engines must not be called one by one")
+
+        def synthesize_many(self, texts, ref, seed=None):
+            self.calls.append(list(texts))
+            return [np.ones(24000, dtype=np.float32) * 0.1 for _ in texts], 24000
+
+    eng = Batched()
+    audio, sr = synthesize_paragraphs(eng, ["첫 문단의 첫 번째 문장이고 스무 글자를 넘기려고 길게 씁니다. 첫 문단의 두 번째 문장도 스무 글자를 넘기려고 길게 씁니다.",
+                                            "둘째 문단은 한 문장뿐이지만 역시 스무 글자를 넘기려고 길게 씁니다."], None, seed=1)
+    assert len(eng.calls) == 1 and len(eng.calls[0]) == 3
+    assert 3.0 + 2 * 0.25 <= len(audio) / sr <= 3.0 + 2 * 3.5
+
+
+def test_synthesize_script_segments_have_exact_times_and_ground_truth():
+    from nursing_tts.tts.base import plan_chunks, synthesize_script
+
+    spoken = ["혈압 135/80, 맥박 88입니다. 체온 37.2도입니다. 통증은 NRS 3점으로 조절되고 있습니다.", "끝."]
+    tts = ["혈압 백삼십오 에 팔십, 맥박 팔십팔입니다. 체온 삼십칠 점 이 도입니다. 통증은 엔알에스 삼 점으로 조절되고 있습니다.", "끝."]
+    plan = plan_chunks(spoken, tts)
+    assert [p[1] for p in plan] == ["혈압 135/80, 맥박 88입니다. 체온 37.2도입니다.", "통증은 NRS 3점으로 조절되고 있습니다.", "끝."]
+    assert all("점" not in p[1] or "NRS" in p[1] or "점" in p[1] for p in plan)  # spoken keeps digits
+    # mismatched sentence counts fall back to one chunk per paragraph
+    assert plan_chunks(["하나. 둘."], ["하나 둘."]) == [(0, "하나. 둘.", "하나 둘.", True)]
+
+    class Tone:
+        key, label, clones_voice = "tone", "tone", False
+
+        def synthesize(self, text, ref, seed=None):
+            return np.ones(int(0.5 * 24000), dtype=np.float32) * 0.1, 24000
+
+    audio, sr, segs = synthesize_script(Tone(), spoken, tts, None, seed=1)
+    assert len(segs) == 3 and segs[0]["start"] == 0 and segs[0]["text"].startswith("혈압 135/80")
+    assert all(abs((s["end"] - s["start"]) - 0.5) < 0.02 for s in segs)
+    assert all(segs[i]["end"] <= segs[i + 1]["start"] for i in range(2))
+    assert abs(segs[-1]["end"] - len(audio) / sr) < 0.01

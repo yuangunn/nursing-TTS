@@ -14,14 +14,15 @@ _CACHE: dict[str, Any] = {}
 def build_engines(settings: dict[str, Any]) -> dict[str, Any]:
     sr = int(settings.get("sample_rate", 24000))
     sig = (settings.get("qwen_model"), settings.get("device"), settings.get("qwen_idle_unload_min"), sr,
-           settings.get("http_tts_url"))
+           settings.get("http_tts_url"), settings.get("qwen_batch"))
     if _CACHE.get("sig") != sig:
         _CACHE.clear()
         _CACHE["sig"] = sig
         _CACHE["engines"] = {
             "qwen": QwenEngine(model=settings.get("qwen_model") or "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
                                device=settings.get("device") or "auto", sr=sr,
-                               idle_unload_min=settings.get("qwen_idle_unload_min", 10)),
+                               idle_unload_min=settings.get("qwen_idle_unload_min", 10),
+                               batch=settings.get("qwen_batch", 8)),
             "http": HttpTTSEngine(settings.get("http_tts_url") or "", sr=sr),
             "system": SystemTTSEngine(sr=sr),
             "silent": SilentEngine(sr=sr),

@@ -14,7 +14,7 @@ export default function ResultsPage() {
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   const [asrOk, setAsrOk] = useState(false);
-  const [exp, setExp] = useState({ name: "", sample_rate: 16000, include_fillers: false, only_approved: false, exclude_rejected: true, exclude_failed_verify: true, train: 90, val: 5, test: 5, formats: ["ljspeech", "nemo", "whisper", "csv"] });
+  const [exp, setExp] = useState({ name: "", sample_rate: 16000, include_fillers: false, only_approved: false, exclude_rejected: true, exclude_failed_verify: true, train: 90, val: 5, test: 5, formats: ["ljspeech", "nemo", "whisper", "csv"], max_clip_sec: 30 });
   const [report, setReport] = useState<ExportReport | null>(null);
   const setEnergy = useEnergy();
 
@@ -35,12 +35,18 @@ export default function ResultsPage() {
     get<Settings>("/api/settings").then((s) => setExp((x) => ({ ...x, sample_rate: s.sample_rate === 24000 ? 16000 : s.sample_rate }))).catch(() => undefined);
   }, []);
 
-  const shown = useMemo(() => items.filter((i) => {
-    if (filter === "failed") return i.verify?.passed === false;
-    if (filter !== "all" && (i.review || "pending") !== filter) return false;
-    if (q && !`${i.name} ${i.patient} ${i.record_kind} ${i.voice_name}`.includes(q)) return false;
-    return true;
-  }), [items, filter, q]);
+  const [sortCer, setSortCer] = useState(false);
+  const REASONS = ["발음 오류", "잡음 과다", "끊김·반복", "대본 오류", "목소리 다름", "기타"];
+  const shown = useMemo(() => {
+    const arr = items.filter((i) => {
+      if (filter === "failed") return i.verify?.passed === false;
+      if (filter !== "all" && (i.review || "pending") !== filter) return false;
+      if (q && !`${i.name} ${i.patient} ${i.record_kind} ${i.voice_name}`.includes(q)) return false;
+      return true;
+    });
+    // worst CER first so review time goes where the problems are
+    return sortCer ? [...arr].sort((a, b) => (b.verify?.cer_best ?? -1) - (a.verify?.cer_best ?? -1)) : arr;
+  }, [items, filter, q, sortCer]);
 
   const stats = {
     total: items.length,
@@ -50,10 +56,35 @@ export default function ResultsPage() {
     minutes: items.reduce((a, i) => a + (i.duration || 0), 0) / 60,
   };
 
-  const review = async (it: RecordingItem, status: string) => {
-    await post("/api/recordings/review", { rel: it.rel, status });
-    setItems((arr) => arr.map((x) => (x.rel === it.rel ? { ...x, review: status } : x)));
-    if (sel?.rel === it.rel) setSel({ ...it, review: status });
+  const review = async (it: RecordingItem, status: string, note = "") => {
+    await post("/api/recordings/review", { rel: it.rel, status, note });
+    setItems((arr) => arr.map((x) => (x.rel === it.rel ? { ...x, review: status, review_note: note } : x)));
+    if (sel?.rel === it.rel) setSel({ ...it, review: status, review_note: note });
+  };
+  // Same script (text_override), same voice and noise setup, new seed.
+  const regenerate = async (it: RecordingItem) => {
+    setBusy("같은 대본으로 다시 합성 중… (1~3분)");
+    setErr("");
+    try {
+      const m = await get<{ template: string; patient: object; datetime: string; style: string; voice_id: string; spoken_text: string;
+        noise?: { enabled?: boolean; level?: number; types?: string[] }; disfluency_level?: number }>(`/api/output/meta?rel=${encodeURIComponent(it.rel)}`);
+      const job = await post<{ id: string }>("/api/generate", {
+        template: m.template, patient: m.patient, datetime: m.datetime, style: m.style, voice_id: m.voice_id,
+        noise: { enabled: !!m.noise?.enabled, level: m.noise?.level ?? 35, types: m.noise?.types ?? [] },
+        disfluency: m.disfluency_level ?? 0, text_override: m.spoken_text,
+      });
+      for (;;) {
+        await new Promise((r) => setTimeout(r, 3000));
+        const j = await get<{ status: string; error?: string }>(`/api/jobs/${job.id}`);
+        if (j.status === "done") break;
+        if (j.status === "error" || j.status === "cancelled") throw new Error(j.error || "다시 합성 실패");
+      }
+      await load();
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setBusy("");
+    }
   };
   const remove = async (it: RecordingItem) => {
     if (!confirm(`${it.name} 과 .txt/.json 을 삭제할까요?`)) return;
@@ -82,6 +113,7 @@ export default function ResultsPage() {
         name: exp.name, formats: exp.formats, sample_rate: exp.sample_rate, include_fillers: exp.include_fillers,
         only_approved: exp.only_approved, exclude_rejected: exp.exclude_rejected, exclude_failed_verify: exp.exclude_failed_verify,
         split: { train: exp.train / total, val: exp.val / total, test: exp.test / total },
+        max_clip_sec: exp.max_clip_sec,
       });
       setReport(r);
     } catch (e) {
@@ -147,6 +179,7 @@ export default function ResultsPage() {
               </div>
             </div>
             <div><input type="text" placeholder="환자명 / 파일명 / 기록종류 / 목소리 검색" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+            <div className="narrow"><button className={"small" + (sortCer ? " active" : "")} onClick={() => setSortCer(!sortCer)} title="ASR 검증 CER이 높은 녹음부터 보여 줍니다">{sortCer ? "CER 높은 순 ✓" : "CER 높은 순"}</button></div>
           </div>
           <div style={{ maxHeight: 420, overflow: "auto" }}>
             <table className="items">
@@ -194,6 +227,7 @@ export default function ResultsPage() {
             <label><input type="checkbox" checked={exp.exclude_rejected} onChange={(e) => setExp({ ...exp, exclude_rejected: e.target.checked })} /> 반려 제외</label>
             <label><input type="checkbox" checked={exp.exclude_failed_verify} onChange={(e) => setExp({ ...exp, exclude_failed_verify: e.target.checked })} /> ASR 불일치 제외</label>
             <label><input type="checkbox" checked={exp.include_fillers} onChange={(e) => setExp({ ...exp, include_fillers: e.target.checked })} /> 전사에 추임새 포함(verbatim)</label>
+            <label title="합성 때 기록한 문장 구간으로 자르므로 전사가 정확히 맞습니다. Whisper는 30초 창이라 긴 녹음을 그대로 못 넣습니다"><input type="checkbox" checked={exp.max_clip_sec > 0} onChange={(e) => setExp({ ...exp, max_clip_sec: e.target.checked ? 30 : 0 })} /> 긴 녹음을 30초 이하로 분할 (Whisper 학습용)</label>
           </div>
           <div className="row" style={{ marginTop: 8 }}>
             <div className="narrow"><button className="primary" onClick={doExport} disabled={!!busy}>📦 내보내기</button></div>
@@ -236,6 +270,15 @@ export default function ResultsPage() {
               <div className="narrow"><button className="primary" onClick={() => review(sel, "approved")}>✓ 승인 (A)</button></div>
               <div className="narrow"><button className="danger" onClick={() => review(sel, "rejected")}>✗ 반려 (R)</button></div>
               <div className="narrow"><button onClick={() => review(sel, "pending")}>대기로</button></div>
+              {sel.review === "rejected" && (
+                <div className="narrow">
+                  <select value={sel.review_note || ""} onChange={(e) => review(sel, "rejected", e.target.value)} title="반려 사유 (json에 저장)">
+                    <option value="">반려 사유…</option>
+                    {REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+              )}
+              <div className="narrow"><button onClick={() => regenerate(sel)} disabled={!!busy} title="같은 대본·목소리·소음 설정으로 새 시드로 다시 합성합니다 (원본은 그대로)">🔁 다시 합성</button></div>
               <div className="narrow"><button onClick={() => verifyOne(sel)} disabled={!asrOk || !!busy} title={asrOk ? "" : "설정에서 faster-whisper 설치 필요"}>🔎 ASR 검증</button></div>
               <div className="narrow"><button onClick={() => window.nursing?.showInFolder(`${folder}/${sel.rel}`)}>폴더</button></div>
               <div className="narrow"><button className="danger small" onClick={() => remove(sel)}>삭제</button></div>

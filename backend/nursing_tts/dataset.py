@@ -38,6 +38,7 @@ def list_recordings(limit: int = 2000) -> list[dict[str, Any]]:
                 "voice_name": meta.get("voice_name"), "engine": meta.get("engine"),
                 "duration": meta.get("duration_sec"), "noise": (meta.get("noise") or {}).get("enabled"),
                 "channel": (meta.get("augment") or {}).get("channel"), "disfluency": meta.get("disfluency_level", 0),
+                "style": meta.get("style"), "segments": meta.get("segments"),
                 "review": (meta.get("review") or {}).get("status", "pending"),
                 "review_note": (meta.get("review") or {}).get("note", ""),
                 "verify": meta.get("verify"), "signal": meta.get("signal"), "spoken_text": meta.get("spoken_text"),
@@ -80,6 +81,22 @@ def load_meta(rel: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Export
 # ---------------------------------------------------------------------------
+
+def all_pieces(manifests: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
+    return [m for part in manifests.values() for m in part]
+
+
+def _group_segments(segments: list[dict[str, Any]], max_sec: float) -> list[list[dict[str, Any]]]:
+    """Greedy: consecutive sentence segments whose span (first start .. last end) stays within max_sec.
+    A single segment longer than max_sec gets its own group (nothing we can do without re-synthesis)."""
+    groups: list[list[dict[str, Any]]] = []
+    for s in segments:
+        if groups and (s["end"] - groups[-1][0]["start"]) <= max_sec:
+            groups[-1].append(s)
+        else:
+            groups.append([s])
+    return groups
+
 
 def export(opts: dict[str, Any]) -> dict[str, Any]:
     """opts: name, formats[ljspeech,nemo,whisper,csv], split{train,val,test}, sample_rate, include_fillers,
@@ -132,27 +149,47 @@ def export(opts: dict[str, Any]) -> dict[str, Any]:
             assigned.append((part, it))
 
     manifests = {"train": [], "val": [], "test": []}
+    max_clip = float(opts.get("max_clip_sec") or 0)
+    split_stats = {"split_recordings": 0, "pieces": 0, "unsplittable": 0}
     for part, r in assigned:
         src_wav = src / r["rel"]
-        out_name = Path(r["rel"]).stem + ".wav"
-        if (wav_dir / out_name).exists():
-            out_name = Path(r["rel"]).parent.name + "_" + out_name
-        dst = wav_dir / out_name
+        base_name = Path(r["rel"]).stem
+        if any(m["id"].startswith(base_name) for m in all_pieces(manifests)):
+            base_name = Path(r["rel"]).parent.name + "_" + base_name
         audio, _ = read_audio(src_wav, sr)
-        write_wav(dst, audio, sr)
-        dur = round(len(audio) / sr, 3)
         sp = r.get("signal_parse") or {}
         sig_text = r.get("signal") or ""
-        manifests[part].append({
-            "id": dst.stem, "file": f"wavs/{out_name}", "text": r["text"], "duration": dur,
-            "speaker": r.get("voice_id") or "unknown", "speaker_name": r.get("voice_name") or "",
-            "record_kind": r.get("record_kind"), "template": r.get("template"), "noise": bool(r.get("noise")),
-            "channel": r.get("channel"), "cer": (r.get("verify") or {}).get("cer_best"),
-            # trigger labels: the signal sentence, its char span in `text`, and its parsed fields
-            "signal_text": sig_text, "signal_end_char": len(sig_text) if sig_text and r["text"].startswith(sig_text) else (sp.get("end") or 0),
-            "signal_format": r.get("signal_format"), "patient_name": sp.get("name") or r.get("patient"),
-            "signal_datetime": sp.get("datetime") or r.get("datetime"), "signal_kind": sp.get("kind") or r.get("record_kind"),
-        })
+        pieces = [(audio, r["text"], True)]
+        if max_clip > 0 and len(audio) / sr > max_clip:
+            groups = _group_segments(r.get("segments") or [], max_clip)
+            if groups:
+                split_stats["split_recordings"] += 1
+                pieces = []
+                for gi, g in enumerate(groups):
+                    a0 = max(0, int((g[0]["start"] - 0.1) * sr))
+                    a1 = min(len(audio), int((g[-1]["end"] + 0.1) * sr))
+                    pieces.append((audio[a0:a1], " ".join(s["text"] for s in g), gi == 0))
+                split_stats["pieces"] += len(pieces)
+            else:
+                split_stats["unsplittable"] += 1  # older recording without segments: kept whole
+        for pi, (a, text, first) in enumerate(pieces):
+            out_name = f"{base_name}.wav" if len(pieces) == 1 else f"{base_name}_p{pi + 1:02d}.wav"
+            dst = wav_dir / out_name
+            write_wav(dst, a, sr)
+            dur = round(len(a) / sr, 3)
+            has_sig = first and bool(sig_text) and text.startswith(sig_text)
+            manifests[part].append({
+                "id": dst.stem, "file": f"wavs/{out_name}", "text": text, "duration": dur,
+                "speaker": r.get("voice_id") or "unknown", "speaker_name": r.get("voice_name") or "",
+                "record_kind": r.get("record_kind"), "template": r.get("template"), "noise": bool(r.get("noise")),
+                "channel": r.get("channel"), "cer": (r.get("verify") or {}).get("cer_best"),
+                "style": r.get("style"), "disfluency": r.get("disfluency", 0),
+                # trigger labels: the signal sentence, its char span in `text`, and its parsed fields (first piece only)
+                "signal_text": sig_text if has_sig else "",
+                "signal_end_char": len(sig_text) if has_sig else (sp.get("end") or 0) if first and len(pieces) == 1 else 0,
+                "signal_format": r.get("signal_format"), "patient_name": sp.get("name") or r.get("patient"),
+                "signal_datetime": sp.get("datetime") or r.get("datetime"), "signal_kind": sp.get("kind") or r.get("record_kind"),
+            })
 
     written: list[str] = []
     all_rows = [m for part in ("train", "val", "test") for m in manifests[part]]
@@ -196,8 +233,9 @@ def export(opts: dict[str, Any]) -> dict[str, Any]:
         p = dest / "dataset.csv"
         with p.open("w", encoding="utf-8", newline="") as f:
             w = csv.DictWriter(f, fieldnames=["id", "file", "split", "text", "duration", "speaker", "speaker_name",
-                                              "record_kind", "template", "noise", "channel", "cer", "signal_text",
-                                              "signal_end_char", "signal_format", "patient_name", "signal_datetime", "signal_kind"])
+                                              "record_kind", "template", "noise", "channel", "cer", "style", "disfluency",
+                                              "signal_text", "signal_end_char", "signal_format", "patient_name",
+                                              "signal_datetime", "signal_kind"])
             w.writeheader()
             for part in ("train", "val", "test"):
                 for m in manifests[part]:
@@ -216,19 +254,52 @@ def export(opts: dict[str, Any]) -> dict[str, Any]:
         "skipped": skipped, "speakers": speakers, "files": written, "folder": str(dest),
         "by_record_kind": {k: sum(1 for m in all_rows if m["record_kind"] == k)
                            for k in sorted({m["record_kind"] for m in all_rows if m["record_kind"]})},
+        # distribution report (ROADMAP M3): what the corpus is made of
+        "by_style": _count(all_rows, "style"), "by_noise": _count(all_rows, "noise"),
+        "by_channel": _count(all_rows, "channel"), "by_disfluency": _count(all_rows, "disfluency"),
+        "cer": _cer_summary(all_rows),
+        "max_clip_sec": max_clip, "split": split_stats,
     }
     (dest / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     (dest / "README.md").write_text(_dataset_card(report), encoding="utf-8")
     return report
 
 
+def _count(rows: list[dict[str, Any]], key: str) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for m in rows:
+        k = str(m.get(key) if m.get(key) is not None else "-")
+        out[k] = out.get(k, 0) + 1
+    return dict(sorted(out.items()))
+
+
+def _cer_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    vals = sorted(float(m["cer"]) for m in rows if m.get("cer") is not None)
+    if not vals:
+        return {"n": 0}
+    q = lambda p: vals[min(len(vals) - 1, int(p * len(vals)))]  # noqa: E731
+    return {"n": len(vals), "mean": round(sum(vals) / len(vals), 4), "median": round(q(0.5), 4),
+            "p90": round(q(0.9), 4), "max": round(vals[-1], 4)}
+
+
 def _dataset_card(r: dict[str, Any]) -> str:
+    cer = r.get("cer") or {}
     lines = [f"# {r['name']}", "", "간호기록 음성 녹음 생성기로 만든 합성 음성 데이터셋.", "",
              f"- 클립 수: {r['total']} (train {r['counts']['train']} / val {r['counts']['val']} / test {r['counts']['test']})",
              f"- 총 길이: {r['total_duration_sec'] / 60:.1f} 분", f"- 샘플레이트: {r['sample_rate']} Hz, mono, 16-bit PCM",
-             f"- 전사에 추임새 포함: {'예' if r['include_fillers'] else '아니오'}", "",
+             f"- 전사에 추임새 포함: {'예' if r['include_fillers'] else '아니오'}",
+             (f"- ASR 검증 CER: 평균 {cer['mean']:.3f} · 중앙값 {cer['median']:.3f} · p90 {cer['p90']:.3f} · 최대 {cer['max']:.3f} ({cer['n']}개)"
+              if cer.get("n") else "- ASR 검증 CER: 없음"),
+             (f"- 긴 녹음 분할: {r['max_clip_sec']:.0f}초 이하, 녹음 {r['split']['split_recordings']}개 → 조각 {r['split']['pieces']}개"
+              + (f", 구간 정보 없어 통째로 둔 녹음 {r['split']['unsplittable']}개" if r['split']['unsplittable'] else "")
+              if r.get("max_clip_sec") else "- 긴 녹음 분할: 안 함 (Whisper 파인튜닝은 30초 이하 필요 → 내보내기 옵션)"), "",
              "## 파일", "", *[f"- `{f}`" for f in r["files"]], "",
              "## 화자", "", *[f"- {k}: {v['name'] or ''} · {v['count']}개 · {v['duration'] / 60:.1f}분" for k, v in r["speakers"].items()], "",
              "## 기록 종류", "", *[f"- {k}: {v}" for k, v in r["by_record_kind"].items()], "",
+             "## 분포", "",
+             "- 말투: " + ", ".join(f"{k} {v}" for k, v in r.get("by_style", {}).items()),
+             "- 소음: " + ", ".join(f"{'있음' if k == 'True' else '없음' if k == 'False' else k} {v}" for k, v in r.get("by_noise", {}).items()),
+             "- 녹음 장비: " + ", ".join(f"{k} {v}" for k, v in r.get("by_channel", {}).items()),
+             "- 구어 흐트러짐: " + ", ".join(f"level {k} {v}" for k, v in r.get("by_disfluency", {}).items()), "",
              "형식: `metadata*.csv` (LJSpeech `id|text|text`), `manifest_*.jsonl` (NeMo + 시그널 라벨: signal_text / signal_end_char / signal_format / patient_name / signal_datetime / signal_kind), `whisper_*.jsonl` (HF Whisper 파인튜닝), `dataset.csv`."]
     return "\n".join(lines) + "\n"
