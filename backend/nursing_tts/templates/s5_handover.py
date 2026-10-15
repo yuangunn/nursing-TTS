@@ -7,9 +7,9 @@ TEMPLATE = RecordTemplate(
     title="S5. 인수인계 (SBAR)",
     signal_kind="인계",
     description="근무 교대 시 담당 환자 인계 내용을 SBAR 구조로 구술합니다. 실제 인계 시 쓰는 약어·말투 그대로 사용하면 됩니다.",
-    intros=["{name}님 인수인계 시작합니다. {name}님 {age}세 {sex}, {dx}(으)로 {op_date} {surgery_ko} 시행하고 오늘 POD {pod}, {dept} {prof} 교수 환자입니다.",
-            "{name}님 {age}세 {sex}, {dx}, {surgery} POD {pod}, {dept} {prof} 교수님 환자분입니다.",
-            "{dx} {surgery_abbr} POD {pod} {prof} 교수님 환자 {name}님 {age}세 {sex} 인계드리겠습니다."],
+    intros=["{name}님 인수인계 시작합니다. {name}님 {age}세 {sex}, {dx}(으)로 {op_date} {treatment_ko} 시행하고 오늘 {stage}, {dept} {prof} 교수 환자입니다.",
+            "{name}님 {age}세 {sex}, {dx}, {treatment} {stage}, {dept} {prof} 교수님 환자분입니다.",
+            "{dx} {treatment_abbr} {stage} {prof} 교수님 환자 {name}님 {age}세 {sex} 인계드리겠습니다."],
     closings=["여기까지 {name} 님 인계 마치겠습니다.", "이상 인계기록지 마치겠습니다.", "이상 인계 마치겠습니다.", "인계 이상입니다.", "이상으로 {name}님 인계 마치겠습니다."],
     sections=[
         Section("b", "B 배경", hint="주요 과거력, 알레르기, 격리, 코드 상태(DNR), 보호자", fields=[
@@ -86,6 +86,8 @@ TEMPLATE = RecordTemplate(
                 phrases=["PRN으로 {v} 들어갔습니다.", "PRN {v} 썼고,"], speak_prob=0.8),
             txt("transfusion", "수혈/항암", placeholder="예: PRBC 1 pack 수혈 완료",
                 phrases=["{v}.", "{v}이고,"]),
+            txt("special", "수술/항암별 특이 관리", placeholder="예: 환측 팔 혈압·채혈 금지 팔찌 적용 중",
+                phrases=["{v}.", "{v}이고,", "{v}구요,"], hint="수술·항암 종류에 따른 관리 포인트 (가상 환자 생성 시 자동으로 채워짐)"),
         ]),
         Section("lines", "라인/튜브/배액", hint="종류, 부위, 삽입일, 양상·양, 교환 예정", fields=[
             txt("line", "말초 라인", placeholder="예: 오른팔 말초 라인 하나, 10월 13일 삽입, 내일 교환 예정",

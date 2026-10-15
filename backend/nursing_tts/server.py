@@ -47,6 +47,11 @@ class PatientModel(BaseModel):
     pod: int | None = 2
     op_date: str = ""
     admission_date: str = ""
+    kind: str = "op"               # op | chemo
+    regimen: str = ""
+    cycle: int | None = None
+    day: int | None = None
+    scenario: str = ""
 
 
 class NoiseModel(BaseModel):

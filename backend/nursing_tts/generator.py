@@ -59,6 +59,12 @@ SURGERY_ABBR = {
 }
 
 
+from .clinical import SURGERY_ABBR as _KB_ABBR, SURGERY_KO as _KB_KO  # ward scenarios (clinical.py)
+
+SURGERY_KO.update(_KB_KO)
+SURGERY_ABBR.update(_KB_ABBR)
+
+
 @dataclass
 class Patient:
     name: str = "홍길동"
@@ -71,11 +77,27 @@ class Patient:
     pod: int | None = 2
     op_date: str = ""          # "10월 14일"
     admission_date: str = ""   # "10월 13일"
+    kind: str = "op"           # op | chemo (chemotherapy admission: no surgery, cycle/day instead of POD)
+    regimen: str = ""          # e.g. "mFOLFOX6"
+    cycle: int | None = None   # 항암 n차
+    day: int | None = None     # D1, D2 ...
+    scenario: str = ""         # clinical.py key the patient was drawn from
 
     def context(self, rng: random.Random) -> dict[str, Any]:
+        chemo = self.kind == "chemo"
         surg_ko = SURGERY_KO.get(self.surgery, self.surgery)
         surg_abbr = SURGERY_ABBR.get(self.surgery, "")
-        surgery_spoken = rng.choice([s for s in [self.surgery, surg_ko, surg_abbr] if s])
+        cands = [s for s in [self.surgery, surg_ko, surg_abbr] if s]
+        surgery_spoken = rng.choice(cands) if cands else ""
+        if chemo:
+            treatment = f"{self.regimen} 항암"
+            treatment_ko = treatment  # nurses say the regimen name, not the drug list
+            treatment_abbr = self.regimen
+            stage = f"항암 {self.cycle}차 D{self.day}" if self.cycle else f"항암 D{self.day or 1}"
+            surgery_spoken = treatment
+        else:
+            treatment, treatment_ko, treatment_abbr = surgery_spoken, surg_ko, surg_abbr or surg_ko
+            stage = f"POD {self.pod}" if self.pod is not None else ""
         return {
             "name": self.name,
             "age": self.age if self.age is not None else "",
@@ -83,9 +105,16 @@ class Patient:
             "sex_short": self.sex,
             "dx": self.diagnosis,
             "surgery": surgery_spoken,
-            "surgery_en": self.surgery,
-            "surgery_ko": surg_ko,
-            "surgery_abbr": surg_abbr or surg_ko,
+            "surgery_en": self.surgery if not chemo else treatment,
+            "surgery_ko": surg_ko if not chemo else treatment_ko,
+            "surgery_abbr": (surg_abbr or surg_ko) if not chemo else treatment_abbr,
+            "treatment": treatment,          # surgery (spoken) or "<regimen> 항암"
+            "treatment_ko": treatment_ko,
+            "treatment_abbr": treatment_abbr,
+            "stage": stage,                  # "POD 2" or "항암 3차 D1"
+            "regimen": self.regimen,
+            "cycle": self.cycle if self.cycle is not None else "",
+            "day": self.day if self.day is not None else "",
             "prof": self.professor,
             "dept": self.department,
             "pod": self.pod if self.pod is not None else "",

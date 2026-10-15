@@ -5,6 +5,7 @@ import random
 from datetime import datetime, timedelta
 from typing import Any
 
+from . import clinical
 from .generator import Patient
 from .templates import get_template
 from .templates.base import Field
@@ -17,30 +18,6 @@ GIVEN_F = ["영희", "미경", "지영", "수진", "은정", "현주", "미숙",
            "영숙", "옥순", "말순", "정순", "혜경", "수연", "유진", "소연", "다혜", "보람", "하늘", "은주", "숙자", "명희", "춘자"]
 
 PROFESSORS = ["김민수", "이정호", "박상현", "최유진", "정우성", "강동원", "한지민", "윤석우", "장현식", "임채영", "오세훈", "서지혜"]
-
-# (diagnosis, surgery, department, typical age range, sex bias)
-CASES = [
-    ("위암", "Laparoscopic total gastrectomy", "외과", (45, 80), None),
-    ("위암", "Laparoscopic subtotal gastrectomy", "외과", (45, 80), None),
-    ("위암", "Laparoscopic distal gastrectomy", "외과", (40, 78), None),
-    ("대장암", "Laparoscopic right hemicolectomy", "외과", (50, 82), None),
-    ("직장암", "Laparoscopic low anterior resection", "외과", (45, 80), None),
-    ("S상결장암", "Laparoscopic anterior resection", "외과", (45, 80), None),
-    ("담석증", "Laparoscopic cholecystectomy", "외과", (30, 75), None),
-    ("급성 충수염", "Laparoscopic appendectomy", "외과", (18, 60), None),
-    ("유방암", "Mastectomy", "외과", (35, 70), "여"),
-    ("폐암", "Lobectomy", "흉부외과", (50, 78), None),
-    ("무릎 골관절염", "Total knee replacement arthroplasty", "정형외과", (60, 82), "여"),
-    ("대퇴골 경부 골절", "Total hip replacement arthroplasty", "정형외과", (65, 90), None),
-    ("자궁근종", "Hysterectomy", "산부인과", (38, 60), "여"),
-    ("췌장암", "PPPD", "외과", (50, 75), None),
-    ("간세포암", "Hepatectomy", "외과", (45, 75), "남"),
-    ("갑상선암", "Thyroidectomy", "외과", (25, 65), "여"),
-    ("우측 발목 골절", "ORIF ankle", "정형외과", (30, 75), None),
-    ("회전근개 파열", "Shoulder arthroplasty", "정형외과", (55, 80), None),
-    ("자궁내막증", "Total laparoscopic hysterectomy", "산부인과", (35, 55), "여"),
-    ("백내장", "Cataract surgery", "안과", (60, 85), None),
-]
 
 TEXT_POOLS: dict[str, list[str]] = {
     "chief_complaint": ["2개월 전부터 상복부 불편감, 체중 5kg 감소", "건강검진에서 우연히 발견된 종괴", "3주 전부터 간헐적 복통", "혈변 2회",
@@ -119,37 +96,6 @@ TEXT_POOLS: dict[str, list[str]] = {
     "pending": ["내일 아침 랩 결과 확인 후 미음 진행 여부 담당의 확인", "협진 회신 확인", "보호자 면담 요청 있어 주치의 확인 필요", "퇴원 처방 확인"],
 }
 
-# Diagnosis-specific complaints so a virtual patient's story hangs together.
-DX_DETAILS: dict[str, dict[str, list[str]]] = {
-    "위암": {"cc": ["2개월 전부터 상복부 불편감, 체중 5kg 감소", "식후 더부룩함과 소화불량", "건강검진에서 우연히 발견된 위 종괴", "흑색변 2회"],
-             "pi": ["8월 건강검진 위내시경에서 종괴 발견되어 조직검사상 선암 진단", "타병원 위내시경에서 위체부 종괴 발견, 조직검사상 선암", "상복부 불편감으로 시행한 위내시경에서 조기위암 진단"]},
-    "대장암": {"cc": ["혈변 2회", "3주 전부터 간헐적 복통과 변비", "건강검진 대장내시경에서 종괴 발견", "체중 감소와 빈혈"],
-              "pi": ["타병원 대장내시경에서 종괴 발견, 조직검사상 선암", "건강검진 대장내시경에서 상행결장 종괴 발견되어 조직검사상 선암 진단"]},
-    "직장암": {"cc": ["혈변과 배변 습관 변화", "잔변감과 가는 변", "항문 출혈 1개월"],
-              "pi": ["대장내시경에서 직장 종괴 발견, 조직검사상 선암", "직장 선암으로 선행 항암방사선치료 후 수술 예정"]},
-    "S상결장암": {"cc": ["좌하복부 통증과 변비", "혈변 1회"], "pi": ["대장내시경에서 S상결장 종괴 발견, 조직검사상 선암"]},
-    "담석증": {"cc": ["우상복부 통증과 소화불량", "식후 우상복부 통증 반복", "오한 동반한 우상복부 통증"],
-              "pi": ["외래 CT에서 담낭 결석 및 담낭염 소견", "응급실 초음파에서 담낭 결석과 담낭벽 비후 소견"]},
-    "급성 충수염": {"cc": ["어제 저녁부터 우하복부 통증", "복통과 오심, 미열", "배꼽 주위 통증이 우하복부로 이동"],
-                 "pi": ["응급실 CT에서 급성 충수염 진단", "응급실 CT에서 충수 비후 및 주위 염증 소견"]},
-    "유방암": {"cc": ["우측 유방 종괴 촉지", "검진 유방촬영에서 이상 소견", "좌측 유방 멍울과 통증"],
-              "pi": ["유방 초음파 및 조직검사상 침윤성 유방암", "선행 항암 후 수술 예정"]},
-    "폐암": {"cc": ["1개월 전부터 마른기침", "검진 CT에서 폐 결절 발견", "객혈 1회"],
-            "pi": ["흉부 CT에서 우상엽 결절 발견, 조직검사상 선암", "PET-CT상 원격 전이 없어 수술 예정"]},
-    "무릎 골관절염": {"cc": ["무릎 통증으로 보행 어려움", "수년간 지속된 양측 무릎 통증", "계단 오르내리기 어려움"],
-                  "pi": ["엑스레이상 말기 골관절염으로 인공관절 치환술 예정", "보존적 치료에 반응 없어 수술 예정"]},
-    "대퇴골 경부 골절": {"cc": ["낙상 후 우측 고관절 통증", "미끄러진 후 좌측 고관절 통증과 보행 불가"],
-                    "pi": ["응급실 엑스레이상 대퇴골 경부 골절 진단", "낙상 후 골절로 입원"]},
-    "자궁근종": {"cc": ["생리 과다와 빈혈", "하복부 압박감", "생리통 심해짐"],
-               "pi": ["초음파에서 8cm 크기 자궁근종 확인", "약물 치료에 반응 없어 수술 예정"]},
-    "췌장암": {"cc": ["황달과 체중 감소", "상복부 통증과 식욕 저하", "소변 색 진해짐"],
-              "pi": ["CT에서 췌두부 종괴 발견, ERCP 조직검사상 선암", "폐쇄성 황달로 ENBD 시행 후 수술 예정"]},
-    "간세포암": {"cc": ["검진 초음파에서 간 종괴 발견", "우상복부 불편감", "B형 간염 추적 중 발견된 종괴"],
-               "pi": ["간 MRI에서 간세포암 소견, 수술 예정", "B형 간염 보유자로 추적 중 간 종괴 발견"]},
-    "갑상선암": {"cc": ["검진 초음파에서 갑상선 결절 발견", "목 앞쪽 멍울", "특이 증상 없이 검진에서 발견"],
-               "pi": ["갑상선 세침검사상 유두암 진단", "초음파 및 세침검사상 갑상선 유두암"]},
-}
-
 VS_PROFILE = {
     "normal": {"sbp": (105, 140), "dbp": (60, 88), "hr": (62, 92), "rr": (16, 20), "bt": (36.2, 37.1), "spo2": (96, 99)},
     "fever": {"sbp": (120, 155), "dbp": (70, 92), "hr": (88, 110), "rr": (18, 24), "bt": (37.8, 38.9), "spo2": (94, 98)},
@@ -157,17 +103,67 @@ VS_PROFILE = {
 }
 
 
-def random_patient(rng: random.Random, template_key: str | None = None) -> Patient:
-    dx, surg, dept, (a0, a1), sex_bias = rng.choice(CASES)
-    sex = sex_bias or rng.choice(["남", "여"])
+SURGICAL_TEMPLATES = {"s2", "s3_1", "s3_2"}  # chemo admissions never get pre/post-op records
+
+
+def random_patient(rng: random.Random, template_key: str | None = None, scenario: str | None = None) -> Patient:
+    """Draw a coherent patient from the ward knowledge base (clinical.py): diagnosis, surgery or
+    chemo regimen, age/sex bias and (for chemo) cycle/day.  ``scenario`` forces one family."""
+    if scenario and scenario in clinical.BY_KEY:
+        sc = clinical.BY_KEY[scenario]
+    else:
+        pool = clinical.OPS if (template_key in SURGICAL_TEMPLATES) else clinical.SCENARIOS
+        weights = [3 if s.kind == "op" else 1 for s in pool]   # ward is ~75% surgical
+        sc = rng.choices(pool, weights=weights)[0]
+    sex = sc.sex or rng.choice(["남", "여"])
     name = rng.choice(SURNAMES) + rng.choice(GIVEN_M if sex == "남" else GIVEN_F)
-    age = rng.randint(a0, a1)
-    pod = {"s1": None, "s2": None, "s3_1": rng.choice([0, 1, 2]), "s3_2": rng.choice([1, 2, 3]),
-           "s4": rng.choice([4, 5, 6, 7]), "s5": rng.choice([1, 2, 3, 4])}.get(template_key or "", rng.choice([1, 2, 3]))
+    age = rng.randint(*sc.age)
     base_day = rng.randint(1, 28)
     month = rng.randint(1, 12)
-    return Patient(name=name, age=age, sex=sex, diagnosis=dx, surgery=surg, professor=rng.choice(PROFESSORS),
-                   department=dept, pod=pod, op_date=f"{month}월 {base_day}일", admission_date=f"{month}월 {max(1, base_day - 1)}일")
+    common = dict(name=name, age=age, sex=sex, diagnosis=rng.choice(sc.dx), professor=rng.choice(PROFESSORS),
+                  department=sc.dept, scenario=sc.key, op_date=f"{month}월 {base_day}일",
+                  admission_date=f"{month}월 {max(1, base_day - 1)}일")
+    if sc.kind == "chemo":
+        return Patient(**common, surgery="", kind="chemo", regimen=sc.key, pod=None,
+                       cycle=rng.randint(1, 8), day=rng.choice(sc.form.get("_days") or [1]))
+    lo, hi = sc.los
+    pod = {"s1": None, "s2": None, "s3_1": rng.choice([0, 1, 2]), "s3_2": rng.choice([1, 2, 3]),
+           "s4": rng.randint(max(0, lo), max(lo, hi)), "s5": rng.randint(0, max(1, hi))}.get(template_key or "", rng.choice([1, 2, 3]))
+    return Patient(**common, surgery=sc.key, pod=pod)
+
+
+def _apply_scenario(form: dict[str, Any], template_key: str, fields: dict[str, Field], sc: clinical.Scenario,
+                    rng: random.Random) -> None:
+    """Narrow the random form to what is plausible for this surgery/regimen."""
+    for raw_key, allowed in sc.form.items():
+        if raw_key.startswith("_"):
+            continue
+        if "." in raw_key:
+            tpl, key = raw_key.split(".", 1)
+            if tpl != template_key:
+                continue
+        else:
+            key = raw_key
+            if f"{template_key}.{key}" in sc.form:
+                continue  # template-specific override wins
+        f = fields.get(key)
+        if f is None:
+            continue
+        if allowed is None:
+            form.pop(key, None)
+            continue
+        if f.kind == "multi":
+            choice = rng.choice(allowed) if allowed and isinstance(allowed[0], list) else allowed
+            valid = {o.value for o in f.options}
+            form[key] = [v for v in choice if v in valid]
+        elif f.kind == "select":
+            choice = rng.choice(allowed) if isinstance(allowed, list) else allowed
+            if any(o.value == choice for o in f.options):
+                form[key] = choice
+        elif isinstance(allowed, list):
+            form[key] = rng.choice(allowed)
+        else:
+            form[key] = allowed
 
 
 def random_datetime(rng: random.Random, around: datetime | None = None) -> datetime:
@@ -212,6 +208,8 @@ def _random_number(f: Field, rng: random.Random) -> float | int:
 
 def random_form(template_key: str, rng: random.Random, patient: Patient | None = None) -> dict[str, Any]:
     t = get_template(template_key)
+    sc = clinical.BY_KEY.get(patient.scenario) if patient is not None else None
+    sc_pools = sc.pools if sc else {}
     form: dict[str, Any] = {}
     for _, f in t.iter_fields():
         if f.kind == "select":
@@ -234,7 +232,8 @@ def random_form(template_key: str, rng: random.Random, patient: Patient | None =
                 continue  # protocol items are chosen per protocol below
             form[f.key] = rng.random() < 0.8 if f.default else rng.random() < 0.3
         elif f.kind == "text":
-            pool = TEXT_POOLS.get(f"{template_key}.{f.key}", TEXT_POOLS.get(f.key))
+            pool = (sc_pools.get(f"{template_key}.{f.key}") or sc_pools.get(f.key)
+                    or TEXT_POOLS.get(f"{template_key}.{f.key}", TEXT_POOLS.get(f.key)))
             if pool:
                 val = rng.choice(pool)
                 if val and val not in ("없음", "허용 약 없음", "특이 질문 없음", "검사 없음", "배액관 없음", "특이사항 없음", "항생제 없음"):
@@ -260,13 +259,13 @@ def random_form(template_key: str, rng: random.Random, patient: Patient | None =
             bools = [f for f in sec.fields if f.kind == "bool"]
             for f in rng.sample(bools, k=min(len(bools), rng.randint(1, 4))):
                 form[f.key] = True
-    # keep things consistent
-    if patient is not None and patient.diagnosis in DX_DETAILS:
-        d = DX_DETAILS[patient.diagnosis]
+    # keep things consistent with the scenario the patient was drawn from
+    if sc is not None:
         if "chief_complaint" in form:
-            form["chief_complaint"] = rng.choice(d["cc"])
+            form["chief_complaint"] = rng.choice(sc.cc)
         if "present_illness" in form:
-            form["present_illness"] = rng.choice(d["pi"])
+            form["present_illness"] = rng.choice(sc.pi)
+        _apply_scenario(form, template_key, {f.key: f for _, f in t.iter_fields()}, sc, rng)
     if template_key == "s1" and patient is not None and not patient.sex.startswith("여"):
         form.pop("lmp", None)
         form.pop("marital", None) if rng.random() < 0.5 else None

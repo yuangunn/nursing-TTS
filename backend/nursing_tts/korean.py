@@ -119,6 +119,8 @@ def read_number(token: str, counter: str | None = None) -> str:
 UNIT_READINGS: dict[str, list[str]] = {
     "mmHg": [""],  # nurses almost never pronounce it
     "mg/dL": [""],  # "혈당 145" - the unit is written, not said
+    "mg/m²": ["밀리그램 퍼 제곱미터", "밀리그램"],
+    "mg/kg": ["밀리그램 퍼 킬로", "밀리그램 퍼 킬로그램"],
     "cc": ["씨씨"],
     "cc/hr": ["씨씨 퍼 아워", "씨씨"],
     "mL/hr": ["밀리리터 퍼 아워", "씨씨"],
@@ -242,6 +244,22 @@ ABBREVIATIONS: dict[str, list[str]] = {
     "nasal cannula": ["네이잘 캐뉼라"], "cannula": ["캐뉼라"], "bilious": ["빌리어스"], "Penrose": ["펜로즈"],
     "Hemovac": ["헤모박"], "wound": ["운드"], "right": ["라이트"], "left": ["레프트"], "sputum": ["스퓨텀"],
     "Nelaton": ["넬라톤"], "suprapubic": ["수프라퓨빅"], "stable": ["스테이블"],
+    # ward chart shorthand (clinical.py scenarios): "TM c ALND" = with, SLNB, Hemovac, CPM ...
+    "partial": ["파셜"], "excision": ["익시전"], "mass": ["매스"], "bilateral": ["바이래터럴", "양측"], "breast": ["브레스트"], "rectal": ["렉탈"],
+    "c": ["씨", "위드"], "ALND": ["에이엘엔디", "액와 림프절 절제"], "SLNB": ["에스엘엔비", "감시림프절 생검"], "NSM": ["엔에스엠"],
+    "BTT": ["비티티"], "MRND": ["엠알엔디"], "LAR": ["엘에이알"], "RHC": ["알에이치씨", "우측 결장절제"], "ileostomy": ["아일리오스토미", "회장루"],
+    "hernioplasty": ["허니오플라스티", "탈장 교정"], "prolapse": ["프롤랩스"], "TLH": ["티엘에이치"], "BSO": ["비에스오"], "TAH": ["티에이에이치"],
+    "staging": ["스테이징"], "laparotomy": ["라파로토미"], "C-sec": ["씨섹", "제왕절개"], "BOCE": ["비오씨이"], "myomectomy": ["마이오멕토미"],
+    "TURB": ["터브", "티유알비"], "RALRP": ["랄프", "알에이엘알피"], "nephrectomy": ["네프렉토미"], "ESS": ["이에스에스"],
+    "tracheostomy": ["트라케오스토미", "기관절개"], "TKA": ["티케이에이"], "THA": ["티에이치에이"], "TSA": ["티에스에이"],
+    "meniscectomy": ["메니섹토미"], "meniscal": ["메니스칼"], "repair": ["리페어"], "BKA": ["비케이에이"], "rotator cuff": ["로테이터 커프"],
+    "cuff": ["커프"], "rotator": ["로테이터"], "reconstruction": ["리컨스트럭션"], "recon": ["리컨"], "Hemovac": ["헤모박"], "CPM": ["씨피엠"],
+    "CBI": ["씨비아이", "방광 세척"], "CMS": ["씨엠에스"], "ANC": ["에이엔씨"], "EF": ["이에프"], "G-CSF": ["지씨에스에프"], "mFOLFOX6": ["엠폴폭스 식스", "폴폭스"],
+    "mFOLFIRI": ["엠폴피리", "폴피리"], "FOLFIRI": ["폴피리"], "FOLFIRINOX": ["폴피리녹스"], "A-FOLFIRI": ["아바스틴 폴피리", "에이 폴피리"], "E-FOLFIRI": ["얼비툭스 폴피리", "이 폴피리"],
+    "TCHP": ["티씨에이치피"], "TCH": ["티씨에이치"], "HP": ["에이치피"], "AC": ["에이씨"], "K+AC": ["키트루다 플러스 에이씨", "케이 에이씨"],
+    "K+TC": ["키트루다 플러스 티씨", "케이 티씨"], "T+C+Jemperli": ["티 씨 젬펄리", "파클리탁셀 카보플라틴 젬펄리"], "Jemperli": ["젬펄리"],
+    "HER2": ["허투"], "dMMR": ["디엠엠알"], "RAS": ["라스"], "BRCA": ["브라카"], "PSA": ["피에스에이"], "DIEP": ["딥"], "LD": ["엘디"], "TSH": ["티에스에이치"],
+    "Mg": ["마그네슘"], "AUC": ["에이유씨"], "AUC5": ["에이유씨 파이브"], "AUC6": ["에이유씨 식스"], "kg": ["킬로그램"], "m²": ["제곱미터"],
 }
 # Case-insensitive fallback for leftovers ("Mastectomy", "Total" ...); exact keys win first.
 _ABBR_LOWER: dict[str, list[str]] = {}
@@ -305,7 +323,7 @@ def to_tts_text(spoken: str, rng: random.Random | None = None) -> str:
     text = _RANGE.sub(lambda m: f"{m.group(1)} 에서 {m.group(2)}", text)
 
     # 3a. any "q{n}h" not in the dictionary (q24h, q2h ...) -> "{n} 시간마다"
-    text = re.sub(r"\bq\s*(\d+)\s*h\b",
+    text = re.sub(r"(?<![A-Za-z0-9])q\s*(\d+)\s*h(?![A-Za-z0-9])",  # \b fails before Hangul ("q24h이고")
                   lambda m: m.group(0) if m.group(0) in ABBREVIATIONS else f"{sino(int(m.group(1)))} 시간마다", text)
 
     # 3b. "+" between items -> 플러스
@@ -347,7 +365,7 @@ def to_tts_text(spoken: str, rng: random.Random | None = None) -> str:
     text = _PLAIN_NUMBER.sub(lambda m: read_number(m.group(0)), text)
 
     # 8. leftover ALL-CAPS tokens -> spelled letters
-    text = re.sub(r"(?<![가-힣A-Za-z])([A-Z]{2,6})(?![a-z])", lambda m: spell_letters(m.group(1)), text)
+    text = re.sub(r"(?<![가-힣A-Za-z])([A-Z]{1,6})(?![a-z])", lambda m: spell_letters(m.group(1)), text)  # incl. staging "T3"
 
     # 9. tidy whitespace and punctuation
     text = re.sub(r"[ \t]+", " ", text)

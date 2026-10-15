@@ -66,6 +66,9 @@ CLAUDE.md와 docs/ROADMAP.md를 읽고 현재 상태를 파악해 줘. 그다음
 | nurse9 (간호정보조사, 문진형) | 147초 | 0.69 | 6.7 | 19 | 0.72초 | 1.6초 | 2.5초 | 2.5 (혹시·저희·이제·뭐) |
 | 생성물(M1, HTTP 0.6B, Yuna 참조) | 92초 | 0.72 | 5.9 | 13 | 0.57초 | 0.79초 | 0.9초 | 0 |
 | 기준 배치 8건 (내장 1.7B, 간호사7·8·9 목소리, 문단 사이 균등 0.35~0.8초) | 1,028초 | 0.74 | 6.1 | 19 | 0.46~0.85초 | 0.78~1.71초 | 4.2초 | 0~1.2 (level≥1만) |
+| nurse10·11·12 (간호정보조사 받아쓰기 / 수술 후 교육 / 퇴원간호, 2026-10-15 추가) | 312~464초 | 0.53~0.58 | 4.7~5.5 | 25~28 | 0.60~0.72초 | 1.6~1.7초 | 4.0~5.5초 | 0 |
+
+nurse10~12는 7~9보다 느리고(본인 말이 느린 편이라는 사용자 말과 일치) 쉼이 더 많다. 복제는 참조 화자의 속도를 따라가므로 별도 조정 없이 목소리만 "간호사10·11·12(가명 녹음)"로 등록했다.
 
 같은 시드(42)로 쉼 분포만 바꿔 다시 만든 A/B 배치 9건과 비교 (절대 문턱 VAD로 셋 다 다시 측정):
 
@@ -110,6 +113,9 @@ CLAUDE.md와 docs/ROADMAP.md를 읽고 현재 상태를 파악해 줘. 그다음
 - [ ] 자동 업데이트(electron-updater) 또는 "새 버전 있음" 알림
 - [ ] Windows 실기기 테스트(python.org Python, PATH, 설치기)
 - [ ] 설치기 오프라인/프록시 환경 오류 메시지 정리
+
+### 병동 시나리오 지식베이스 (2026-10-15, 사용자 요청)
+사용자 병동의 수술·항암 목록으로 `clinical.py`를 만들었다. 수술 30종(GS: TM c ALND, partial mastectomy c SLNB, NSM c SLNB, breast mass excision, lapa chole, BTT, MRND, LAR, lapa RHC, ileostomy repair, hernioplasty, rectal prolapse OP / OBGY: TLH c BSO, TAH, staging lapa, C-sec, lapa BOCE, myomectomy / URO: TURB, RALRP, partial nephrectomy / ENT: ESS, tracheostomy / OS: TKA, THA, TSA, meniscectomy, meniscal repair, ORIF, BKA, rotator cuff repair / PS: breast recon)과 항암 14종(유방: AC, TCHP, HP, TCH, K+AC, K+TC, H / 대장·췌장: mFOLFOX6, mFOLFIRI, FOLFIRINOX, A-FOLFIRI, E-FOLFIRI / 자궁내막: T+C+Jemperli)마다 개연성 있는 진단명(3~6개)·주 호소·현병력·나이/성별·재원 기간과, 템플릿 필드 제한(배액관 종류·식이·소변줄·장치·추후 계획·이벤트 종류)·글 풀(통증 양상·배액·퇴원약·운전/복직·수술/항암별 특이 교육)을 적었다. 가상 환자는 여기서만 뽑히므로 「갑상선암인데 JP 배액관, 덤핑 교육」 같은 조합이 나오지 않는다. FOLFIRINOX는 대장이 아니라 췌장암 regimen이라 췌장암으로 두었다. 항암 입원은 S1·S4·S5·S6만 만들고 인계 인트로는 「항암 3차 D1」로 읽는다. S3-1·S4·S5에 수술/항암별 특이 교육 필드가 추가됐다(자동 채움).
 
 ### M5 · 나중에
 - 말투 변형 세트 공유/가져오기, 병원별 용어집

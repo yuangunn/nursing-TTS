@@ -104,6 +104,7 @@ TEMPLATE = RecordTemplate(
                 phrases=["수술 시간은 {v} 정도 예상된다고 설명했습니다.", "수술은 {v} 정도 걸리고,"], speak_prob=0.8),
             multi("attachments", "예상 부착물", [
                 opt("jp", "JP 배액관", nouns=["복부 JP 1개", "JP 배액관"]),
+                opt("hemovac", "Hemovac 배액관", nouns=["Hemovac 배액관", "헤모박"]),
                 opt("foley", "소변줄", nouns=["소변줄"]),
                 opt("iv", "수액 라인", nouns=["수액 라인"]),
                 opt("ltube", "L-tube", nouns=["L-tube"]),
