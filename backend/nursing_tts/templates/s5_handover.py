@@ -90,8 +90,8 @@ TEMPLATE = RecordTemplate(
                 phrases=["{v}.", "{v}이고,", "{v}구요,"], hint="수술·항암 종류에 따른 관리 포인트 (가상 환자 생성 시 자동으로 채워짐)"),
         ]),
         Section("lines", "라인/튜브/배액", hint="종류, 부위, 삽입일, 양상·양, 교환 예정", fields=[
-            txt("line", "말초 라인", placeholder="예: 오른팔 말초 라인 하나, 10월 13일 삽입, 내일 교환 예정",
-                phrases=["라인은 {v}입니다.", "라인은 {v}이고,", "{v}이구요,"], default="오른팔 말초 라인 하나, 10월 13일 삽입이라 내일 교환 예정"),
+            txt("line", "말초 라인", placeholder="예: Rt arm 22G line 하나, 10월 13일 삽입, 내일 교환 예정",
+                phrases=["라인은 {v}입니다.", "라인은 {v}이고,", "{v}이구요,"], default="Rt arm 22G line 하나, 10월 13일 삽입이라 내일 교환 예정"),
             txt("drain", "배액관", placeholder="예: 우측 복부 JP 장액성, 색 옅어지는 중",
                 phrases=["{v}.", "{v}이고,", "배액은 {v}이구요,"], default="우측 복부 JP 배액은 장액성으로 색 옅어지고 있음"),
             txt("other_tube", "기타 튜브", placeholder="예: L-tube 자연 배액 중",

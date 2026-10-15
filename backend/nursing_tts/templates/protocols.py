@@ -156,7 +156,7 @@ def medication() -> Section:
         _b("iv_site_check", "주사부위를 확인함", "주사부위를 확인함({p_iv_gauge} {p_iv_site}, Dressing {p_iv_dsg}, patency {p_iv_patency}).",
            "{p_iv_site} {p_iv_gauge} IV line 확인함, 드레싱 {p_iv_dsg}, 개방성 {p_iv_patency}.", "IV site {p_iv_site} 발적·부종 없고 {p_iv_patency}."),
         _s("iv_gauge", "IV line Gauge", [opt("18G", "18G"), opt("20G", "20G"), opt("22G", "22G"), opt("24G", "24G")], "22G"),
-        _t("iv_site", "부위", "예: 좌측 전완", "좌측 전완"),
+        _t("iv_site", "부위", "예: Lt arm, Rt hand", "Lt arm"),
         _s("iv_dsg", "Dressing 상태", [opt("깨끗함", "깨끗함"), opt("고정 양호함", "고정 양호함"), opt("젖어 교환함", "젖어 교환함"), opt("들떠 재고정함", "들떠 재고정함")], "깨끗함"),
         _s("iv_patency", "patency", [opt("양호함", "양호함"), opt("혈액 역류 확인됨", "혈액 역류 확인됨"), opt("불량하여 재삽입함", "불량하여 재삽입함")], "양호함"),
         _b("med_edu", "약물에 대해 교육함", "약물에 대해 교육함({p_med_name}: 효능, 투여 방법, 주의사항).", "{p_med_name} 효능과 부작용에 대해 교육함.", "투여 약물 {p_med_name}에 대해 설명하고 이해함 확인함."),

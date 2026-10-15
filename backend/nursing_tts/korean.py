@@ -194,7 +194,7 @@ ABBREVIATIONS: dict[str, list[str]] = {
     "L-tube": ["엘튜브"], "NG": ["엔지"], "NGT": ["엔지티"], "T-tube": ["티튜브"], "PCD": ["피씨디"],
     "PTBD": ["피티비디"], "ENBD": ["이엔비디"], "chest tube": ["체스트 튜브"], "Rt": ["라이트"], "Lt": ["레프트"],
     "Rt.": ["라이트"], "Lt.": ["레프트"], "arm": ["암"], "Fr.": ["프렌치"],
-    "sanguineous": ["생귀니어스"], "serosanguineous": ["세로생귀니어스"], "serous": ["세러스"],
+    "sanguineous": ["생귀니어스", "생귀너스"], "serosanguineous": ["세로생귀니어스", "세로생귀너스"], "serous": ["세러스"],
     "oozing": ["우징"], "pus": ["퍼스"], "bile": ["바일"], "purulent": ["퓨룰런트"],
     "dressing": ["드레싱"], "stapler": ["스테플러"], "steri-strip": ["스테리스트립"],
     # respiratory
@@ -254,13 +254,55 @@ ABBREVIATIONS: dict[str, list[str]] = {
     "tracheostomy": ["트라케오스토미", "기관절개"], "TKA": ["티케이에이"], "THA": ["티에이치에이"], "TSA": ["티에스에이"],
     "meniscectomy": ["메니섹토미"], "meniscal": ["메니스칼"], "repair": ["리페어"], "BKA": ["비케이에이"], "rotator cuff": ["로테이터 커프"],
     "cuff": ["커프"], "rotator": ["로테이터"], "reconstruction": ["리컨스트럭션"], "recon": ["리컨"], "Hemovac": ["헤모박"], "CPM": ["씨피엠"],
-    "CBI": ["씨비아이", "방광 세척"], "CMS": ["씨엠에스"], "ANC": ["에이엔씨"], "EF": ["이에프"], "G-CSF": ["지씨에스에프"], "mFOLFOX6": ["엠폴폭스 식스", "폴폭스"],
-    "mFOLFIRI": ["엠폴피리", "폴피리"], "FOLFIRI": ["폴피리"], "FOLFIRINOX": ["폴피리녹스"], "A-FOLFIRI": ["아바스틴 폴피리", "에이 폴피리"], "E-FOLFIRI": ["얼비툭스 폴피리", "이 폴피리"],
-    "TCHP": ["티씨에이치피"], "TCH": ["티씨에이치"], "HP": ["에이치피"], "AC": ["에이씨"], "K+AC": ["키트루다 플러스 에이씨", "케이 에이씨"],
-    "K+TC": ["키트루다 플러스 티씨", "케이 티씨"], "T+C+Jemperli": ["티 씨 젬펄리", "파클리탁셀 카보플라틴 젬펄리"], "Jemperli": ["젬펄리"],
+    "CBI": ["씨비아이", "방광 세척"], "CMS": ["씨엠에스"], "ANC": ["에이엔씨"], "EF": ["이에프"], "G-CSF": ["지씨에스에프"], "mFOLFOX6": ["엠폴폭스", "엠폴폭스 식스", "폴폭스"],
+    "mFOLFIRI": ["엠폴피리", "엠폴피리", "폴피리"], "FOLFIRI": ["폴피리"], "FOLFIRINOX": ["폴피리녹스"], "A-FOLFIRI": ["에이폴피리", "에이폴피리", "아바스틴 폴피리"], "E-FOLFIRI": ["이폴피리", "이폴피리", "얼비툭스 폴피리"],
+    "TCHP": ["티씨에이치피"], "TCH": ["티씨에이치"], "HP": ["에이치피"], "AC": ["에이씨"], "K+AC": ["키트루다 에이씨", "키트루다 플러스 에이씨", "케이 에이씨"], "H": ["허셉틴", "에이치"],
+    "K+TC": ["키트루다 티씨", "키트루다 플러스 티씨", "케이 티씨"], "T+C+Jemperli": ["티씨 젬펄리", "티 씨 젬펄리", "파클리탁셀 카보플라틴 젬펄리"], "Jemperli": ["젬펄리"],
     "HER2": ["허투"], "dMMR": ["디엠엠알"], "RAS": ["라스"], "BRCA": ["브라카"], "PSA": ["피에스에이"], "DIEP": ["딥"], "LD": ["엘디"], "TSH": ["티에스에이치"],
     "Mg": ["마그네슘"], "AUC": ["에이유씨"], "AUC5": ["에이유씨 파이브"], "AUC6": ["에이유씨 식스"], "kg": ["킬로그램"], "m²": ["제곱미터"],
 }
+# Surgery names as the ward says them (user, 2026-10-16): letters, Korean name, or a mix — "티에이치에이",
+# "인공고관절 수술", "고관절 티에이치에이"; "라파 꼴레", "담낭절제", "복강경적 담낭절제술". Both the chart key
+# and the handover abbreviation spelling are listed because multi-word keys match case-sensitively.
+_SURGERY_READINGS: list[tuple[tuple[str, ...], list[str]]] = [
+    (("THA",), ["티에이치에이", "고관절 인공관절 수술", "인공고관절 수술", "고관절 티에이치에이"]),
+    (("TKA",), ["티케이에이", "무릎 인공관절 수술", "인공슬관절 수술", "무릎 티케이에이"]),
+    (("TSA",), ["티에스에이", "어깨 인공관절 수술", "인공견관절 수술"]),
+    (("Lapa chole", "lapa chole"), ["라파 꼴레", "라파 콜레", "담낭절제", "복강경적 담낭절제술", "복강경 담낭절제"]),
+    (("Lapa RHC", "lapa RHC"), ["라파 알에이치씨", "복강경 우측 결장절제", "라파 라이트 헤미", "우측 결장절제술"]),
+    (("LAR",), ["엘에이알", "저위전방절제술", "엘에이알 수술"]),
+    (("Total mastectomy c ALND", "TM c ALND"), ["티엠 씨 에이엘엔디", "토탈 마스텍토미 위드 에이엘엔디", "유방 전절제 에이엘엔디", "유방 전절제술"]),
+    (("Partial mastectomy c SLNB", "partial mastectomy c SLNB"), ["파셜 마스텍토미 위드 에스엘엔비", "유방 부분절제 에스엘엔비", "유방 부분절제술", "파셜 마스텍토미"]),
+    (("NSM c SLNB",), ["엔에스엠 위드 에스엘엔비", "엔에스엠", "유두보존 유방절제 에스엘엔비"]),
+    (("Breast mass excision", "breast mass excision"), ["브레스트 매스 익시전", "유방 종괴 절제", "매스 익시전"]),
+    (("Bilateral total thyroidectomy", "BTT"), ["비티티", "갑상선 전절제", "갑상선 전절제술", "바이래터럴 토탈 타이로이덱토미"]),
+    (("MRND",), ["엠알엔디", "경부 림프절 절제술"]),
+    (("Ileostomy repair", "ileostomy repair"), ["아일리오스토미 리페어", "회장루 복원", "장루 복원술"]),
+    (("Hernioplasty", "hernioplasty"), ["허니오플라스티", "탈장 교정술", "탈장 수술", "헤르니아 수술"]),
+    (("Rectal prolapse OP", "rectal prolapse OP"), ["렉탈 프롤랩스 오피", "직장탈출증 수술", "직장 탈출 교정술"]),
+    (("TLH c BSO",), ["티엘에이치 위드 비에스오", "티엘에이치 비에스오", "복강경 전자궁절제 양측 부속기절제", "티엘에이치"]),
+    (("TAH",), ["티에이에이치", "개복 전자궁절제술", "개복 자궁절제"]),
+    (("Staging laparotomy", "staging lapa"), ["스테이징 라파로토미", "스테이징 라파", "병기설정 개복술", "스테이징 수술"]),
+    (("C-sec",), ["씨섹", "제왕절개", "씨섹션"]),
+    (("Lapa BOCE", "lapa BOCE"), ["라파 비오씨이", "복강경 양측 난소낭종절제", "난소 낭종 절제술"]),
+    (("Myomectomy", "myomectomy"), ["마이오멕토미", "자궁근종절제술", "근종 절제"]),
+    (("TURB",), ["터브", "티유알비", "경요도 방광종양절제술", "방광종양 절제"]),
+    (("RALRP",), ["랄프", "알에이엘알피", "로봇 전립선절제술", "로봇 근치적 전립선절제술"]),
+    (("Partial nephrectomy", "partial nephrectomy"), ["파셜 네프렉토미", "부분 신장절제술", "신장 부분절제"]),
+    (("ESS",), ["이에스에스", "내시경 부비동 수술", "부비동 내시경 수술"]),
+    (("Tracheostomy", "tracheostomy"), ["트라케오스토미", "기관절개술", "기관절개"]),
+    (("Meniscectomy", "meniscectomy"), ["메니섹토미", "반월상연골 절제술", "관절경 연골 절제"]),
+    (("Meniscal repair", "meniscal repair"), ["메니스칼 리페어", "반월상연골 봉합술", "연골판 봉합"]),
+    (("ORIF",), ["오알아이에프", "오리프", "관혈적 정복 내고정술", "골절 금속판 고정 수술"]),
+    (("BKA",), ["비케이에이", "하퇴 절단술", "무릎 아래 절단"]),
+    (("Rotator cuff repair", "rotator cuff repair"), ["로테이터 커프 리페어", "회전근개 봉합술", "어깨 회전근개 봉합", "로테이터 커프 수술"]),
+    (("Breast reconstruction", "breast recon"), ["브레스트 리컨스트럭션", "브레스트 리컨", "유방 재건술", "유방 재건"]),
+    (("drain",), ["드레인"]), (("drainage",), ["드레니지"]), (("forearm",), ["포암"]), (("hand",), ["핸드"]),
+]
+for _names, _readings in _SURGERY_READINGS:
+    for _n in _names:
+        ABBREVIATIONS[_n] = _readings
+
 # Case-insensitive fallback for leftovers ("Mastectomy", "Total" ...); exact keys win first.
 _ABBR_LOWER: dict[str, list[str]] = {}
 for _k, _v in ABBREVIATIONS.items():
@@ -329,8 +371,8 @@ def to_tts_text(spoken: str, rng: random.Random | None = None) -> str:
     text = re.sub(r"(?<![A-Za-z0-9])q\s*(\d+)\s*h(?![A-Za-z0-9])",  # \b fails before Hangul ("q24h이고")
                   lambda m: m.group(0) if m.group(0) in ABBREVIATIONS else f"{sino(int(m.group(1)))} 시간마다", text)
 
-    # 3b. "+" between items -> 플러스
-    text = re.sub(r"\s*\+\s*", " 플러스 ", text)
+    # 3b. "<regimen> 항암" is also said "<regimen> 케모" on the ward
+    text = re.sub(r"(?<=[A-Za-z0-9]) 항암(?![가-힣])", lambda m: _pick([" 항암", " 항암", " 케모"], rng), text)
 
     # 3c. months (6월 -> 유월, 10월 -> 시월)
     text = re.sub(r"(?<!\d)(1[0-2]|[1-9])월", lambda m: MONTH_READING[int(m.group(1))], text)
@@ -353,6 +395,9 @@ def to_tts_text(spoken: str, rng: random.Random | None = None) -> str:
     text = re.sub(r"(?<![가-힣A-Za-z])([A-Za-z][A-Za-z-]*)(?![A-Za-z])",
                   lambda m: _pick(_ABBR_LOWER[m.group(1).lower()], rng) if m.group(1).lower() in _ABBR_LOWER else m.group(1),
                   text)
+
+    # 5c. leftover "+" between items -> 플러스 (after abbreviations so "K+TC" is 키트루다 티씨, not 포타슘 플러스)
+    text = re.sub(r"\s*\+\s*", " 플러스 ", text)
 
     # 6. numbers followed by Korean counters
     def counter_repl(m: re.Match) -> str:

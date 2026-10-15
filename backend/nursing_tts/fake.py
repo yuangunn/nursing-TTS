@@ -38,7 +38,7 @@ TEXT_POOLS: dict[str, list[str]] = {
     "lmp": ["2026년 9월 30일", "2026년 10월 2일", "폐경"],
     "pain_desc": ["수술 부위 복부 쪽 쑤시는 느낌", "수술 부위 당기는 느낌", "움직일 때 수술 부위 찌르는 느낌", "수술 부위 묵직한 느낌"],
     "s6.fluid": ["하트만 덱스 주사액 1리터 컨트롤 세트로 40cc/hr", "하트만 1리터 60cc/hr", "N/S 1리터 KVO", "5DW 500cc 40cc/hr"],
-    "s6.line": ["왼팔 22게이지", "오른손등 24게이지", "오른팔 20게이지", "왼손등 22게이지"],
+    "s6.line": ["왼팔 22게이지", "오른손등 24게이지", "오른팔 20게이지", "왼손등 22게이지", "Lt arm 22G", "Rt hand 24G", "Lt forearm 20G"],
     "s6.wound": ["복부 단일공", "복부 4개 포트", "우측 발목 수술 부위", "하복부 정중절개"],
     "t1": ["오전 7시", "오전 7시 30분", "오전 6시 50분"], "t2": ["오전 8시", "오전 8시 10분"],
     "t3": ["오후 1시", "오후 12시 40분"], "t4": ["오후 1시 30분", "오후 2시", "오후 3시"],
@@ -57,7 +57,8 @@ TEXT_POOLS: dict[str, list[str]] = {
                  "입원 기간 질문하여 보통 7~10일 정도라고 설명", "특이 질문 없음"],
     "arrival_time": ["12시 30분", "오후 2시", "오전 11시 50분", "오후 4시 20분"],
     "vs_lead": ["도착 당시", "병실 도착 후", "오후 2시"],
-    "iv": ["좌측 전완 말초 라인 통해 H/S, DW 수액", "우측 손등 말초 라인 통해 하트만 수액", "우측 전완 말초 라인 통해 N/S 수액", "PICC 통해 TPN"],
+    "iv": ["Lt arm 20G line", "Rt hand 22G line", "Lt forearm 22G IV line", "Rt arm 20G IV line", "Lt hand 24G line", "Rt forearm 20G line"],
+    "p_iv_site": ["Lt arm", "Rt hand", "Lt forearm", "Rt arm", "왼팔", "오른손등"],
     "found_time": ["오전 10시", "오후 2시", "오후 6시", "새벽 3시", "오후 9시 30분"],
     "complaint": ["열감 조금 있다고 표현하고 오한은 없음", "오한 있다고 하심", "열감 없다고 하나 얼굴 붉어짐", "두통 호소"],
     "drain": ["JP 배액 serosanguineous 양상 40cc", "JP sanguineous 20cc", "JP serous 15cc", "배액관 없음",
@@ -89,7 +90,7 @@ TEXT_POOLS: dict[str, list[str]] = {
     "antibiotic": ["세파졸린 q8h", "세프트리악손 q24h", "항생제 없음", "메트로니다졸 q8h 추가"],
     "prn": ["트라마돌 1회", "항구토제 1회", "없음", "트라마돌 2회, 수면제 1회"],
     "transfusion": ["", "PRBC 1 pack 수혈 완료", "", ""],
-    "line": ["오른팔 말초 라인 하나, 10월 13일 삽입이라 내일 교환 예정", "왼팔 말초 라인 하나, 오늘 교환함", "PICC 우측 상완, 주 1회 드레싱"],
+    "line": ["Rt arm 22G line 하나, 10월 13일 삽입이라 내일 교환 예정", "Lt arm 20G line 하나, 오늘 교환함", "오른팔 말초 라인 하나, 오늘 교환함", "Lt hand 22G IV line 하나, 주입 잘 됨", "PICC 우측 상완, 주 1회 드레싱"],
     "other_tube": ["", "", "L-tube 자연 배액 중", ""],
     "lab": ["WBC 11.2, CRP 8.5로 어제보다 약간 상승", "Hb 9.8로 감소", "K 3.2로 감소하여 KCl 추가", "CRP 2.1로 정상 범위"],
     "glucose": ["식전 150~180으로 슬라이딩 스케일", "식전 120~140, 인슐린 없음", "식전 200 이상으로 RI 4단위 추가"],
@@ -218,6 +219,10 @@ def _consistency(form: dict[str, Any], template_key: str, t, rng: random.Random,
         form["purpose"] = "symptom" if tox else ("chemo" if chemo else "op")   # THA patient must not be "admitted for tests"
     if "consciousness" in form and rng.random() < 0.85:
         form["consciousness"] = "alert"
+    if patient is not None and patient.department != "정형외과" and (patient.age or 0) < 70:
+        for key in ("mobility", "adl"):   # a 30-year-old myoma patient does not arrive in a wheelchair
+            if key in form and rng.random() < 0.9:
+                form[key] = "independent"
     if form.get("consciousness") == "alert" and "orientation" in form and rng.random() < 0.9:
         form["orientation"] = "yes"   # an alert patient is almost always oriented
     if form.get("weight_screen") == "neg":
@@ -464,9 +469,17 @@ def random_form(template_key: str, rng: random.Random, patient: Patient | None =
                 form["onset"] = rng.choice(["2개월 전부터", "3개월 전부터", "6개월 전부터 서서히", "1년 전부터", "1개월 전부터"])
         _apply_scenario(form, template_key, {f.key: f for _, f in t.iter_fields()}, sc, rng)
     _consistency(form, template_key, t, rng, patient, sc)
-    if template_key == "s1" and patient is not None and not patient.sex.startswith("여"):
-        form.pop("lmp", None)
-        form.pop("marital", None) if rng.random() < 0.5 else None
+    if template_key == "s1" and patient is not None:
+        female = patient.sex.startswith("여")
+        if not female and rng.random() < 0.5:
+            form.pop("marital", None)
+        # the ward asks LMP only of gynecologic surgery patients (user, 2026-10-16); C-sec has no LMP talk
+        if female and patient.kind == "op" and patient.department == "산부인과" and patient.surgery != "C-sec":
+            m = re.match(r"(\d+)월", patient.admission_date or "")
+            month = int(m.group(1)) if m else 10
+            form["lmp"] = "폐경 상태" if (patient.age or 0) >= 52 else f"{month if rng.random() < 0.5 else (month - 2) % 12 + 1}월 {rng.randint(1, 28)}일"
+        else:
+            form.pop("lmp", None)
     if "family_history" in form and form.get("family_history") == "없음":
         form.pop("family_history", None)
         form["family_none"] = True
