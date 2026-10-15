@@ -23,7 +23,7 @@ from .config import load_settings, output_dir
 from .fake import random_datetime, random_form, random_patient
 from .generator import Patient, build_script
 from .templates import get_template
-from .tts.base import synthesize_paragraphs
+from .tts.base import synthesize_script
 from .tts.registry import get_engine
 
 ROUNDS_LINES = [
@@ -152,6 +152,7 @@ def _loudness(audio: np.ndarray, target_dbfs: float) -> np.ndarray:
 def generate_one(spec: dict[str, Any], settings: dict[str, Any], custom_noises: list[NoiseClip],
                  item: JobItem | None = None, progress=None) -> dict[str, Any]:
     """spec keys: template, form, patient, datetime, style, seed, voice_id, noise, llm_polish, rounds_voice."""
+    t_start = time.perf_counter()
     rng = random.Random(spec.get("seed"))
     seed = spec.get("seed") if spec.get("seed") is not None else rng.randrange(1 << 30)
     template_key = spec["template"]
@@ -210,7 +211,12 @@ def generate_one(spec: dict[str, Any], settings: dict[str, Any], custom_noises: 
         raise RuntimeError("목소리 복제 엔진에는 등록된 목소리(참조 음성)가 필요합니다. 목소리 등록 탭에서 먼저 녹음하세요.")
 
     paragraphs = [p for p in script.tts_text.splitlines() if p.strip()]
-    audio, sr = synthesize_paragraphs(engine, paragraphs, ref, seed, progress=progress)
+    spoken_lines = [p for p in script.spoken_text.splitlines() if p.strip()]
+    if len(spoken_lines) != len(paragraphs):  # should not happen; labels then fall back to whole paragraphs
+        spoken_lines = paragraphs
+    t0 = time.perf_counter()
+    audio, sr, segments = synthesize_script(engine, spoken_lines, paragraphs, ref, seed, progress=progress)
+    timing: dict[str, Any] = {"synth_s": round(time.perf_counter() - t0, 1)}
     audio = _loudness(normalize_peak(audio, 0.9), float(settings.get("loudness_dbfs", -20.0)))
 
     # --- channel / speed augmentation on the speech layer
@@ -236,7 +242,13 @@ def generate_one(spec: dict[str, Any], settings: dict[str, Any], custom_noises: 
     if extra_voices and not cfg.enabled:
         cfg.enabled = True
         cfg.types = []
+    t1 = time.perf_counter()
     mixed, events = mix(audio, sr, cfg, custom=custom_noises, extra_voices=extra_voices)
+    timing["mix_s"] = round(time.perf_counter() - t1, 1)
+    # segment times in the final file: speed perturbation stretches by 1/speed, the mixer pads the head
+    scale = 1.0 / float(aug_info.get("speed") or 1.0)
+    segments = [{**s, "start": round(s["start"] * scale + cfg.head_pad, 3), "end": round(s["end"] * scale + cfg.head_pad, 3)}
+                for s in segments]
 
     out_sr = int(settings.get("sample_rate", 24000))
     if out_sr != sr:
@@ -275,6 +287,8 @@ def generate_one(spec: dict[str, Any], settings: dict[str, Any], custom_noises: 
         "disfluency_level": level,
         "disfluency_edits": disfluency_edits,
         "verbatim_text": verbatim_text,
+        "segments": segments,  # sentence chunks with exact times: lets export cut ≤30 s clips with correct text
+
         "voice_name": voice_obj.name if voice_obj else "",
         "voice_sex": voice_obj.sex if voice_obj else "",
         "sample_rate": sr,
@@ -286,9 +300,14 @@ def generate_one(spec: dict[str, Any], settings: dict[str, Any], custom_noises: 
         if ok:
             if progress:
                 progress(len(paragraphs), len(paragraphs))
+            t2 = time.perf_counter()
             meta["verify"] = verify_mod.verify(wav_path, script.spoken_text, script.tts_text, settings)
+            timing["verify_s"] = round(time.perf_counter() - t2, 1)
         else:
             meta["verify"] = {"error": "faster-whisper 미설치", "passed": None}
+    timing["total_s"] = round(time.perf_counter() - t_start, 1)
+    timing["chunks"] = len(paragraphs)
+    meta["timing"] = timing  # where the time goes (M3 throughput work)
     json_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     if item is not None:
         item.files = {"wav": str(wav_path), "txt": str(txt_path), "json": str(json_path)}

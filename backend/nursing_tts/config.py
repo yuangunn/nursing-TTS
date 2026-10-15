@@ -32,6 +32,7 @@ DEFAULTS: dict[str, Any] = {
     "device": "auto",              # auto | cuda | mps | cpu
     "qwen_model": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",  # built-in cloning model (HF id or local path)
     "qwen_idle_unload_min": 10,    # drop the model from memory after this many idle minutes (0 = keep)
+    "qwen_batch": 8,               # sentence chunks per generate call (1 = one at a time)
     "http_tts_url": "http://127.0.0.1:8081/synthesize",
     "output_dir": "",              # empty -> data_dir()/output
     "sample_rate": 24000,

@@ -306,3 +306,30 @@ def test_read_m4a_without_ffmpeg(tmp_path):
     aio._ffmpeg = lambda: None  # pretend ffmpeg is absent
     audio, sr = aio.read_audio(m4a, target_sr=16000)
     assert sr == 16000 and 15000 < len(audio) < 17000 and abs(audio).max() > 0.3
+
+
+def test_export_splits_long_recordings_at_segments():
+    import subprocess, sys as _sys
+    from pathlib import Path as _P
+    save_settings({"tts_engine": "silent"})
+    v = client.post("/api/voices", json={"name": "분할 간호사"}).json()
+    client.post(f"/api/voices/{v['id']}/samples", files={"file": ("rec.wav", _wav_bytes(), "audio/wav")}, data={"transcript": "t"})
+    gen = client.post("/api/generate", json={"template": "s1", "form": client.get("/api/templates/s1/defaults").json(),
+                                             "patient": {"name": "김분할"}, "datetime": "2026-10-20T09:00", "voice_id": v["id"]}).json()
+    j = _wait(gen["id"], timeout=120)
+    meta = client.get("/api/recordings/meta", params={"rel": j["items"][0]["files"]["wav"].split("/")[-1]}).json()
+    assert meta["segments"] and meta["segments"][0]["start"] >= 0.6  # mixer head pad
+    assert meta["segments"][0]["text"] == meta["spoken_text"].splitlines()[0]
+    assert all(a["end"] <= b["start"] for a, b in zip(meta["segments"], meta["segments"][1:]))
+    rep = client.post("/api/dataset/export", json={"name": "ds_split", "max_clip_sec": 4, "formats": ["nemo", "whisper", "ljspeech", "csv"],
+                                                   "exclude_failed_verify": False}).json()
+    assert rep["split"]["split_recordings"] >= 1 and rep["split"]["pieces"] > rep["split"]["split_recordings"]
+    rows = [__import__("json").loads(l) for l in (_P(rep["folder"]) / "manifest_train.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert sum(r["signal_text"] != "" for r in rows if r["audio_filepath"].split("/")[-1].startswith("20261020_0900_김분할")) == 1
+    pieces = [r["duration"] for r in rows if r["audio_filepath"].split("/")[-1].startswith("20261020_0900_김분할_p")]
+    longest_seg = max(s["end"] - s["start"] for s in meta["segments"])
+    # pieces fit the limit unless a single sentence is itself longer than the limit
+    assert len(pieces) >= 2 and max(pieces) <= max(4.3, longest_seg + 0.25) and min(pieces) <= 4.3
+    r = subprocess.run([_sys.executable, str(_P(__file__).resolve().parents[2] / "scripts" / "check_export.py"), rep["folder"]],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr

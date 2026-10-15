@@ -65,29 +65,76 @@ def natural_pause(rng: random.Random, scale: float = 1.0) -> float:
     return min(3.5, max(0.25, rng.lognormvariate(math.log(0.6 * scale), 0.75)))
 
 
-def synthesize_paragraphs(engine: TTSEngine, paragraphs: list[str], ref: tuple[Path, str] | None,
-                          seed: int | None, progress=None) -> tuple[np.ndarray, int]:
-    """Synthesize sentence chunks separately and join them with natural pauses.
+def plan_chunks(spoken_lines: list[str], tts_lines: list[str], min_chars: int = 20) -> list[tuple[int, str, str, bool]]:
+    """Pair each phonetic chunk with its ground-truth text: (paragraph index, spoken, tts, last in paragraph).
 
+    Both layers split on the same sentence boundaries; when a paragraph's sentence counts disagree
+    (rare: a conversion that added/removed a period) the whole paragraph becomes one chunk."""
+    plan: list[tuple[int, str, str, bool]] = []
+    for i, (sp, tt) in enumerate(zip(spoken_lines, tts_lines)):
+        s_sents = [s for s in _SENT_SPLIT.split(sp.strip()) if s.strip()]
+        t_sents = [s for s in _SENT_SPLIT.split(tt.strip()) if s.strip()]
+        if len(s_sents) != len(t_sents) or not t_sents:
+            plan.append((i, sp.strip(), tt.strip(), True))
+            continue
+        pairs: list[list[str]] = []
+        for s, t in zip(s_sents, t_sents):
+            if pairs and len(re.sub(r"\s", "", pairs[-1][1])) < min_chars:
+                pairs[-1] = [f"{pairs[-1][0]} {s}", f"{pairs[-1][1]} {t}"]
+            else:
+                pairs.append([s, t])
+        if len(pairs) > 1 and len(re.sub(r"\s", "", pairs[-1][1])) < min_chars:
+            last = pairs.pop()
+            pairs[-1] = [f"{pairs[-1][0]} {last[0]}", f"{pairs[-1][1]} {last[1]}"]
+        for j, (s, t) in enumerate(pairs):
+            plan.append((i, s, t, j == len(pairs) - 1))
+    return plan
+
+
+def synthesize_script(engine: TTSEngine, spoken_lines: list[str], tts_lines: list[str], ref: tuple[Path, str] | None,
+                      seed: int | None, progress=None) -> tuple[np.ndarray, int, list[dict]]:
+    """Synthesize sentence chunks and join them with natural pauses.
+
+    Returns (audio, sr, segments) where each segment is {start, end, text, tts} in seconds of the
+    returned audio: exact labels for splitting long recordings into ≤30 s training clips.
     Pauses between sentences follow the real-recording distribution; paragraph (section) changes get
     longer ones.  Synthesizing per sentence also gives the model shorter inputs."""
     rng = random.Random(seed)
-    pieces: list[np.ndarray] = []
     sr = 24000
-    total = len(paragraphs)
-    k = 0
-    for i, para in enumerate(paragraphs):
-        chunks = chunk_sentences(para)
-        for j, chunk in enumerate(chunks):
-            audio, sr = engine.synthesize(chunk, ref, seed=(seed + k) if seed is not None else None)
-            k += 1
-            pieces.append(trim_silence(audio.astype(np.float32), sr))
-            last_chunk = j == len(chunks) - 1
-            if not (last_chunk and i == total - 1):
-                pause = natural_pause(rng, 1.6 if last_chunk else 1.0)
-                pieces.append(np.zeros(int(pause * sr), dtype=np.float32))
+    total = len(tts_lines)
+    plan = plan_chunks(spoken_lines, tts_lines)
+    if not plan:
+        return np.zeros(int(0.5 * sr), dtype=np.float32), sr, []
+    texts = [t for _, _, t, _ in plan]
+    many = getattr(engine, "synthesize_many", None)
+    if many is not None:  # batched engines (Qwen): all chunks of the recording in a few generate calls
+        audios, sr = many(texts, ref, seed)
         if progress:
-            progress(i + 1, total)
-    if not pieces:
-        return np.zeros(int(0.5 * sr), dtype=np.float32), sr
-    return np.concatenate(pieces), sr
+            progress(total, total)
+    else:
+        audios = []
+        for k, text in enumerate(texts):
+            audio, sr = engine.synthesize(text, ref, seed=(seed + k) if seed is not None else None)
+            audios.append(audio)
+            if progress:
+                progress(plan[k][0] + 1, total)
+    pieces: list[np.ndarray] = []
+    segments: list[dict] = []
+    pos = 0
+    for (i, spoken, tts, last_chunk), audio in zip(plan, audios):
+        a = trim_silence(np.asarray(audio, dtype=np.float32), sr)
+        pieces.append(a)
+        segments.append({"start": round(pos / sr, 3), "end": round((pos + len(a)) / sr, 3), "text": spoken, "tts": tts})
+        pos += len(a)
+        if not (last_chunk and i == total - 1):
+            pause = int(natural_pause(rng, 1.6 if last_chunk else 1.0) * sr)
+            pieces.append(np.zeros(pause, dtype=np.float32))
+            pos += pause
+    return np.concatenate(pieces), sr, segments
+
+
+def synthesize_paragraphs(engine: TTSEngine, paragraphs: list[str], ref: tuple[Path, str] | None,
+                          seed: int | None, progress=None) -> tuple[np.ndarray, int]:
+    """Phonetic-only convenience wrapper around :func:`synthesize_script`."""
+    audio, sr, _ = synthesize_script(engine, paragraphs, paragraphs, ref, seed, progress)
+    return audio, sr
