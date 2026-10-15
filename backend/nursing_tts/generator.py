@@ -294,9 +294,12 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
         if rng.random() > f.speak_prob:
             return None
         local["v"] = str(value).strip()
-        # Nominalised free text ("…옅어지고 있음", "…시행함") must not get "입니다" glued on.
+        # Nominalised free text ("…옅어지고 있음", "…시행함") must not get "입니다" glued on: chart style keeps
+        # it as is, spoken styles say it ("…있습니다", "…하였습니다") and then follow the register.
         if re.search(r"(음|됨|함|임|없음|있음)$", local["v"]):
-            return _fmt("{v}.", local)
+            if style == "chart":
+                return _fmt("{v}.", local)
+            return _finish(phrase_store.formal_from_chart(local["v"] + "."), {}, rng, style, force_close)
         phrase = _choose(phrase_store.effective(ctx.get("_template", ""), f.key, "phrases", f.phrases), rng, style, force_close)
         return _finish(phrase, local, rng, style, force_close)
     if f.kind == "bool":

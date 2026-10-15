@@ -147,6 +147,7 @@ def chart_form(phrase: str) -> str:
 
 
 _FROM_CHART: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(r"(가능|필요|양호|깨끗|경미|불량|중요|심|동일|정상|적절)함\.$"), r"\1합니다."),   # state, not an action
     (re.compile(r"하심\.$"), "하셨습니다."), (re.compile(r"고 있음\.$"), "고 있습니다."), (re.compile(r"있음\.$"), "있습니다."),
     (re.compile(r"없음\.$"), "없습니다."), (re.compile(r"됨\.$"), "되었습니다."), (re.compile(r"함\.$"), "하였습니다."),
     (re.compile(r"임\.$"), "입니다."), (re.compile(r"심\.$"), "셨습니다."),

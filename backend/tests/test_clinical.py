@@ -163,4 +163,6 @@ def test_discharge_record_is_same_day_with_ward_leaflet_education():
             seen += f["special_edu"]
             s = build_script("s4", f, p, random_datetime(rng), style="mixed", seed=1)
             assert "퇴원 당일 재교육" not in s.spoken_text and "내일 오전 퇴원" not in s.spoken_text
+            assert "예정 예정" not in s.spoken_text and "주치의" not in s.spoken_text and "피부반응검사" not in s.spoken_text, s.spoken_text
+            assert not any(k.startswith("p_") for k in f), [k for k in f if k.startswith("p_")]   # no protocol items on discharge
         assert word in seen, (key, word)

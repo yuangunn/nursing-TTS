@@ -209,9 +209,9 @@ export default function SettingsPage() {
             <div>
               <label>기본 말투</label>
               <select value={s.default_style} onChange={(e) => save({ default_style: e.target.value })}>
+                <option value="formal">격식체 위주</option>
                 <option value="mixed">현장 혼합</option>
                 <option value="casual">구어체 위주</option>
-                <option value="formal">격식체 위주</option>
               </select>
             </div>
             <div>

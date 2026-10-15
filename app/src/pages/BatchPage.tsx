@@ -74,10 +74,10 @@ export default function BatchPage() {
             <div>
               <label>말투</label>
               <select value={style} onChange={(e) => setStyle(e.target.value)}>
-                <option value="">무작위 섞기 (권장)</option>
+                <option value="">무작위 섞기 (격식체 위주, 권장)</option>
+                <option value="formal">격식체 위주</option>
                 <option value="mixed">현장 혼합</option>
                 <option value="casual">구어체 위주</option>
-                <option value="formal">격식체 위주</option>
                 <option value="chart">기록체 (~함/~됨)</option>
               </select>
             </div>

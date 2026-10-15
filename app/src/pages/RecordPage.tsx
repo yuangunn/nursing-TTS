@@ -33,7 +33,7 @@ export default function RecordPage({ status, onTab }: Props) {
   const [form, setForm] = useState<Record<string, unknown>>({});
   const [patient, setPatient] = useState<Patient>(DEFAULT_PATIENT);
   const [when, setWhen] = useState(nowLocalIso());
-  const [style, setStyle] = useState("mixed");
+  const [style, setStyle] = useState("formal");
   const [seed, setSeed] = useState<number | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [edited, setEdited] = useState<string | null>(null);
@@ -69,7 +69,7 @@ export default function RecordPage({ status, onTab }: Props) {
         if (first) setVoiceId((cur) => cur || first.id);
         const s = await get<Settings>("/api/settings");
         setSettings(s);
-        setStyle(s.default_style || "mixed");
+        setStyle(s.default_style || "formal");
         setNoise((n) => ({ ...n, level: s.noise_default_level ?? n.level }));
       } catch (e) {
         setErr("백엔드에 연결할 수 없습니다. 설정 탭에서 상태를 확인하세요.");
@@ -191,9 +191,9 @@ export default function RecordPage({ status, onTab }: Props) {
             <div>
               <label>말투</label>
               <select value={style} onChange={(e) => setStyle(e.target.value)}>
-                <option value="mixed">현장 혼합 (기본)</option>
+                <option value="formal">격식체 위주 (~하였습니다, 기본)</option>
+                <option value="mixed">현장 혼합</option>
                 <option value="casual">구어체 위주 (~하시구요)</option>
-                <option value="formal">격식체 위주 (~하였습니다)</option>
                 <option value="chart">기록체 (~함/~됨, 차팅하듯)</option>
               </select>
             </div>

@@ -41,7 +41,7 @@ DEFAULTS: dict[str, Any] = {
     "llm_api_key": "",
     "llm_model": "",
     "llm_base_url": "",
-    "default_style": "mixed",      # formal | casual | mixed
+    "default_style": "formal",     # formal | casual | mixed (user 2026-10-16: 현장 혼합은 기본으로 쓰지 않음)
     "noise_default_level": 35,     # 0..100
     "floor_dbfs": -56.0,           # faint room-tone bed under every recording, even with noise off (0 = none)
     "room_wet": 0.06,              # very light room reverb on every recording (0 = none)
