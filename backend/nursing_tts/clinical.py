@@ -598,7 +598,7 @@ SCENARIOS: list[Scenario] = [
         ("발가락 괴사 진행되어 외래 방문", "발 궤양 악화와 발열", "하지 통증과 발 색 변화", "교통사고 후 하지 압궤 손상으로 응급실 경유 입원"),
         ("당뇨발 골수염과 괴사로 항생제 치료 반응 없어 하퇴 절단 예정", "말초동맥 폐쇄로 재관류 불가하여 절단 결정", "교통사고 후 하지 압궤 손상으로 재건 불가하여 하퇴 절단 예정"),
         base=ORTHO, base_pools=ORTHO_POOLS, age=(50, 85), sex="남", los=(10, 21),
-        form={"s3_1.drain": ["hemovac", "none"], "foley": ["removed", "keep"], "activity": ["weight_bearing"], "s4.wound": ["staple", "stitch", "dressing"],
+        form={"s3_1.drain": ["hemovac", "none"], "foley": ["removed", "keep"], "activity": None, "s4.wound": ["staple", "stitch", "dressing"],   # BKA: mobility is in the leaflet items, no "보행기 부분 체중 부하"
               "referral": [["rehab", "social"], ["rehab"], ["rehab", "home"]], "ambulation_plan": ["evening_sit", "bedrest"], "pain_mgmt": ["pca", "po", "pca_prn"],
               "s1.history": [["dm"], ["dm", "htn"], ["dm", "ckd"], ["dm", "heart"]], "s4.diet_edu": ["dm"], "further": ["none"], "s3_2.event": ["통증", "발열", "출혈", "고혈당", "저혈당"],
               "pressure": ["risk", "none"], "fall": ["high"], "device": ["none"]},
