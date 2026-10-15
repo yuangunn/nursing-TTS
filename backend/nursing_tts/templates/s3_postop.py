@@ -77,6 +77,7 @@ TEMPLATE = RecordTemplate(
                     "금식 중이고 가스 아웃 확인되면 물부터 시작한다고 설명했구요,"),
                 opt("sow", "물 시작", "가스 배출 확인되어 물 시작했습니다.", "가스 아웃 확인되어 저녁부터 물 시작했고,"),
                 opt("ld", "미음", "미음 진행 중입니다.", "미음 드시고 계시고,"),
+                opt("gd", "일반식 가능", "식이 제한 없이 일반식 드셔도 된다고 설명하였습니다.", "식사는 일반식으로 드시고,", "식이 제한 없으시구요,"),
             ], default="npo"),
             sel("abdomen", "복부 상태", [
                 opt("soft", "팽만 없음", "복부 팽만 없고 gas out 안 된 상태입니다.", "복부 팽만 없고,", "복부 부드럽고 팽만 없으시구요,"),
@@ -90,6 +91,8 @@ TEMPLATE = RecordTemplate(
                     "JP 1개 sanguineous {drain_amount}cc 나왔고 당겨지지 않게 주의하시라고 교육했고,",
                     "복부 JP 배액 sanguineous 양상 {drain_amount}cc 이고 색 짙어지거나 양 늘면 알리시라고 했구요,"),
                 opt("jp_sero", "JP serosanguineous", "JP 배액 serosanguineous 양상 {drain_amount}cc 입니다.", "JP serosanguineous {drain_amount}cc 나왔고,"),
+                opt("hemovac", "Hemovac", "수술 부위 Hemovac 1개 있고 배액 sanguineous 양상으로 {drain_amount}cc 배액되었습니다. 배액관 당겨지지 않도록 주의하고 양이 갑자기 늘면 알리도록 설명하였습니다.",
+                    "Hemovac sanguineous {drain_amount}cc 나왔고 당겨지지 않게 주의하시라고 교육했고,", "헤모박 배액 {drain_amount}cc 이구요,"),
                 opt("none", "배액관 없음", "배액관 없습니다.", "배액관은 없으시고,"),
             ], default="jp_sang"),
             num("drain_amount", "배액량", unit="cc", min=0, max=2000, default=20, phrases=[], speak_prob=0.0),
@@ -124,6 +127,10 @@ TEMPLATE = RecordTemplate(
                 opt("contrast", "조영제 후 수분 섭취", "조영제 사용하여 수분 충분히 섭취하도록 교육했습니다.", "조영제 배출 위해 물 많이 드시라고 했고,"),
                 opt("rest", "안정", "검사 후 2시간 절대 안정 설명했습니다.", "2시간 침상 안정 유지하도록 했고,"),
             ], default="na", skip_values=("na",)),
+        ]),
+        Section("special", "수술별 특이 교육", hint="수술 종류에 따른 관찰·교육 포인트 (가상 환자 생성 시 자동으로 채워짐)", fields=[
+            txt("special_edu", "수술별 특이 교육", placeholder="예: 손끝·입 주위 저림 있으면 즉시 알리도록 교육함",
+                phrases=["{v}.", "{v}이고,", "{v}구요,"]),
         ]),
         Section("report", "보고해야 할 증상", fields=[
             boolean("report_edu", "보고 증상 교육", phrases=["38도 이상 발열, 숨참, 심한 복통, 드레싱 젖거나 피 비칠 때 즉시 알리도록 교육하였습니다.",

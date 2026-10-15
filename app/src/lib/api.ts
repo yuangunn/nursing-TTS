@@ -179,6 +179,11 @@ export interface Patient {
   pod: number | null;
   op_date: string;
   admission_date: string;
+  kind?: string;        // op | chemo (항암 입원: 수술 대신 regimen/cycle/day)
+  regimen?: string;
+  cycle?: number | null;
+  day?: number | null;
+  scenario?: string;    // clinical.py 시나리오 키
 }
 export interface NoiseSettings {
   enabled: boolean;

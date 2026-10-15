@@ -6,9 +6,9 @@ TEMPLATE = RecordTemplate(
     title="S4. 퇴원 간호",
     signal_kind="퇴원간호",
     description="퇴원 전날~당일, 퇴원 처방·외래 예약·퇴원 요약을 보면서 구술합니다.",
-    intros=["{name}님 {dx} 환자분, {surgery_en}, {surgery_abbr} POD {pod}. 퇴원 간호기록 시작합니다.",
-            "{dx}(으)로 {surgery} 시행하신 {name}님 POD {pod}, 퇴원 교육 기록입니다.",
-            "{surgery_abbr} POD {pod} {name}님 퇴원 간호기록 시작합니다."],
+    intros=["{name}님 {dx} 환자분, {treatment}, {treatment_abbr} {stage}. 퇴원 간호기록 시작합니다.",
+            "{dx}(으)로 {treatment} 시행하신 {name}님 {stage}, 퇴원 교육 기록입니다.",
+            "{treatment_abbr} {stage} {name}님 퇴원 간호기록 시작합니다."],
     closings=["여기까지 {name} 님 퇴원 교육 마치겠습니다.", "이상 퇴원 간호기록 마치겠습니다.", "이상 퇴원 교육 기록 마칩니다.", "퇴원 간호기록 이상입니다."],
     sections=[
         Section("info", "퇴원 정보", hint="퇴원 예정일, 입원 경과 요약", fields=[
@@ -42,6 +42,8 @@ TEMPLATE = RecordTemplate(
             ], default="glue"),
             boolean("wound_warning", "상처 이상 시 안내", phrases=["상처가 빨개지거나 진물 나면 가까운 외과에 방문하거나 병원으로 연락하도록 안내하였습니다.",
                     "상처 빨개지거나 진물 나면 연락하시라고 안내했고,"], default=True),
+            txt("special_edu", "수술/항암별 특이 교육", placeholder="예: 환측 팔 혈압·채혈 금지, 림프부종 예방 교육",
+                phrases=["{v}.", "{v}이고,", "{v}구요,"], hint="수술·항암 종류에 따른 교육 (가상 환자 생성 시 자동으로 채워짐)"),
             sel("device", "장치 관리", [
                 opt("none", "해당 없음"),
                 opt("stoma", "장루", "장루 관리 방법 교육했고 장루 간호사 외래 연계하였습니다.", "장루 교육했고 장루 외래 연계했고,"),
