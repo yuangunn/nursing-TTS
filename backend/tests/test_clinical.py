@@ -3,7 +3,7 @@ import random
 import re
 
 from nursing_tts import clinical
-from nursing_tts.fake import coherent_pool, random_datetime, random_form, random_patient
+from nursing_tts.fake import chemo_toxicity, coherent_pool, random_datetime, random_form, random_patient
 from nursing_tts.generator import build_script
 from nursing_tts.templates import get_template, list_templates
 
@@ -79,10 +79,30 @@ def test_chemo_patients_never_get_surgical_templates_and_say_cycle():
 
 def test_s1_admission_purpose_matches_surgery_or_chemo():
     rng = random.Random(11)
-    for _ in range(150):
+    for sc in clinical.SCENARIOS:   # every toxicity complaint has a toxicity history to go with it
+        if sc.kind == "chemo" and any(chemo_toxicity(c) for c in sc.cc):
+            assert any(chemo_toxicity(x) for x in sc.pi), sc.key
+    for _ in range(400):
         p = random_patient(rng, "s1")
         form = random_form("s1", rng, p)
-        assert form["purpose"] == ("chemo" if p.kind == "chemo" else "op"), (p.surgery, p.regimen, form["purpose"])
+        if p.kind == "chemo":
+            cc, pi = form["chief_complaint"], form["present_illness"]
+            tox = chemo_toxicity(cc)
+            assert chemo_toxicity(pi) == tox, (cc, pi)                     # 설사로 입원 ↔ "3차 예정" never together
+            assert form["purpose"] == ("symptom" if tox else "chemo"), (cc, form["purpose"])
+            assert ("onset" in form) == tox, (cc, form.get("onset"))
+            assert form["plan"] == (f"{p.regimen} {p.cycle}차 예정" if not tox else form["plan"]), form["plan"]
+            if tox:
+                assert "차 예정" not in form["plan"]
+            sc = clinical.BY_KEY[p.scenario]
+            assert 1 <= p.cycle <= sc.form["_cycles"], (p.regimen, p.cycle)
+            assert "{" not in cc + pi + form["plan"], (cc, pi)              # every {cycle} placeholder filled
+            if "1차 시작" in cc + pi:
+                assert p.cycle == 1, (cc, pi, p.cycle)
+            if "차 위해 입원" in cc:
+                assert f"{p.cycle}차 위해 입원" in cc, (cc, p.cycle)
+            continue
+        assert form["purpose"] == "op", (p.surgery, form["purpose"])
         if p.kind == "op":
             sc = clinical.BY_KEY[p.scenario]
             plan = form.get("plan", "")

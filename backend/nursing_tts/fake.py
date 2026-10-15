@@ -126,7 +126,7 @@ def random_patient(rng: random.Random, template_key: str | None = None, scenario
                   admission_date=f"{month}월 {max(1, base_day - 1)}일")
     if sc.kind == "chemo":
         return Patient(**common, surgery="", kind="chemo", regimen=sc.key, pod=None,
-                       cycle=rng.randint(1, 8), day=rng.choice(sc.form.get("_days") or [1]))
+                       cycle=rng.randint(1, int(sc.form.get("_cycles") or 8)), day=rng.choice(sc.form.get("_days") or [1]))
     lo, hi = sc.los
     pod = {"s1": None, "s2": None, "s3_1": rng.choice([0, 1, 2]), "s3_2": rng.choice([1, 2, 3]),
            "s4": rng.randint(max(0, lo), max(lo, hi)), "s5": rng.randint(0, max(1, hi))}.get(template_key or "", rng.choice([1, 2, 3]))
@@ -214,7 +214,8 @@ def _consistency(form: dict[str, Any], template_key: str, t, rng: random.Random,
     opts = {f.key: {o.value for o in f.options} for _, f in t.iter_fields() if f.kind == "select"}
     chemo = patient is not None and patient.kind == "chemo"
     if "purpose" in form and patient is not None:
-        form["purpose"] = "chemo" if chemo else "op"   # THA patient must not be "admitted for tests"
+        tox = chemo and chemo_toxicity(form.get("chief_complaint", ""))
+        form["purpose"] = "symptom" if tox else ("chemo" if chemo else "op")   # THA patient must not be "admitted for tests"
     if "consciousness" in form and rng.random() < 0.85:
         form["consciousness"] = "alert"
     if form.get("consciousness") == "alert" and "orientation" in form and rng.random() < 0.9:
@@ -324,7 +325,14 @@ _EXCLUSIVE = (
     ("후두암|후두 종괴|두경부암", "성대 마비", "삽관|인공호흡기"),
     ("사타구니|서혜부", "배꼽", "흉터|반흔"),
     ("선행", "보조"),
+    ("발진", "갑상선|호르몬", "저림|신경병증", "설사|탈수", "오심|구토", "발열|호중구", "혈압", "단백뇨"),
 )
+_TOXICITY = ("응급실", "심해져", "오심", "구토", "설사", "발열", "저림", "발진", "탈수", "혈압 상승", "단백뇨", "기능 저하", "감량", "보류")
+
+
+def chemo_toxicity(text: str) -> bool:
+    """A chemo admission for a side effect (설사로 탈수, 호중구감소성 발열) rather than the scheduled cycle."""
+    return any(w in text for w in _TOXICITY)
 
 
 def _member(group: tuple[str, ...], text: str) -> int | None:
@@ -350,6 +358,14 @@ def coherent_pool(dx: str, cands: tuple[str, ...]) -> list[str]:
 
 def _coherent(rng: random.Random, dx: str, cands: tuple[str, ...]) -> str:
     return rng.choice(coherent_pool(dx, cands) or list(cands))
+
+
+def _fill(text: str, patient: Patient | None, sc=None) -> str:
+    """Chemo texts carry {cycle}/{cycles}/{day} so "TCH 4차 위해 입원" never disagrees with the patient's cycle."""
+    if patient is None or patient.cycle is None:
+        return text
+    return (text.replace("{cycle}", str(patient.cycle)).replace("{day}", str(patient.day or 1))
+            .replace("{cycles}", str((sc.form.get("_cycles") if sc else None) or patient.cycle)))
 
 
 def random_form(template_key: str, rng: random.Random, patient: Patient | None = None) -> dict[str, Any]:
@@ -384,7 +400,7 @@ def random_form(template_key: str, rng: random.Random, patient: Patient | None =
             pool = (sc_pools.get(f"{template_key}.{f.key}") or sc_pools.get(f.key)
                     or TEXT_POOLS.get(f"{template_key}.{f.key}", TEXT_POOLS.get(f.key)))
             if pool:
-                val = rng.choice(pool)
+                val = _fill(rng.choice(pool), patient, sc)
                 if val and val not in ("없음", "허용 약 없음", "특이 질문 없음", "검사 없음", "배액관 없음", "특이사항 없음", "항생제 없음", "특이 소견 없음", "변화 없음"):
                     form[f.key] = val
             elif f.default:
@@ -410,12 +426,29 @@ def random_form(template_key: str, rng: random.Random, patient: Patient | None =
                 form[f.key] = True
     # keep things consistent with the scenario the patient was drawn from
     if sc is not None:
+        first = sc.kind == "chemo" and patient.cycle == 1
         if "chief_complaint" in form:
-            form["chief_complaint"] = _coherent(rng, patient.diagnosis, sc.cc)
+            pool = coherent_pool(patient.diagnosis, sc.cc) or list(sc.cc)
+            pool = [x for x in pool if first or "1차 시작" not in x] or pool   # "보조 항암 1차 시작" only on cycle 1
+            form["chief_complaint"] = _fill(rng.choice(pool), patient, sc)
+        cc = form.get("chief_complaint", "")
         if "present_illness" in form:
-            form["present_illness"] = _coherent(rng, patient.diagnosis, sc.pi)
+            pool = coherent_pool(patient.diagnosis, sc.pi) or list(sc.pi)
+            pool = coherent_pool(cc, tuple(pool)) or pool          # 발진 complaint ↔ 발진 history, not 갑상선
+            if sc.kind == "chemo":
+                pool = [x for x in pool if chemo_toxicity(x) == chemo_toxicity(cc)] or pool
+                pool = [x for x in pool if first or "1차 시작" not in x] or pool
+            form["present_illness"] = _fill(rng.choice(pool), patient, sc)
+        if template_key == "s1" and sc.kind == "chemo":
+            if chemo_toxicity(cc):   # side-effect admission: symptom onset is days, plan is treat-and-discharge
+                form["onset"] = rng.choice(["어제부터", "2일 전부터", "3일 전부터", "일주일 전부터"])
+                fluids = any(w in cc for w in ("설사", "구토", "탈수"))
+                form["plan"] = rng.choice(["수액 치료 후 퇴원 예정", "증상 조절 후 퇴원 예정"] if fluids
+                                          else ["증상 조절 후 퇴원 예정", "증상 호전 후 항암 일정은 외래에서 결정 예정"])
+            else:
+                form.pop("onset", None)
+                form["plan"] = f"{sc.key} {patient.cycle}차 예정"
         if template_key == "s1" and sc.kind == "op":
-            cc = form.get("chief_complaint", "")
             # plan names the actual surgery (not a generic "복강경 수술 예정" for a THA); drop it when the
             # present illness already ends in "... 예정"
             if "예정" in form.get("present_illness", ""):
