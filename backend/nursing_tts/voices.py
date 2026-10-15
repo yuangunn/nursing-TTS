@@ -173,11 +173,21 @@ def sample_path(voice_id: str, sample_id: str) -> Path | None:
     return _voice_path(voice_id) / s.file if s else None
 
 
-def pick_reference(voice_id: str, rng=None, prefer_primary: bool = False) -> tuple[Path, str] | None:
+_QUESTION = ("까요", "세요?", "실까요", "을까요", "?")
+
+
+def sample_style(transcript: str) -> str:
+    """'interview' when the clip is a nurse asking the patient (간호정보조사 문진), else 'dictation'."""
+    return "interview" if any(m in (transcript or "") for m in _QUESTION) else "dictation"
+
+
+def pick_reference(voice_id: str, rng=None, prefer_primary: bool = False, style: str | None = None) -> tuple[Path, str] | None:
     """Choose a reference clip (path, transcript) for cloning.
 
-    Rotating between samples gives extra variety across a batch; the primary
-    sample is used when ``prefer_primary`` is set.
+    Rotating between samples gives extra variety across a batch; the primary sample is used when
+    ``prefer_primary`` is set.  ``style`` ('interview' for admission interviews, 'dictation' for the
+    rest) prefers clips in the same register, because the clone copies the reference's intonation:
+    a question-style clip makes a handover sound like questions.  Falls back to all clips.
     """
     v = _load(voice_id)
     if not v or not v.samples:
@@ -185,5 +195,7 @@ def pick_reference(voice_id: str, rng=None, prefer_primary: bool = False) -> tup
     if prefer_primary or rng is None:
         s = next((s for s in v.samples if s.id == v.primary_sample), v.samples[0])
     else:
-        s = rng.choice(v.samples)
+        pool = [s for s in v.samples if style is None or sample_style(s.transcript) == style] or v.samples
+        good_len = [s for s in pool if 6.0 <= float(getattr(s, "duration", 0) or 0) <= 13.0] or pool
+        s = rng.choice(good_len)
     return _voice_path(voice_id) / s.file, s.transcript
