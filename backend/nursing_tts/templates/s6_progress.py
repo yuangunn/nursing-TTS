@@ -30,7 +30,7 @@ TEMPLATE = RecordTemplate(
                     "침상 낮추고 난간 올리고 바퀴 고정 확인함.", "낙상 예방 활동 시행함."], default=True),
             txt("fluid", "수액", placeholder="예: 하트만 덱스 주사액 1리터 컨트롤 세트로 40cc per hour",
                 phrases=["현재 {v} 들어가고 있고,", "{v} 주입 중이고,", "수액 {v} 유지 중."], default="하트만 덱스 주사액 1리터 컨트롤 세트로 40cc/hr"),
-            txt("line", "라인", placeholder="예: 왼팔 22게이지",
+            txt("line", "라인", placeholder="예: Lt arm 22G, 왼팔 22게이지",
                 phrases=["{v}로 정맥 잘 주입되고 있음. 혈액 역류 잘 확인됨.", "{v} 라인 개방성 확인됨.", "{v} 통해 수액 잘 들어감. 역류 확인됨."], default="왼팔 22게이지"),
             txt("wound", "상처", placeholder="예: 복부 단일공, 소독 잘 되어 있음",
                 phrases=["수술 부위 {v} 소독 잘 되어 있으며 상처 치유 상태 문제 없고 건조함.", "수술 부위 {v} 드레싱 깨끗하고 건조함.",

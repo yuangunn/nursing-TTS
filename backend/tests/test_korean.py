@@ -90,3 +90,24 @@ def test_ward_readings_pod_and_picc():
     assert to_tts_text("POD 3 환자", r) == "피오디 삼일째 환자"
     assert to_tts_text("POD#2", r) == "피오디 이일째"
     assert to_tts_text("PICC 유지", r) == "피아이씨씨 유지"
+
+
+def test_ward_readings_surgery_regimen_lines_variety():
+    import random
+    outs = {to_tts_text("THA POD 1", random.Random(i)) for i in range(40)}
+    assert any("인공고관절" in o or "고관절 인공관절" in o for o in outs) and any("티에이치에이" in o for o in outs), outs
+    outs = {to_tts_text("lapa chole POD 1", random.Random(i)) for i in range(40)}
+    assert any("꼴레" in o for o in outs) and any("담낭절제" in o for o in outs), outs
+    for s in ("K+TC 2차", "K+AC 1차", "T+C+Jemperli 3차"):
+        for i in range(10):
+            o = to_tts_text(s, random.Random(i))
+            assert "포타슘" not in o and "플러스" not in o.replace("키트루다 플러스", ""), o
+    o = to_tts_text("JP drain 20cc sanguineous하게 배액")
+    assert "드레인" in o and "생귀" in o and "drain" not in o, o
+    outs = {to_tts_text("A-FOLFIRI 3차", random.Random(i)) for i in range(20)}
+    assert any("에이폴피리" in o for o in outs), outs
+    outs = {to_tts_text("AC 항암 2차 위해 입원", random.Random(i)) for i in range(40)}
+    assert any("케모" in o for o in outs) and any("항암" in o for o in outs), outs
+    assert "항암제" in to_tts_text("AC 항암제 투여")          # only the standalone word changes
+    assert "레프트 암 이십 게이지 라인" in to_tts_text("IV는 Lt arm 20G line 가지고 계시고")
+    assert "라이트 핸드" in to_tts_text("Rt hand 22G line")

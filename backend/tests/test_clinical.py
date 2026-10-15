@@ -132,3 +132,18 @@ def test_complaint_and_history_never_contradict_the_diagnosis():
             assert "낙상" not in cc and "골절" not in pi, (dx, cc, pi)
         if "골절" in dx:
             assert "골관절염" not in pi and "괴사" not in pi, (dx, cc, pi)
+
+
+def test_lmp_only_for_gynecologic_surgery_patients():
+    rng = random.Random(3)
+    gyn = other = 0
+    for _ in range(400):
+        p = random_patient(rng, "s1")
+        f = random_form("s1", rng, p)
+        if p.kind == "op" and p.department == "산부인과" and p.sex == "여" and p.surgery != "C-sec":
+            gyn += 1
+            assert "lmp" in f and ("폐경" in f["lmp"]) == (p.age >= 52), (p.surgery, p.age, f["lmp"])
+        else:
+            other += 1
+            assert "lmp" not in f, (p.surgery or p.regimen, p.department, p.sex)
+    assert gyn > 10 and other > 10

@@ -60,3 +60,18 @@ def test_rare_states_are_rare():
         dnr += ("DNR" in text) or ("연명의료" in text)
         iso += ("격리 중" in text) or ("격리 적용" in text) or ("격리 환자" in text)
     assert dnr / n < 0.35 and iso / n < 0.35, (dnr, iso, n)
+
+
+def test_young_non_ortho_patients_walk_independently():
+    import random
+    from nursing_tts.fake import random_form, random_patient
+    rng = random.Random(9)
+    n = dep = 0
+    for _ in range(300):
+        p = random_patient(rng, "s1")
+        if p.department == "정형외과" or (p.age or 0) >= 70:
+            continue
+        f = random_form("s1", rng, p)
+        n += 1
+        dep += f.get("mobility") != "independent" or f.get("adl") != "independent"
+    assert n > 50 and dep / n < 0.25, (dep, n)
