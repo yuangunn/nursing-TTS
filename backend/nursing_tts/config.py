@@ -49,6 +49,8 @@ DEFAULTS: dict[str, Any] = {
     "asr_model": "small",          # tiny | base | small | medium | large-v3
     "asr_device": "auto",
     "cer_threshold": 0.25,
+    "chunk_cer_threshold": 0.3,    # per-sentence read-back CER above this -> re-synthesize that sentence
+    "chunk_retries": 2,            # how many new takes to try per bad sentence (0 = off)
     "loudness_dbfs": -20.0,        # RMS loudness target for the speech layer
     "default_disfluency": 0,       # 0..3
     "auto_style_expand": True,     # derive ~고요,/~어요. from formal phrases

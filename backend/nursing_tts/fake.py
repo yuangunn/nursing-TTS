@@ -90,7 +90,7 @@ TEXT_POOLS: dict[str, list[str]] = {
     "transfusion": ["", "PRBC 1 pack 수혈 완료", "", ""],
     "line": ["오른팔 말초 라인 하나, 10월 13일 삽입이라 내일 교환 예정", "왼팔 말초 라인 하나, 오늘 교환함", "PICC 우측 상완, 주 1회 드레싱"],
     "other_tube": ["", "", "L-tube 자연 배액 중", ""],
-    "lab": ["WBC 11.2, CRP 8.5로 어제보다 약간 상승", "Hb 9.8로 감소", "K 3.2로 낮아 KCl 추가", "특이 소견 없음"],
+    "lab": ["WBC 11.2, CRP 8.5로 어제보다 약간 상승", "Hb 9.8로 감소", "K 3.2로 감소하여 KCl 추가", "CRP 2.1로 정상 범위"],
     "glucose": ["식전 150~180으로 슬라이딩 스케일", "식전 120~140, 인슐린 없음", "식전 200 이상으로 RI 4단위 추가"],
     "imaging": ["chest PA 특이 소견 없음", "복부 CT 결과 확인 예정", ""],
     "pending": ["내일 아침 랩 결과 확인 후 미음 진행 여부 담당의 확인", "협진 회신 확인", "보호자 면담 요청 있어 주치의 확인 필요", "퇴원 처방 확인"],
@@ -244,6 +244,8 @@ def _consistency(form: dict[str, Any], template_key: str, t, rng: random.Random,
             form["ambulation_plan"] = "walk_today"
         if form.get("diet_status") == "npo":
             form["diet_status"] = rng.choice(["sow", "ld"])
+    if form.get("weight_screen") in ("loss", "gain") and not form.get("weight_change"):
+        form["weight_change"] = rng.choice(["1개월간 3kg 감소", "2개월간 5kg 감소"] if form["weight_screen"] == "loss" else ["1개월간 3kg 증가"])
     if form.get("weight_change") == "변화 없음":
         stable = next((v for v in ("none", "no", "stable") if v in opts.get("weight_screen", set())), None)
         if stable and form.get("weight_screen") in ("loss", "gain"):
@@ -333,7 +335,7 @@ def random_form(template_key: str, rng: random.Random, patient: Patient | None =
                     or TEXT_POOLS.get(f"{template_key}.{f.key}", TEXT_POOLS.get(f.key)))
             if pool:
                 val = rng.choice(pool)
-                if val and val not in ("없음", "허용 약 없음", "특이 질문 없음", "검사 없음", "배액관 없음", "특이사항 없음", "항생제 없음"):
+                if val and val not in ("없음", "허용 약 없음", "특이 질문 없음", "검사 없음", "배액관 없음", "특이사항 없음", "항생제 없음", "특이 소견 없음", "변화 없음"):
                     form[f.key] = val
             elif f.default:
                 form[f.key] = f.default

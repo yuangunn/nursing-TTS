@@ -100,14 +100,36 @@ def plan_chunks(spoken_lines: list[str], tts_lines: list[str], min_chars: int = 
     return plan
 
 
+def _synth_all(engine: TTSEngine, texts: list[str], ref: tuple[Path, str] | None, seed: int | None,
+               progress=None, total: int = 1, para_of: list[int] | None = None) -> tuple[list[np.ndarray], int]:
+    many = getattr(engine, "synthesize_many", None)
+    if many is not None:  # batched engines (Qwen): all chunks of the recording in a few generate calls
+        audios, sr = many(texts, ref, seed)
+        if progress:
+            progress(total, total)
+        return list(audios), sr
+    audios, sr = [], 24000
+    for k, text in enumerate(texts):
+        audio, sr = engine.synthesize(text, ref, seed=(seed + k) if seed is not None else None)
+        audios.append(audio)
+        if progress:
+            progress((para_of[k] if para_of else k) + 1, total)
+    return audios, sr
+
+
 def synthesize_script(engine: TTSEngine, spoken_lines: list[str], tts_lines: list[str], ref: tuple[Path, str] | None,
-                      seed: int | None, progress=None) -> tuple[np.ndarray, int, list[dict]]:
+                      seed: int | None, progress=None, verify=None, cer_threshold: float = 0.3,
+                      retries: int = 2) -> tuple[np.ndarray, int, list[dict]]:
     """Synthesize sentence chunks and join them with natural pauses.
 
-    Returns (audio, sr, segments) where each segment is {start, end, text, tts} in seconds of the
-    returned audio: exact labels for splitting long recordings into ≤30 s training clips.
+    Returns (audio, sr, segments) where each segment is {start, end, text, tts[, cer, retries]} in
+    seconds of the returned audio: exact labels for splitting long recordings into ≤30 s clips.
     Pauses between sentences follow the real-recording distribution; paragraph (section) changes get
-    longer ones.  Synthesizing per sentence also gives the model shorter inputs."""
+    longer ones.  Synthesizing per sentence also gives the model shorter inputs.
+
+    ``verify(spoken, tts, audio, sr) -> cer`` (e.g. Whisper read-back) turns this into a repair loop:
+    chunks whose CER exceeds ``cer_threshold`` are re-synthesized with new seeds up to ``retries``
+    times and the best take is kept."""
     rng = random.Random(seed)
     sr = 24000
     total = len(tts_lines)
@@ -115,25 +137,33 @@ def synthesize_script(engine: TTSEngine, spoken_lines: list[str], tts_lines: lis
     if not plan:
         return np.zeros(int(0.5 * sr), dtype=np.float32), sr, []
     texts = [t for _, _, t, _ in plan]
-    many = getattr(engine, "synthesize_many", None)
-    if many is not None:  # batched engines (Qwen): all chunks of the recording in a few generate calls
-        audios, sr = many(texts, ref, seed)
-        if progress:
-            progress(total, total)
-    else:
-        audios = []
-        for k, text in enumerate(texts):
-            audio, sr = engine.synthesize(text, ref, seed=(seed + k) if seed is not None else None)
-            audios.append(audio)
-            if progress:
-                progress(plan[k][0] + 1, total)
+    audios, sr = _synth_all(engine, texts, ref, seed, progress, total, [i for i, _, _, _ in plan])
+    audios = [trim_silence(np.asarray(a, dtype=np.float32), sr) for a in audios]
+    cers: list[float | None] = [None] * len(plan)
+    tries: list[int] = [0] * len(plan)
+    if verify is not None:
+        cers = [float(verify(spoken, tts, a, sr)) for (_, spoken, tts, _), a in zip(plan, audios)]
+        for attempt in range(1, retries + 1):
+            bad = [k for k, c in enumerate(cers) if c is not None and c > cer_threshold]
+            if not bad:
+                break
+            new_audios, _ = _synth_all(engine, [texts[k] for k in bad], ref, (seed + 1000 * attempt) if seed is not None else None)
+            for k, a in zip(bad, new_audios):
+                a = trim_silence(np.asarray(a, dtype=np.float32), sr)
+                c = float(verify(plan[k][1], plan[k][2], a, sr))
+                tries[k] = attempt
+                if c < cers[k]:  # keep the better take
+                    cers[k], audios[k] = c, a
     pieces: list[np.ndarray] = []
     segments: list[dict] = []
     pos = 0
-    for (i, spoken, tts, last_chunk), audio in zip(plan, audios):
-        a = trim_silence(np.asarray(audio, dtype=np.float32), sr)
+    for k, ((i, spoken, tts, last_chunk), a) in enumerate(zip(plan, audios)):
         pieces.append(a)
-        segments.append({"start": round(pos / sr, 3), "end": round((pos + len(a)) / sr, 3), "text": spoken, "tts": tts})
+        seg = {"start": round(pos / sr, 3), "end": round((pos + len(a)) / sr, 3), "text": spoken, "tts": tts}
+        if cers[k] is not None:
+            seg["cer"] = round(cers[k], 4)
+            seg["retries"] = tries[k]
+        segments.append(seg)
         pos += len(a)
         if not (last_chunk and i == total - 1):
             pause = int(natural_pause(rng, 1.6 if last_chunk else 1.0) * sr)

@@ -85,6 +85,32 @@ def transcribe(path: Path, model_size: str = "small", device: str = "auto") -> s
     return " ".join(s.text.strip() for s in segments)
 
 
+def transcribe_array(audio, sr: int, model_size: str = "small", device: str = "auto") -> str:
+    """Whisper read-back of an in-memory chunk (resampled to 16 kHz)."""
+    import numpy as np
+
+    from .audio.io import resample
+
+    model = _load(model_size, device)
+    a = np.asarray(audio, dtype="float32")
+    if sr != 16000:
+        a = resample(a, sr, 16000)
+    segments, _info = model.transcribe(a, language="ko", beam_size=1, vad_filter=False)
+    return " ".join(s.text.strip() for s in segments)
+
+
+def chunk_cer(spoken: str, tts: str, audio, sr: int, settings: dict[str, Any]) -> float:
+    """Best-of-three CER for one sentence chunk (same three references as :func:`verify`). 1.0 on error."""
+    import random
+
+    from .korean import to_tts_text
+    try:
+        hyp = transcribe_array(audio, sr, settings.get("asr_model") or "small", settings.get("asr_device") or "auto")
+    except Exception:  # noqa: BLE001
+        return 1.0
+    return min(cer(spoken, hyp), cer(tts, hyp), cer(tts, to_tts_text(hyp, random.Random(0))))
+
+
 def verify(path: Path, spoken_text: str, tts_text: str, settings: dict[str, Any]) -> dict[str, Any]:
     """Return {hyp, cer, cer_phonetic, passed}.  Never raises; errors are reported in the dict."""
     try:

@@ -133,6 +133,8 @@ class SettingsModel(BaseModel):
     asr_model: str | None = None
     asr_device: str | None = None
     cer_threshold: float | None = None
+    chunk_cer_threshold: float | None = None
+    chunk_retries: int | None = None
     loudness_dbfs: float | None = None
     default_disfluency: int | None = None
     auto_style_expand: bool | None = None

@@ -237,6 +237,7 @@ export interface RecordingItem {
   review?: string;
   review_note?: string;
   verify?: VerifyInfo | null;
+  chunk_verify?: { checked: number; retried: number; still_bad: number; max_cer: number | null } | null;
   signal?: string;
   spoken_text?: string;
   verbatim_text?: string;
@@ -320,6 +321,8 @@ export interface Settings {
   asr_model: string;
   asr_device: string;
   cer_threshold: number;
+  chunk_cer_threshold: number;   // 문장 조각 되읽기 CER 기준 (초과 시 재합성)
+  chunk_retries: number;
   loudness_dbfs: number;
   default_disfluency: number;
   auto_style_expand: boolean;
