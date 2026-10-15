@@ -83,3 +83,10 @@ def test_tts_text_has_no_digits_or_latin_across_templates():
                              style=rng.choice(["mixed", "casual", "formal", "chart"]), seed=i, signal_format="random")
             left = re.findall(r"[A-Za-z0-9]+", s.tts_text)
             assert not left, f"{t} seed {i}: {left} in {s.tts_text!r}"
+
+
+def test_ward_readings_pod_and_picc():
+    r = random.Random(0)
+    assert to_tts_text("POD 3 환자", r) == "피오디 삼일째 환자"
+    assert to_tts_text("POD#2", r) == "피오디 이일째"
+    assert to_tts_text("PICC 유지", r) == "피아이씨씨 유지"

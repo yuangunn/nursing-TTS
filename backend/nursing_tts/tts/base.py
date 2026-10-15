@@ -42,9 +42,12 @@ def chunk_sentences(paragraph: str, min_chars: int = 20) -> list[str]:
     return out
 
 
-def trim_silence(audio: np.ndarray, sr: int, threshold: float = 0.004, keep: float = 0.05) -> np.ndarray:
+def trim_silence(audio: np.ndarray, sr: int, threshold: float = 0.002, keep: float = 0.18, fade: float = 0.03) -> np.ndarray:
     """Cut the model's own leading/trailing silence so the pause between chunks is ours alone
-    (Qwen sometimes appends 2-3 s of silence; combined with our pause that gave 7 s gaps)."""
+    (Qwen sometimes appends 2-3 s of silence; combined with our pause that gave 7 s gaps).
+
+    Keeps ``keep`` seconds around the last audible frame so the natural decay/breath at a sentence
+    end survives, and fades the edges so the cut never sounds abrupt (user feedback: "뚝 끊김")."""
     n = int(0.01 * sr)
     if len(audio) < 2 * n:
         return audio
@@ -56,7 +59,13 @@ def trim_silence(audio: np.ndarray, sr: int, threshold: float = 0.004, keep: flo
     k = int(keep * sr)
     a = max(0, idx[0] * n - k)
     b = min(len(audio), (idx[-1] + 1) * n + k)
-    return audio[a:b]
+    out = audio[a:b].copy()
+    f = min(int(fade * sr), len(out) // 4)
+    if f > 0:
+        ramp = np.linspace(0, 1, f, dtype=np.float32)
+        out[:f] *= ramp
+        out[-f:] *= ramp[::-1]
+    return out
 
 
 def natural_pause(rng: random.Random, scale: float = 1.0) -> float:

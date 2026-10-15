@@ -33,6 +33,10 @@ class NoiseConfig:
     seed: int | None = None
     head_pad: float = 0.6               # silence before speech (s)
     tail_pad: float = 0.8
+    # always-on realism, independent of `enabled`: a faint room-tone bed so pauses are never digital
+    # silence (real nurse recordings had a -52..-58 dBFS floor) and a very light room reverb
+    floor_dbfs: float = -56.0           # 0 or lower than -90 disables
+    room_wet: float = 0.06              # 0 disables; `reverb=True` uses the stronger default instead
 
 
 def level_to_snr_db(level: int) -> float:
@@ -85,13 +89,13 @@ def mix(speech: np.ndarray, sr: int, cfg: NoiseConfig, custom: list[NoiseClip] |
     events: list[dict[str, Any]] = []
 
     if not cfg.enabled:
-        return speech, events
+        return _finish(speech, sr, cfg, rng), events
 
     custom = custom or []
     custom_map = {c.id: c for c in custom}
     types = [t for t in cfg.types if t in noise_mod.BUILTIN or t in custom_map]
     if not types and not extra_voices:
-        return speech, events
+        return _finish(speech, sr, cfg, rng), events
 
     bed = np.zeros(n, dtype=np.float32)
     layer = np.zeros(n, dtype=np.float32)
@@ -156,9 +160,20 @@ def mix(speech: np.ndarray, sr: int, cfg: NoiseConfig, custom: list[NoiseClip] |
         ambience *= target / a_rms
 
     out = speech + ambience
+    return _finish(out, sr, cfg, rng), events
+
+
+def _finish(out: np.ndarray, sr: int, cfg: NoiseConfig, rng: np.random.Generator) -> np.ndarray:
+    """Always-on touches: faint room-tone floor under everything, light (or chosen) room reverb, peak guard."""
     if cfg.reverb:
         out = apply_room(out, sr, rng)
+    elif cfg.room_wet and cfg.room_wet > 0:
+        out = apply_room(out, sr, rng, wet=float(cfg.room_wet))
+    if cfg.floor_dbfs and -90 < cfg.floor_dbfs < 0:
+        bed = noise_mod.render("room_tone", len(out) / sr, sr, rng, n=len(out))
+        bed = bed / (rms(bed) + 1e-9) * (10 ** (cfg.floor_dbfs / 20))
+        out = out + bed
     peak = float(np.max(np.abs(out)))
     if peak > 0.98:
         out = out / peak * 0.98
-    return out.astype(np.float32), events
+    return out.astype(np.float32)

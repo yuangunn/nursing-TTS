@@ -314,6 +314,8 @@ export interface Settings {
   llm_base_url: string;
   default_style: string;
   noise_default_level: number;
+  floor_dbfs: number;        // 항상 깔리는 바닥 소음 (dBFS, 0 = 없음)
+  room_wet: number;          // 항상 적용되는 약한 울림 (0 = 없음)
   asr_verify: boolean;
   asr_model: string;
   asr_device: string;

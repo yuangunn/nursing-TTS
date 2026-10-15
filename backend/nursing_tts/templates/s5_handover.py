@@ -26,7 +26,7 @@ TEMPLATE = RecordTemplate(
             txt("allergy", "알레르기", placeholder="예: 조영제", phrases=["{v} 알레르기 있습니다.", "{v} 알러지 있고,", "알레르기는 {v}이구요,"], default="조영제"),
             boolean("allergy_none", "알레르기 없음", phrases=["알레르기 없습니다.", "알러지 없고,"], default=False),
             sel("isolation", "격리", ISOLATION, default="none"),
-            sel("code", "코드 상태", CODE_STATUS, default="full"),
+            sel("code", "DNR / 연명의료", CODE_STATUS, default="none", skip_values=("none",)),
             sel("caregiver", "보호자", CAREGIVER, default="spouse"),
         ]),
         Section("a", "A 현재 상태", hint="의식, V/S, 통증, I/O, 식이 단계, 배뇨·배변, 수면", fields=[

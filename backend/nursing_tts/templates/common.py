@@ -76,9 +76,10 @@ CAREGIVER = [
     opt("intermittent", "보호자 간헐 방문", "보호자는 낮에만 다녀가십니다.", "보호자 간헐적으로 방문하시고,"),
 ]
 
-CODE_STATUS = [
-    opt("full", "Full code", "full code 입니다.", "풀코드이고,", "코드 상태는 full code 입니다."),
-    opt("dnr", "DNR", "DNR 동의서 작성된 상태입니다.", "DNR 환자이고,", "DNR 입니다."),
+CODE_STATUS = [  # 이 병동은 "full code"라는 말을 쓰지 않는다: DNR/연명의료 서류가 있을 때만 말한다
+    opt("none", "해당 없음"),
+    opt("dnr", "DNR 동의서 작성", "DNR 동의서 작성된 상태입니다.", "DNR 환자이고,", "DNR 동의서 있으시고,"),
+    opt("polst", "연명의료계획서 작성", "연명의료계획서 작성된 환자입니다.", "연명의료계획서 작성되어 있으시고,"),
 ]
 
 ISOLATION = [

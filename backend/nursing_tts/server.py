@@ -127,6 +127,8 @@ class SettingsModel(BaseModel):
     llm_base_url: str | None = None
     default_style: str | None = None
     noise_default_level: int | None = None
+    floor_dbfs: float | None = None
+    room_wet: float | None = None
     asr_verify: bool | None = None
     asr_model: str | None = None
     asr_device: str | None = None

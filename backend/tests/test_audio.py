@@ -93,7 +93,7 @@ def test_trim_silence_cuts_model_tail():
     sr = 24000
     speech = np.concatenate([np.zeros(sr), np.ones(sr) * 0.2, np.zeros(3 * sr)]).astype(np.float32)
     out = trim_silence(speech, sr)
-    assert 1.0 <= len(out) / sr <= 1.15
+    assert 1.0 <= len(out) / sr <= 1.4  # 3 s model tail gone, 0.18 s natural decay kept
     assert len(trim_silence(np.zeros(sr, dtype=np.float32), sr)) == sr  # all-silent input untouched
 
 
@@ -178,3 +178,27 @@ def test_synthesize_script_segments_have_exact_times_and_ground_truth():
     assert all(abs((s["end"] - s["start"]) - 0.5) < 0.02 for s in segs)
     assert all(segs[i]["end"] <= segs[i + 1]["start"] for i in range(2))
     assert abs(segs[-1]["end"] - len(audio) / sr) < 0.01
+
+
+def test_pauses_get_a_room_tone_floor_and_light_room_even_with_noise_off():
+    from nursing_tts.audio.mixer import NoiseConfig, mix
+    from nursing_tts.audio.io import rms
+
+    sr = 24000
+    speech = np.concatenate([np.ones(sr) * 0.2, np.zeros(sr), np.ones(sr) * 0.2]).astype(np.float32)
+    out, events = mix(speech, sr, NoiseConfig(enabled=False, head_pad=0, tail_pad=0, seed=1))
+    gap = out[int(1.3 * sr):int(1.7 * sr)]
+    assert not events and len(out) == len(speech)
+    assert -62 < 20 * np.log10(rms(gap) + 1e-9) < -50          # ≈ -56 dBFS bed, not digital silence
+    silent, _ = mix(speech, sr, NoiseConfig(enabled=False, head_pad=0, tail_pad=0, floor_dbfs=0, room_wet=0))
+    assert rms(silent[int(1.3 * sr):int(1.7 * sr)]) < 1e-6      # knobs at 0 restore the old behaviour
+
+
+def test_trim_silence_keeps_tail_and_fades_edges():
+    from nursing_tts.tts.base import trim_silence
+
+    sr = 24000
+    speech = np.concatenate([np.zeros(sr), np.ones(sr) * 0.2, np.zeros(3 * sr)]).astype(np.float32)
+    out = trim_silence(speech, sr)
+    assert 1.3 <= len(out) / sr <= 1.4          # 0.18 s kept on each side
+    assert out[0] == 0 and out[-1] == 0 and 0 < out[int(0.19 * sr)] <= 0.2  # faded edges, body intact

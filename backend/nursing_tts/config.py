@@ -43,6 +43,8 @@ DEFAULTS: dict[str, Any] = {
     "llm_base_url": "",
     "default_style": "mixed",      # formal | casual | mixed
     "noise_default_level": 35,     # 0..100
+    "floor_dbfs": -56.0,           # faint room-tone bed under every recording, even with noise off (0 = none)
+    "room_wet": 0.06,              # very light room reverb on every recording (0 = none)
     "asr_verify": False,           # transcribe each clip with faster-whisper and flag high CER
     "asr_model": "small",          # tiny | base | small | medium | large-v3
     "asr_device": "auto",
