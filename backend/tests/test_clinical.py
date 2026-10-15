@@ -75,3 +75,11 @@ def test_chemo_patients_never_get_surgical_templates_and_say_cycle():
             seen = True
             break
     assert seen
+
+
+def test_s1_admission_purpose_matches_surgery_or_chemo():
+    rng = random.Random(11)
+    for _ in range(150):
+        p = random_patient(rng, "s1")
+        form = random_form("s1", rng, p)
+        assert form["purpose"] == ("chemo" if p.kind == "chemo" else "op"), (p.surgery, p.regimen, form["purpose"])

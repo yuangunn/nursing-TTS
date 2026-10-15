@@ -212,6 +212,8 @@ def _consistency(form: dict[str, Any], template_key: str, t, rng: random.Random,
     there is no catheter, PCA titration in a discharge record, fever of 41.6 ...)."""
     opts = {f.key: {o.value for o in f.options} for _, f in t.iter_fields() if f.kind == "select"}
     chemo = patient is not None and patient.kind == "chemo"
+    if "purpose" in form and patient is not None:
+        form["purpose"] = "chemo" if chemo else "op"   # THA patient must not be "admitted for tests"
     if "consciousness" in form and rng.random() < 0.85:
         form["consciousness"] = "alert"
     if form.get("consciousness") == "alert" and "orientation" in form and rng.random() < 0.9:
