@@ -217,8 +217,17 @@ def generate_one(spec: dict[str, Any], settings: dict[str, Any], custom_noises: 
     if len(spoken_lines) != len(paragraphs):  # should not happen; labels then fall back to whole paragraphs
         spoken_lines = paragraphs
     t0 = time.perf_counter()
-    audio, sr, segments = synthesize_script(engine, spoken_lines, paragraphs, ref, seed, progress=progress)
+    chunk_verify = None
+    if settings.get("asr_verify") and engine.clones_voice and verify_mod.available()[0]:
+        chunk_verify = lambda sp, tt, a, sr_: verify_mod.chunk_cer(sp, tt, a, sr_, settings)  # noqa: E731
+    audio, sr, segments = synthesize_script(engine, spoken_lines, paragraphs, ref, seed, progress=progress,
+                                            verify=chunk_verify, cer_threshold=float(settings.get("chunk_cer_threshold", 0.3)),
+                                            retries=int(settings.get("chunk_retries", 2)))
     timing: dict[str, Any] = {"synth_s": round(time.perf_counter() - t0, 1)}
+    checked = [sg for sg in segments if "cer" in sg]
+    chunk_summary = {"checked": len(checked), "retried": sum(1 for sg in checked if sg.get("retries")),
+                     "still_bad": sum(1 for sg in checked if sg["cer"] > float(settings.get("chunk_cer_threshold", 0.3))),
+                     "max_cer": max((sg["cer"] for sg in checked), default=None)} if checked else None
     audio = _loudness(normalize_peak(audio, 0.9), float(settings.get("loudness_dbfs", -20.0)))
 
     # --- channel / speed augmentation on the speech layer
@@ -289,7 +298,8 @@ def generate_one(spec: dict[str, Any], settings: dict[str, Any], custom_noises: 
         "disfluency_level": level,
         "disfluency_edits": disfluency_edits,
         "verbatim_text": verbatim_text,
-        "segments": segments,  # sentence chunks with exact times: lets export cut ≤30 s clips with correct text
+        "segments": segments,  # sentence chunks with exact times (+ per-chunk Whisper CER when verification is on)
+        "chunk_verify": chunk_summary,
 
         "voice_name": voice_obj.name if voice_obj else "",
         "voice_sex": voice_obj.sex if voice_obj else "",

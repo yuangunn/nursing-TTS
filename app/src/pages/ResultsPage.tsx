@@ -266,6 +266,13 @@ export default function ResultsPage() {
                 ASR 검증: {sel.verify.error ? <span className="badge bad">{sel.verify.error}</span> : <>CER {Math.round((sel.verify.cer_best || 0) * 100)}% (기준 {Math.round((sel.verify.threshold || 0) * 100)}%) {sel.verify.passed ? <span className="badge ok">통과</span> : <span className="badge bad">불일치</span>}<div style={{ marginTop: 4 }}>인식 결과: {sel.verify.hyp}</div></>}
               </div>
             )}
+            {sel.chunk_verify && (
+              <div className="muted" style={{ marginTop: 4 }}>
+                문장 검증: {sel.chunk_verify.checked}문장 중 재합성 {sel.chunk_verify.retried}, 기준 초과 {sel.chunk_verify.still_bad}
+                {sel.chunk_verify.max_cer !== null && <> · 최고 CER {Math.round(sel.chunk_verify.max_cer * 100)}%</>}
+                {sel.chunk_verify.still_bad > 0 && <span className="badge warn" style={{ marginLeft: 6 }}>확인 필요</span>}
+              </div>
+            )}
             <div className="row" style={{ marginTop: 10 }}>
               <div className="narrow"><button className="primary" onClick={() => review(sel, "approved")}>✓ 승인 (A)</button></div>
               <div className="narrow"><button className="danger" onClick={() => review(sel, "rejected")}>✗ 반려 (R)</button></div>

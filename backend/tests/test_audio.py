@@ -202,3 +202,32 @@ def test_trim_silence_keeps_tail_and_fades_edges():
     out = trim_silence(speech, sr)
     assert 1.3 <= len(out) / sr <= 1.4          # 0.18 s kept on each side
     assert out[0] == 0 and out[-1] == 0 and 0 < out[int(0.19 * sr)] <= 0.2  # faded edges, body intact
+
+
+def test_bad_sentences_are_resynthesized_until_readback_passes():
+    from nursing_tts.tts.base import synthesize_script
+
+    class Engine:
+        key, label, clones_voice = "e", "e", True
+        calls: list[list[str]] = []
+
+        def synthesize_many(self, texts, ref, seed=None):
+            self.calls.append(list(texts))
+            # take number is encoded in the amplitude so the fake verifier can tell takes apart
+            amp = 0.1 * (len(self.calls))
+            return [np.ones(24000, dtype=np.float32) * amp for _ in texts], 24000
+
+    def verify(spoken, tts, audio, sr):
+        take = round(float(audio.max()) / 0.1)
+        if "둘째" in spoken:
+            return 0.9 if take < 3 else 0.05   # bad on take 1 and 2, good on take 3
+        return 0.02
+
+    eng = Engine()
+    lines = ["첫째 문장은 처음부터 잘 읽혀서 다시 만들 필요가 없습니다.", "둘째 문장은 두 번 다시 만들어야 통과하는 문장입니다.",
+             "셋째 문장도 처음부터 잘 읽혀서 그대로 둡니다."]
+    audio, sr, segs = synthesize_script(eng, lines, lines, None, seed=1, verify=verify, cer_threshold=0.3, retries=2)
+    assert [len(c) for c in eng.calls] == [3, 1, 1]          # all chunks, then only the bad one twice
+    assert [s["retries"] for s in segs] == [0, 2, 0]
+    assert segs[1]["cer"] == 0.05 and segs[0]["cer"] == 0.02
+    assert abs(float(audio.max()) - 0.3) < 1e-6              # the third take of the bad chunk is what got kept

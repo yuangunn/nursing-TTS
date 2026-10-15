@@ -186,6 +186,14 @@ export default function SettingsPage() {
               <label>CER 기준</label>
               <input type="number" step={0.05} min={0.05} max={1} value={s.cer_threshold} onChange={(e) => save({ cer_threshold: Number(e.target.value) })} />
             </div>
+            <div>
+              <label>문장 재합성 CER 기준 (0~1)</label>
+              <input type="number" step={0.05} min={0} max={1} value={s.chunk_cer_threshold ?? 0.3} title="합성 직후 문장마다 Whisper로 되읽어 이 값보다 CER이 높으면 그 문장만 새 시드로 다시 만듭니다" onChange={(e) => save({ chunk_cer_threshold: Number(e.target.value) })} />
+            </div>
+            <div>
+              <label>문장 재합성 횟수 (0 = 끔)</label>
+              <input type="number" step={1} min={0} max={5} value={s.chunk_retries ?? 2} onChange={(e) => save({ chunk_retries: Number(e.target.value) })} />
+            </div>
           </div>
         </div>
 
