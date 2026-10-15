@@ -20,7 +20,7 @@ TEMPLATE = RecordTemplate(
             txt("procedure", "수술명/검사명", placeholder="비워두면 환자 정보의 수술명 사용",
                 phrases=["{v} 예정입니다.", "{v} 하실 예정이고,", "{v} 하시게 되고,"]),
             boolean("use_patient_surgery", "환자 정보의 수술명 사용",
-                    phrases=["{dept} {prof} 교수 집도 하 {surgery} 예정입니다.", "{prof} 교수님 집도로 {surgery} 예정이고,",
+                    phrases=["{dept} {prof} 교수님 집도로 {surgery} 예정입니다.", "{prof} 교수님 집도로 {surgery} 예정이고,",
                              "{surgery} 하실 예정이고 집도의는 {dept} {prof} 교수님입니다."], default=True),
         ]),
         Section("npo", "금식", hint="고형식/물 금식 시작 시각, 금식 중 허용 약", fields=[
@@ -133,7 +133,7 @@ TEMPLATE = RecordTemplate(
                 phrases=["{v}.", "환자분이 {v}.", "{v} 설명드렸습니다."],
                 example="환자가 수술 후 식사 시작 시점을 질문하여 가스 배출 후 물부터 미음, 죽, 단계적으로 진행한다고 답변했습니다"),
             sel("understanding", "이해도", [
-                opt("both", "환자·보호자 이해", "환자와 보호자 모두 이해했다고 표현하였습니다.", "환자, 보호자 교육 내용 이해하셨고,"),
+                opt("both", "환자·보호자 이해", "환자분과 보호자분 모두 이해했다고 표현하였습니다.", "환자, 보호자 교육 내용 이해하셨고,"),
                 opt("patient", "환자만", "환자분 이해했다고 하셨습니다.", "환자분 이해 표현하셨고,"),
                 opt("re_edu", "재교육 필요", "이해도 낮아 재교육 필요합니다.", "다음 근무 때 재교육 필요하고,"),
             ], default="both"),

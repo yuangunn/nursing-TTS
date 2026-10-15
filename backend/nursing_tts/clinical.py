@@ -69,7 +69,7 @@ CHEMO = {  # admission for a cycle: no surgical items at all
     "s4.wound": None, "wound_warning": False, "device": ["none", "picc"], "s4.diet": ["gd"], "dumping": False, "activity": ["full"],
     "further": ["chemo"], "referral": [["nutrition"], [], ["social"]], "home_meds": ["continue", "none"],
     "s5.diet": ["gd", "gd", "soft"], "s5.gas_out": None, "s5.voiding": ["self"], "pain_mgmt": ["none", "po"],
-    "pca_remove": ["na"], "s6.wound": None, "purpose": ["chemo"], "s5.o2": ["none"], "s1.transfusion": ["no", "no", "yes"],
+    "pca_remove": ["na"], "s6.wound": None, "purpose": ["chemo"], "s5.o2": ["none"], "reassess": ["stable", "after_prn"], "pain_plan": ["explain", "prn"], "s1.transfusion": ["no", "no", "yes"],
 }
 
 # --- pool fragments --------------------------------------------------------------------------------
@@ -102,7 +102,7 @@ CHEMO_POOLS = {
     "line": ("케모포트 통해 항암제 주입 중, 포트 바늘 D1 삽입", "우측 전완 말초 라인 하나, 오늘 삽입", "PICC 좌측 상완, 주 1회 드레싱"),
     "s6.line": ("케모포트 휴버니들 20게이지", "오른팔 22게이지", "PICC 좌측 상완"),
     "wound": ("케모포트 삽입 부위",), "s1.plan": ("항암 예정", "항암 후 부작용 관찰 후 퇴원 예정"), "devices": ("케모포트", "없음", "PICC"),
-    "glucose": ("식전 110~130, 인슐린 없음", "덱사메타손 투여 후 식후 220까지 상승, 슬라이딩 적용", "특이사항 없음"),
+    "glucose": ("식전 110~130, 인슐린 없음", "덱사메타손 투여 후 식후 220까지 상승, 슬라이딩 스케일", "특이사항 없음"),
     "lab": ("ANC 1,800으로 항암 진행 가능", "특이 소견 없음", "Hb 9.6으로 감소", "크레아티닌 정상"),
     "judgement": ("항암제 유발 오심구토 가능성", "호중구감소성 발열 가능성", "항암제 유발 설사 가능성"),
     "complaint": ("메스껍고 입맛 없다고 하심", "손끝 저림 있다고 하심", "오한과 열감 호소", "묽은 변 여러 번 봤다고 하심"),
@@ -460,7 +460,7 @@ SCENARIOS: list[Scenario] = [
         pools={"pain_desc": ("목 절개 부위 따끔거림", "흡인할 때 목 안 아픔"), "s6.wound": ("기관절개 부위",),
                "duration": ("30분~1시간", "1시간"), "drain": ("배액관 없음",),
                "special_edu": ("기관절개관 고정 끈 확인하고 흡인 시 무균 시행, 가습 적용함", "필담판으로 의사소통하고 호출벨 손 닿는 곳에 둠", "기관절개관 첫 교체는 수술 5~7일 후 예정 설명함"),
-               "s4.special_edu": ("보호자에게 흡인, 내관 세척, 거즈 교환 교육하고 되말하기로 확인함", "기관절개관 빠지면 즉시 응급실 내원, 가정간호 연계함", "샤워 시 물 들어가지 않게 주의 교육함"),
+               "s4.special_edu": ("보호자분께 흡인, 내관 세척, 거즈 교환 교육하고 되말하기로 확인함", "기관절개관 빠지면 즉시 응급실 내원, 가정간호 연계함", "샤워 시 물 들어가지 않게 주의 교육함"),
                "s5.special": ("기관절개관 7.5 커프 유지, 흡인 시 객담 누런 양상 중등량", "가습 산소 마스크 적용 중, SpO2 96%", "보호자 흡인 교육 2회차 시행"),
                "discharge_meds": ("항생제 5일분, 거담제, 진통제", "거담제, 흡인 소모품 처방"),
                "course": ("기관절개 후 객담 배출 양호, 보호자 흡인 교육 완료", "기관절개 후 호흡 안정, 가정간호 연계"),

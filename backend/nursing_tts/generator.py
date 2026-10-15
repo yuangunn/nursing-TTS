@@ -93,7 +93,7 @@ class Patient:
             treatment = f"{self.regimen} 항암"
             treatment_ko = treatment  # nurses say the regimen name, not the drug list
             treatment_abbr = self.regimen
-            stage = f"항암 {self.cycle}차 D{self.day}" if self.cycle else f"항암 D{self.day or 1}"
+            stage = f"{self.cycle}차 D{self.day}" if self.cycle else f"D{self.day or 1}"  # follows "<regimen> 항암"
             surgery_spoken = treatment
         else:
             treatment, treatment_ko, treatment_abbr = surgery_spoken, surg_ko, surg_abbr or surg_ko
