@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import random
+import re
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -41,7 +42,7 @@ TEXT_POOLS: dict[str, list[str]] = {
     "s6.wound": ["복부 단일공", "복부 4개 포트", "우측 발목 수술 부위", "하복부 정중절개"],
     "t1": ["오전 7시", "오전 7시 30분", "오전 6시 50분"], "t2": ["오전 8시", "오전 8시 10분"],
     "t3": ["오후 1시", "오후 12시 40분"], "t4": ["오후 1시 30분", "오후 2시", "오후 3시"],
-    "s1.plan": ["복강경 수술 예정", "수술 후 조직검사 결과에 따라 추가 치료 결정 예정", "수술 예정"],
+    "s1.plan": ["수술 예정", "수술 후 조직검사 결과에 따라 추가 치료 결정 예정"],
     "supplements": ["오메가3", "홍삼", "비타민 D", "없음"],
     "family_history": ["부친 위암", "모친 당뇨", "없음", "형제 대장암", "부친 고혈압"],
     "weight_change": ["2개월간 5kg 감소", "변화 없음", "1개월간 3kg 감소"],
@@ -212,6 +213,8 @@ def _consistency(form: dict[str, Any], template_key: str, t, rng: random.Random,
     there is no catheter, PCA titration in a discharge record, fever of 41.6 ...)."""
     opts = {f.key: {o.value for o in f.options} for _, f in t.iter_fields() if f.kind == "select"}
     chemo = patient is not None and patient.kind == "chemo"
+    if "purpose" in form and patient is not None:
+        form["purpose"] = "chemo" if chemo else "op"   # THA patient must not be "admitted for tests"
     if "consciousness" in form and rng.random() < 0.85:
         form["consciousness"] = "alert"
     if form.get("consciousness") == "alert" and "orientation" in form and rng.random() < 0.9:
@@ -306,6 +309,49 @@ def _consistency(form: dict[str, Any], template_key: str, t, rng: random.Random,
         form["p_recheck_temp"] = round(form["p_temp"] - rng.uniform(0.3, 1.0), 1)
 
 
+_SIDES = ("우측", "좌측", "양측")
+_TRAUMA = ("골절", "낙상", "미끄러", "넘어", "사고", "외상", "삐끗")
+# ponytail: curated mutually-exclusive keyword groups; add a tuple when a new scenario mixes aetiologies
+_EXCLUSIVE = (
+    ("골절", "무혈성 괴사", "골관절염", "류마티스", "회전근개"),
+    ("발목", "손목|요골", "쇄골", "상완골|어깨", "다리|경골|하지"),
+    ("내측", "외측"),
+    ("갑상선암|유두암|결절", "그레이브스|항진증"),
+    ("자궁내막종|자궁내막증", "기형종"),
+    ("용종", "선암|암"),
+    ("상피내암", "침윤성|선행 항암"),
+    ("당뇨", "말초동맥", "외상"),
+    ("후두암|후두 종괴|두경부암", "성대 마비", "삽관|인공호흡기"),
+    ("사타구니|서혜부", "배꼽", "흉터|반흔"),
+    ("선행", "보조"),
+)
+
+
+def _member(group: tuple[str, ...], text: str) -> int | None:
+    return next((i for i, m in enumerate(group) if re.search(m, text)), None)
+
+
+def coherent_pool(dx: str, cands: tuple[str, ...]) -> list[str]:
+    """Complaints/histories that do not contradict the diagnosis: same side (우측 유방암 ↔ 좌측 멍울),
+    same trauma-ness (골관절염 ↔ 낙상 후 통증) and no other aetiology from the same exclusive group
+    (대퇴골 경부 골절 ↔ 골관절염으로 치환술 예정).  Empty when nothing fits."""
+    side = next((x for x in _SIDES if x in dx), None)
+    trauma = any(w in dx for w in _TRAUMA)
+    groups = [(g, m) for g in _EXCLUSIVE if (m := _member(g, dx)) is not None]
+
+    def ok(c: str) -> bool:
+        if side and any(x in c for x in _SIDES if x != side):
+            return False
+        if any(w in c for w in _TRAUMA) != trauma:
+            return False
+        return all(_member(g, c) in (None, m) for g, m in groups)
+    return [c for c in cands if ok(c)]
+
+
+def _coherent(rng: random.Random, dx: str, cands: tuple[str, ...]) -> str:
+    return rng.choice(coherent_pool(dx, cands) or list(cands))
+
+
 def random_form(template_key: str, rng: random.Random, patient: Patient | None = None) -> dict[str, Any]:
     t = get_template(template_key)
     sc = clinical.BY_KEY.get(patient.scenario) if patient is not None else None
@@ -365,9 +411,24 @@ def random_form(template_key: str, rng: random.Random, patient: Patient | None =
     # keep things consistent with the scenario the patient was drawn from
     if sc is not None:
         if "chief_complaint" in form:
-            form["chief_complaint"] = rng.choice(sc.cc)
+            form["chief_complaint"] = _coherent(rng, patient.diagnosis, sc.cc)
         if "present_illness" in form:
-            form["present_illness"] = rng.choice(sc.pi)
+            form["present_illness"] = _coherent(rng, patient.diagnosis, sc.pi)
+        if template_key == "s1" and sc.kind == "op":
+            cc = form.get("chief_complaint", "")
+            # plan names the actual surgery (not a generic "복강경 수술 예정" for a THA); drop it when the
+            # present illness already ends in "... 예정"
+            if "예정" in form.get("present_illness", ""):
+                form.pop("plan", None)
+            else:
+                form["plan"] = f"{sc.abbr} 예정"
+            # onset follows the complaint: trauma is days, incidental findings have no onset, the rest is months
+            if any(w in cc for w in ("낙상", "미끄러", "넘어", "사고", "급성", "갑자기", "응급")):
+                form["onset"] = rng.choice(["어제", "2일 전", "3일 전", "일주일 전"])
+            elif any(w in cc for w in ("검진", "우연히", "발견")):
+                form.pop("onset", None)
+            elif "onset" in form:
+                form["onset"] = rng.choice(["2개월 전부터", "3개월 전부터", "6개월 전부터 서서히", "1년 전부터", "1개월 전부터"])
         _apply_scenario(form, template_key, {f.key: f for _, f in t.iter_fields()}, sc, rng)
     _consistency(form, template_key, t, rng, patient, sc)
     if template_key == "s1" and patient is not None and not patient.sex.startswith("여"):

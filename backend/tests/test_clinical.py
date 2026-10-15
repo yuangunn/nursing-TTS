@@ -3,7 +3,7 @@ import random
 import re
 
 from nursing_tts import clinical
-from nursing_tts.fake import random_datetime, random_form, random_patient
+from nursing_tts.fake import coherent_pool, random_datetime, random_form, random_patient
 from nursing_tts.generator import build_script
 from nursing_tts.templates import get_template, list_templates
 
@@ -75,3 +75,40 @@ def test_chemo_patients_never_get_surgical_templates_and_say_cycle():
             seen = True
             break
     assert seen
+
+
+def test_s1_admission_purpose_matches_surgery_or_chemo():
+    rng = random.Random(11)
+    for _ in range(150):
+        p = random_patient(rng, "s1")
+        form = random_form("s1", rng, p)
+        assert form["purpose"] == ("chemo" if p.kind == "chemo" else "op"), (p.surgery, p.regimen, form["purpose"])
+        if p.kind == "op":
+            sc = clinical.BY_KEY[p.scenario]
+            plan = form.get("plan", "")
+            assert plan in ("", f"{sc.abbr} 예정"), (p.surgery, plan)          # no "복강경 수술 예정" for a THA
+            cc = form["chief_complaint"]
+            if any(w in cc for w in ("낙상", "미끄러", "넘어", "사고")):
+                assert "개월" not in form.get("onset", "") and "년" not in form.get("onset", ""), (cc, form.get("onset"))
+            if "검진" in cc or "우연히" in cc:
+                assert "onset" not in form, (cc, form.get("onset"))
+
+
+def test_complaint_and_history_never_contradict_the_diagnosis():
+    # every diagnosis has at least one fitting complaint and history, so no scenario falls back to "anything"
+    for sc in clinical.SCENARIOS:
+        for dx in sc.dx:
+            assert coherent_pool(dx, sc.cc), (sc.key, dx, "cc")
+            assert coherent_pool(dx, sc.pi), (sc.key, dx, "pi")
+    rng = random.Random(5)
+    for _ in range(400):
+        p = random_patient(rng, "s1")
+        f = random_form("s1", rng, p)
+        cc, pi, dx = f["chief_complaint"], f["present_illness"], p.diagnosis
+        for side, other in (("우측", "좌측"), ("좌측", "우측")):
+            if side in dx:
+                assert other not in cc and other not in pi, (dx, cc, pi)
+        if "골관절염" in dx or "무혈성" in dx:
+            assert "낙상" not in cc and "골절" not in pi, (dx, cc, pi)
+        if "골절" in dx:
+            assert "골관절염" not in pi and "괴사" not in pi, (dx, cc, pi)
