@@ -52,6 +52,7 @@ npx electron-builder --mac --publish never  # 로컬 패키징 (release/ 에 dmg
 - 대본 생성 규칙을 바꿀 때는 `backend/tests/test_api.py`의 미리보기 테스트로 문장 끝맺음(`~했고.` 같은 연결형 종결 금지), 조사 오류, 치환 안 된 `{placeholder}`가 없는지 확인한다.
 - 새 체크 항목/필드를 추가하면 (1) 템플릿 선언, (2) `extra_phrases.py` 변형 2~5개, (3) `fake.py` 무작위 생성 풀, (4) 필요하면 `korean.py` 약어 읽기까지 한 세트로.
 - 실제 환자 데이터는 절대 저장소에 넣지 않는다. 테스트 녹음은 `local_data/`(gitignore).
+- 목소리 다양화는 **공개 데이터 화자 가져오기**(`scripts/import_public_voices.py`, Zeroth-Korean CC BY 4.0)로 한다. 커뮤니티 RVC .pth(출처·동의 불명) 같은 음성 변조 모델은 쓰지 않는다(사용자 결정 2026-10-15). 가져온 목소리는 메모에 「출처: …」가 남고 내보내기 README에 자동으로 표기된다.
 
 ## 알려진 제한 / 다음 할 일
 - F5-TTS는 제거했다(기본 vocab에 한글 없음, 공개 한국어 체크포인트 없음). 내장 복제는 Qwen3-TTS 1.7B(M4 MPS에서 RTF 약 2.3), 1.7B vs 0.6B 품질 비교와 실제 간호사 녹음 청취 검증은 `docs/ROADMAP.md` M1 참고.

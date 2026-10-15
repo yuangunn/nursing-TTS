@@ -117,6 +117,20 @@ nurse10~12는 7~9보다 느리고(본인 말이 느린 편이라는 사용자 �
 ### 병동 시나리오 지식베이스 (2026-10-15, 사용자 요청)
 사용자 병동의 수술·항암 목록으로 `clinical.py`를 만들었다. 수술 30종(GS: TM c ALND, partial mastectomy c SLNB, NSM c SLNB, breast mass excision, lapa chole, BTT, MRND, LAR, lapa RHC, ileostomy repair, hernioplasty, rectal prolapse OP / OBGY: TLH c BSO, TAH, staging lapa, C-sec, lapa BOCE, myomectomy / URO: TURB, RALRP, partial nephrectomy / ENT: ESS, tracheostomy / OS: TKA, THA, TSA, meniscectomy, meniscal repair, ORIF, BKA, rotator cuff repair / PS: breast recon)과 항암 14종(유방: AC, TCHP, HP, TCH, K+AC, K+TC, H / 대장·췌장: mFOLFOX6, mFOLFIRI, FOLFIRINOX, A-FOLFIRI, E-FOLFIRI / 자궁내막: T+C+Jemperli)마다 개연성 있는 진단명(3~6개)·주 호소·현병력·나이/성별·재원 기간과, 템플릿 필드 제한(배액관 종류·식이·소변줄·장치·추후 계획·이벤트 종류)·글 풀(통증 양상·배액·퇴원약·운전/복직·수술/항암별 특이 교육)을 적었다. 가상 환자는 여기서만 뽑히므로 「갑상선암인데 JP 배액관, 덤핑 교육」 같은 조합이 나오지 않는다. FOLFIRINOX는 대장이 아니라 췌장암 regimen이라 췌장암으로 두었다. 항암 입원은 S1·S4·S5·S6만 만들고 인계 인트로는 「항암 3차 D1」로 읽는다. S3-1·S4·S5에 수술/항암별 특이 교육 필드가 추가됐다(자동 채움).
 
+### 목소리 다양화: 공개 데이터 조사와 결정 (2026-10-15)
+사용자가 커뮤니티 RVC .pth + w-okada/voice-changer를 제안했으나, 출처·동의 불명 음성(스트리머·아이돌)이 대부분이고 부정경쟁방지법상 음성 보호 대상이라 쓰지 않기로 했다. 공개 데이터를 먼저 조사했다.
+
+| 데이터 | 라이선스 | 규모 | 판단 |
+|---|---|---|---|
+| Zeroth-Korean (OpenSLR 40, HF `kresnik/zeroth_korean`) | CC BY 4.0 | 51.6시간, 화자 105명(+테스트 10명), 16 kHz 낭독, 화자 id·전사 있음 | **채택**. 출처 표기만 하면 됨 |
+| Common Voice 한국어 25.0 | CC0 | 10.3시간(검증 2.5시간), 화자 200명 | 보류. 다운로드에 로그인·약관(재호스팅 금지, 화자 식별 금지) 필요, 마이크 품질 편차 큼 |
+| FLEURS ko_kr (google/fleurs) | CC BY 4.0 | 약 10시간, 성별 라벨 있음 | 후보. HF rows API가 500을 내서 보류 |
+| KsponSpeech (AI Hub/ETRI) | KOGL 4유형(비상업·변경 금지) | 969시간, 2,000명 | 제외 |
+| KSS, Deeply(OpenSLR 97), Emilia | NC 계열 | — | 제외 |
+
+- [x] `scripts/import_public_voices.py`: HF datasets-server rows API에서 Zeroth 화자별로 10~12초 낭독 2개를 받아 "공개 화자 Zeroth-<id>" 목소리로 등록(F0로 성별 추정 라벨, 메모에 출처). 익명 한도(429) 때문에 요청 간격 3초·백오프. 3명 55초. 내보내기 README에 「참조 음성 출처」 절이 자동으로 붙는다
+- 주의: 라이선스는 녹음물에 대한 것이고 "목소리 복제"까지 명시적으로 동의한 건 아니다. 내부 STT 학습용으로는 문제 없으나, 생성 음성을 외부에 공개할 때는 출처 표기와 함께 이 점을 적는다
+
 ### M5 · 나중에
 - 말투 변형 세트 공유/가져오기, 병원별 용어집
 - LLM 다듬기 품질 평가(BYOK)와 비용 표시
