@@ -214,6 +214,10 @@ def _consistency(form: dict[str, Any], template_key: str, t, rng: random.Random,
     chemo = patient is not None and patient.kind == "chemo"
     if "consciousness" in form and rng.random() < 0.85:
         form["consciousness"] = "alert"
+    if form.get("consciousness") == "alert" and "orientation" in form and rng.random() < 0.9:
+        form["orientation"] = "yes"   # an alert patient is almost always oriented
+    if form.get("weight_screen") == "neg":
+        form.pop("weight_change", None)  # "변화 없음" screen must not be followed by "5kg 감소"
     if form.get("consciousness") in ("stupor", "confuse"):
         if "responds" in form:
             form["responds"] = False

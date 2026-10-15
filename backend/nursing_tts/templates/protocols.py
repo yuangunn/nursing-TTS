@@ -61,7 +61,7 @@ def routine() -> Section:
 def fall_high() -> Section:
     return Section("prot_fall_high", "낙상 예방 (낙상 고위험군)", hint="Morse 45점 이상 등 고위험군", fields=[
         _b("fall_edu", "낙상 예방지침에 대해 교육함", "낙상 예방지침에 대해 교육함.", "환자와 보호자분께 낙상 예방지침 교육함.", "낙상 고위험군으로 낙상 예방 교육 시행함."),
-        _b("fall_intervene", "낙상예방 중재함", "낙상예방 중재함({p_fall_items}).", "낙상 예방 위해 {p_fall_items} 시행함.", "{p_fall_items} 확인함."),
+        _b("fall_intervene", "낙상예방 중재함", "낙상예방 중재함({p_fall_items}).", "낙상 예방 위해 {p_fall_items} 시행함.", "{p_fall_items}."),
         multi("p_fall_items", "중재 항목", [
             opt("near", "자주 쓰는 물건을 침상 옆에 둠", nouns=["자주 쓰는 물건을 침상 옆에 둠"]),
             opt("low", "침상 높이를 낮춤", nouns=["침상 높이를 낮춤"]),
@@ -79,7 +79,7 @@ def fall_high() -> Section:
 
 def fall_low() -> Section:
     return Section("prot_fall_low", "환경관리 (낙상 저위험군)", hint="저위험군 환경 중재", fields=[
-        _b("env_intervene", "낙상예방 중재함", "낙상예방 중재함({p_env_items}).", "환경관리 시행함, {p_env_items}.", "{p_env_items} 확인함."),
+        _b("env_intervene", "낙상예방 중재함", "낙상예방 중재함({p_env_items}).", "환경관리 시행함, {p_env_items}.", "{p_env_items}."),
         multi("p_env_items", "중재 항목", [
             opt("near", "자주 쓰는 물건을 침상 옆에 둠", nouns=["자주 쓰는 물건을 침상 옆에 둠"]),
             opt("low", "침상 높이를 낮춤", nouns=["침상 높이를 낮춤"]),
