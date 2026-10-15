@@ -244,9 +244,15 @@ def export(opts: dict[str, Any]) -> dict[str, Any]:
 
     speakers = {}
     for m in all_rows:
-        s = speakers.setdefault(m["speaker"], {"name": m["speaker_name"], "count": 0, "duration": 0.0})
+        s = speakers.setdefault(m["speaker"], {"name": m["speaker_name"], "count": 0, "duration": 0.0, "source": ""})
         s["count"] += 1
         s["duration"] = round(s["duration"] + m["duration"], 2)
+    # reference-voice provenance (public corpora imported by scripts/import_public_voices.py keep "출처: …" in the note)
+    from . import voices as voices_mod
+    for spk, s in speakers.items():
+        v = voices_mod.get_voice(spk)
+        if v and v.note and "출처" in v.note:
+            s["source"] = v.note
     report = {
         "name": name, "created": time.time(), "sample_rate": sr, "include_fillers": include_fillers,
         "counts": {k: len(v) for k, v in manifests.items()}, "total": len(all_rows),
@@ -294,7 +300,10 @@ def _dataset_card(r: dict[str, Any]) -> str:
               + (f", 구간 정보 없어 통째로 둔 녹음 {r['split']['unsplittable']}개" if r['split']['unsplittable'] else "")
               if r.get("max_clip_sec") else "- 긴 녹음 분할: 안 함 (Whisper 파인튜닝은 30초 이하 필요 → 내보내기 옵션)"), "",
              "## 파일", "", *[f"- `{f}`" for f in r["files"]], "",
-             "## 화자", "", *[f"- {k}: {v['name'] or ''} · {v['count']}개 · {v['duration'] / 60:.1f}분" for k, v in r["speakers"].items()], "",
+             "## 화자", "", *[f"- {k}: {v['name'] or ''} · {v['count']}개 · {v['duration'] / 60:.1f}분" + (f" · {v['source']}" if v.get("source") else "")
+                            for k, v in r["speakers"].items()], "",
+             *(["## 참조 음성 출처 (재배포 시 표기)", "", *sorted({f"- {v['source']}" for v in r["speakers"].values() if v.get("source")}), ""]
+               if any(v.get("source") for v in r["speakers"].values()) else []),
              "## 기록 종류", "", *[f"- {k}: {v}" for k, v in r["by_record_kind"].items()], "",
              "## 분포", "",
              "- 말투: " + ", ".join(f"{k} {v}" for k, v in r.get("by_style", {}).items()),
