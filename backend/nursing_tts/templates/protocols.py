@@ -319,7 +319,7 @@ BY_RECORD: dict[str, list[str]] = {
     "s2": ["fall_high", "fall_low", "pain_chronic", "medication", "breathing", "glucose", "anxiety"],
     "s3_1": ["routine", "fall_high", "fall_low", "pain_acute", "wound", "medication", "breathing", "drain", "catheter", "fever", "nausea", "glucose", "skin"],
     "s3_2": ["routine", "fall_high", "pain_acute", "wound", "medication", "breathing", "drain", "catheter", "fever", "nausea", "glucose"],
-    "s4": ["pain_chronic", "wound", "medication", "fall_low", "glucose"],  # no PCA titration / drain / catheter care on discharge day
+    "s4": [],   # discharge record is education only; dressing/IV/antibiotic/glucose charting belongs to routine records (user, 2026-10-16)
     "s5": ["routine", "fall_high", "fall_low", "pain_acute", "pain_chronic", "wound", "medication", "breathing", "drain", "catheter", "fever", "nausea", "glucose", "skin"],
     "s6": ["routine", "fall_high", "fall_low", "pain_acute", "wound", "medication", "breathing", "drain", "catheter", "fever", "nausea", "glucose", "skin"],
 }

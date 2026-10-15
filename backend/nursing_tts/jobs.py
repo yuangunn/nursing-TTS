@@ -160,7 +160,7 @@ def generate_one(spec: dict[str, Any], settings: dict[str, Any], custom_noises: 
     template_key = spec["template"]
     patient = Patient(**{k: v for k, v in (spec.get("patient") or {}).items() if k in Patient.__dataclass_fields__})
     when = _parse_dt(spec.get("datetime"))
-    style = spec.get("style") or settings.get("default_style", "mixed")
+    style = spec.get("style") or settings.get("default_style", "formal")
     sig_fmt = spec.get("signal_format") or settings.get("signal_format", "strict")
     script = build_script(template_key, spec.get("form") or {}, patient, when, style=style, seed=seed,
                           signal_format=sig_fmt, signal_aliases=bool(spec.get("signal_aliases", settings.get("signal_aliases", False))))
@@ -397,7 +397,7 @@ def start_batch(opts: dict[str, Any], custom_noises: list[NoiseClip]) -> Job:
         n["enabled"] = bool(noise.get("enabled")) and rng.random() < noise_prob
         if n["enabled"] and noise.get("level_jitter", True):
             n["level"] = int(max(0, min(100, int(noise.get("level", 35)) + rng.randint(-15, 15))))
-        style = opts.get("style") or rng.choice(["mixed", "mixed", "casual", "formal"])
+        style = opts.get("style") or rng.choice(["formal", "formal", "formal", "mixed"])   # 격식체 위주 (user, 2026-10-16)
         dis = opts.get("disfluency")
         dis_level = int(dis) if dis not in (None, "", "random") else rng.choices([0, 1, 2, 3], weights=[40, 30, 20, 10])[0]
         specs.append({

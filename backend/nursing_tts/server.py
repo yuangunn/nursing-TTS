@@ -67,7 +67,7 @@ class PreviewRequest(BaseModel):
     form: dict[str, Any] = {}
     patient: PatientModel = PatientModel()
     datetime: str | None = None
-    style: str = "mixed"
+    style: str = "formal"
     seed: int | None = None
     llm_polish: bool = False
     signal_format: str | None = None   # strict | <key> | random | literal template; None -> settings default
@@ -328,7 +328,7 @@ def phrases_sample(body: dict[str, Any]):
     field_key = body.get("field", "")
     slot = body.get("slot", "phrases")
     phrases = [p for p in (body.get("phrases") or []) if p and p.strip()]
-    style = body.get("style", "mixed")
+    style = body.get("style", "formal")
     rng = random.Random(body.get("seed"))
     ctx = _P(op_date="10월 14일").context(rng)
     ctx["_template"] = template

@@ -8,6 +8,7 @@ from typing import Any
 
 from . import clinical
 from .generator import Patient
+from .phrase_store import formal_from_chart
 from .templates import get_template
 from .templates.base import Field
 
@@ -77,13 +78,13 @@ TEXT_POOLS: dict[str, list[str]] = {
                   "내일 아침 랩 F/U 예정"],
     "s5.plan": ["오전에 강화폐활량계 교육 재확인", "내일 수술 준비 및 금식 확인", "퇴원 교육 시행", "오전 외래 CT 이송 준비", "PICC 드레싱 교환"],
     "s3_1.plan": [], "s2.plan": [], "s4.plan": [],
-    "discharge_date": ["오늘 오전", "오늘 오전 10시", "오늘 11시", "오늘 점심 전", "오늘 오후"],
+    "discharge_date": ["오전", "오전 11시", "점심 전", "오후 3시 보호자 내원 후", "오후"],
     "course": ["수술 후 특이 합병증 없이 회복", "수술 후 발열 있었으나 호전", "수술 후 장폐색 없이 식이 진행 양호"],
     "discharge_meds": ["아세트아미노펜 650mg 하루 세 번 식후 5일분, 위장운동촉진제 하루 세 번 식전 2주분, 철분제 하루 한 번",
                        "아세트아미노펜 650mg 하루 세 번 3일분, 세파클러 하루 세 번 5일분", "진통제 5일분과 변비약 2주분"],
-    "driving": ["운전은 2주 후, 복직은 외래 확인 후", "운전은 1주 후 가능", "복직은 4주 후"],
+    "driving": ["운전은 2주 후, 복직은 외래 확인 후 가능함", "운전은 1주 후 가능함", "복직은 4주 후 가능함"],
     "opd": ["10월 27일 오전 10시 30분", "10월 30일 오후 2시", "11월 3일 오전 9시"],
-    "opd_exam": ["당일 8시 30분 채혈", "외래 전 CT 예정", "검사 없음"],
+    "opd_exam": ["외래 당일 8시 30분 채혈 후 진료 볼 것", "외래 전 CT 촬영할 것", "따로 영상검사나 혈액검사 없음"],
     "allergy": ["조영제", "페니실린", "NSAIDs", "없음", "새우"],
     "io": ["수액 2000, 소변 1800, JP 60", "수액 1800, 소변 1500, JP 40", "경구 1200 수액 1500, 소변 2100"],
     "fluid": ["하트만 80cc/hr", "N/S 60cc/hr", "5DW 40cc/hr", "하트만 100cc/hr"],
@@ -219,6 +220,16 @@ def _consistency(form: dict[str, Any], template_key: str, t, rng: random.Random,
         form["purpose"] = "symptom" if tox else ("chemo" if chemo else "op")   # THA patient must not be "admitted for tests"
     if "consciousness" in form and rng.random() < 0.85:
         form["consciousness"] = "alert"
+    if template_key == "s5" and patient is not None and (patient.pod is not None or patient.kind == "chemo") \
+            and str(form.get("plan", "")).startswith("내일 수술"):
+        form["plan"] = "퇴원 교육 시행" if (patient.pod or 0) >= 3 else "오전에 강화폐활량계 교육 재확인"   # no "surgery tomorrow" after the op
+    if template_key == "s4":
+        if any(w in form.get("special_edu", "") for w in ("무거운", "운동")):
+            form.pop("activity", None)   # the leaflet item already covers activity
+        if "further" in form and patient is not None and not any(w in patient.diagnosis for w in ("암", "종양", "전이", "증식", "림프", "종괴")):
+            form["further"] = "none"     # benign surgery: no "조직검사 결과 따라 보조 항암"
+        if patient is not None and patient.department != "정형외과" and rng.random() < 0.7:
+            form["referral"] = []        # most discharges have no referral (real recordings)
     if patient is not None and patient.department != "정형외과" and (patient.age or 0) < 70:
         for key in ("mobility", "adl"):   # a 30-year-old myoma patient does not arrive in a wheelchair
             if key in form and rng.random() < 0.9:
@@ -407,7 +418,8 @@ def random_form(template_key: str, rng: random.Random, patient: Patient | None =
             if pool and template_key == "s4" and f.key == "special_edu":
                 # discharge education: two or three items from the ward leaflet summary, one record
                 k = min(len(pool), rng.choice([1, 2, 2, 3]))
-                form[f.key] = " ".join(_fill(x, patient, sc).rstrip(".") + "." for x in rng.sample(list(pool), k)).rstrip(".")
+                items = [formal_from_chart(_fill(x, patient, sc).rstrip(".") + ".") for x in rng.sample(list(pool), k)]
+                form[f.key] = " ".join(items).rstrip(".")   # "교육함" -> "교육하였습니다" (discharge records are formal)
                 continue
             if pool:
                 val = _fill(rng.choice(pool), patient, sc)
