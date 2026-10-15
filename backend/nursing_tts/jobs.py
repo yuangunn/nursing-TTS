@@ -208,7 +208,7 @@ def generate_one(spec: dict[str, Any], settings: dict[str, Any], custom_noises: 
     engine = get_engine(settings)
     voice_id = spec.get("voice_id") or ""
     voice_obj = voices_mod.get_voice(voice_id) if voice_id else None
-    ref = voices_mod.pick_reference(voice_id, rng=rng) if voice_id else None
+    ref = voices_mod.pick_reference(voice_id, rng=rng, style="interview" if template_key == "s1" else "dictation") if voice_id else None
     if engine.clones_voice and ref is None:
         raise RuntimeError("목소리 복제 엔진에는 등록된 목소리(참조 음성)가 필요합니다. 목소리 등록 탭에서 먼저 녹음하세요.")
 
