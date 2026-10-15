@@ -7,7 +7,7 @@ TEMPLATE = RecordTemplate(
     title="S5. 인수인계 (SBAR)",
     signal_kind="인계",
     description="근무 교대 시 담당 환자 인계 내용을 SBAR 구조로 구술합니다. 실제 인계 시 쓰는 약어·말투 그대로 사용하면 됩니다.",
-    intros=["{name}님 인수인계 시작합니다. {name}님 {age}세 {sex}, {dx}(으)로 {op_date} {treatment_ko} 시행하고 오늘 {stage}, {dept} {prof} 교수 환자입니다.",
+    intros=["{name}님 인수인계 시작합니다. {name}님 {age}세 {sex}, {dx}(으)로 {op_date} {treatment_ko} 시행하고 오늘 {stage}, {dept} {prof} 교수님 환자분입니다.",
             "{name}님 {age}세 {sex}, {dx}, {treatment} {stage}, {dept} {prof} 교수님 환자분입니다.",
             "{dx} {treatment_abbr} {stage} {prof} 교수님 환자 {name}님 {age}세 {sex} 인계드리겠습니다."],
     closings=["여기까지 {name} 님 인계 마치겠습니다.", "이상 인계기록지 마치겠습니다.", "이상 인계 마치겠습니다.", "인계 이상입니다.", "이상으로 {name}님 인계 마치겠습니다."],

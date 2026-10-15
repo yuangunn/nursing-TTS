@@ -50,6 +50,7 @@ npx electron-builder --mac --publish never  # 로컬 패키징 (release/ 에 dmg
 - 커밋/PR 본문은 한국어로, 무엇을 왜 바꿨는지. UI 문구도 한국어.
 - 테스트를 건너뛰거나 비활성화해서 green을 만들지 않는다. 백엔드 변경은 `pytest`, 앱 변경은 `typecheck + build`를 로컬에서 먼저.
 - 대본 생성 규칙을 바꿀 때는 `backend/tests/test_api.py`의 미리보기 테스트로 문장 끝맺음(`~했고.` 같은 연결형 종결 금지), 조사 오류, 치환 안 된 `{placeholder}`가 없는지 확인한다.
+- 무작위 폼의 필드 간 모순은 `fake._consistency`가 막는다(PCA인데 통증 0, 소변줄 없는데 도뇨관 프로토콜, 퇴원 기록에 PCA 등). `tests/test_script_quality.py`가 210개 대본에서 금지 패턴을 검사하므로 새 필드·프로토콜을 넣으면 거기에도 걸리는지 본다. 말투는 실제 병동 호칭을 따른다: OOO 교수님, 환자분, 보호자분(사용자 지적 2026-10-15).
 - 새 체크 항목/필드를 추가하면 (1) 템플릿 선언, (2) `extra_phrases.py` 변형 2~5개, (3) `fake.py` 무작위 생성 풀, (4) 필요하면 `korean.py` 약어 읽기까지 한 세트로.
 - 실제 환자 데이터는 절대 저장소에 넣지 않는다. 테스트 녹음은 `local_data/`(gitignore).
 - 목소리 다양화는 **공개 데이터 화자 가져오기**(`scripts/import_public_voices.py`, Zeroth-Korean CC BY 4.0)로 한다. 커뮤니티 RVC .pth(출처·동의 불명) 같은 음성 변조 모델은 쓰지 않는다(사용자 결정 2026-10-15). 가져온 목소리는 메모에 「출처: …」가 남고 내보내기 README에 자동으로 표기된다.

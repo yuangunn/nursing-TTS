@@ -60,7 +60,7 @@ def routine() -> Section:
 
 def fall_high() -> Section:
     return Section("prot_fall_high", "낙상 예방 (낙상 고위험군)", hint="Morse 45점 이상 등 고위험군", fields=[
-        _b("fall_edu", "낙상 예방지침에 대해 교육함", "낙상 예방지침에 대해 교육함.", "환자와 보호자에게 낙상 예방지침 교육함.", "낙상 고위험군으로 낙상 예방 교육 시행함."),
+        _b("fall_edu", "낙상 예방지침에 대해 교육함", "낙상 예방지침에 대해 교육함.", "환자와 보호자분께 낙상 예방지침 교육함.", "낙상 고위험군으로 낙상 예방 교육 시행함."),
         _b("fall_intervene", "낙상예방 중재함", "낙상예방 중재함({p_fall_items}).", "낙상 예방 위해 {p_fall_items} 시행함.", "{p_fall_items} 확인함."),
         multi("p_fall_items", "중재 항목", [
             opt("near", "자주 쓰는 물건을 침상 옆에 둠", nouns=["자주 쓰는 물건을 침상 옆에 둠"]),
@@ -316,10 +316,10 @@ _BUILDERS = {
 
 BY_RECORD: dict[str, list[str]] = {
     "s1": ["routine", "fall_high", "fall_low", "pain_acute", "pain_chronic", "medication", "glucose", "skin", "anxiety"],
-    "s2": ["fall_high", "fall_low", "pain_acute", "medication", "breathing", "glucose", "anxiety"],
+    "s2": ["fall_high", "fall_low", "pain_chronic", "medication", "breathing", "glucose", "anxiety"],
     "s3_1": ["routine", "fall_high", "fall_low", "pain_acute", "wound", "medication", "breathing", "drain", "catheter", "fever", "nausea", "glucose", "skin"],
     "s3_2": ["routine", "fall_high", "pain_acute", "wound", "medication", "breathing", "drain", "catheter", "fever", "nausea", "glucose"],
-    "s4": ["pain_acute", "pain_chronic", "wound", "medication", "fall_low", "drain", "catheter", "glucose"],
+    "s4": ["pain_chronic", "wound", "medication", "fall_low", "glucose"],  # no PCA titration / drain / catheter care on discharge day
     "s5": ["routine", "fall_high", "fall_low", "pain_acute", "pain_chronic", "wound", "medication", "breathing", "drain", "catheter", "fever", "nausea", "glucose", "skin"],
     "s6": ["routine", "fall_high", "fall_low", "pain_acute", "wound", "medication", "breathing", "drain", "catheter", "fever", "nausea", "glucose", "skin"],
 }

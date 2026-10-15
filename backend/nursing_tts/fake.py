@@ -55,7 +55,7 @@ TEXT_POOLS: dict[str, list[str]] = {
     "question": ["환자가 수술 후 식사 시작 시점을 질문하여 가스 배출 후 물부터 단계적으로 진행한다고 답변", "통증이 얼마나 심한지 질문하여 PCA로 조절 가능하다고 설명",
                  "입원 기간 질문하여 보통 7~10일 정도라고 설명", "특이 질문 없음"],
     "arrival_time": ["12시 30분", "오후 2시", "오전 11시 50분", "오후 4시 20분"],
-    "vs_lead": ["도착 당시", "병실 도착 후 측정한", "오후 2시"],
+    "vs_lead": ["도착 당시", "병실 도착 후", "오후 2시"],
     "iv": ["좌측 전완 말초 라인 통해 H/S, DW 수액", "우측 손등 말초 라인 통해 하트만 수액", "우측 전완 말초 라인 통해 N/S 수액", "PICC 통해 TPN"],
     "found_time": ["오전 10시", "오후 2시", "오후 6시", "새벽 3시", "오후 9시 30분"],
     "complaint": ["열감 조금 있다고 표현하고 오한은 없음", "오한 있다고 하심", "열감 없다고 하나 얼굴 붉어짐", "두통 호소"],
@@ -206,6 +206,100 @@ def _random_number(f: Field, rng: random.Random) -> float | int:
     return v
 
 
+def _consistency(form: dict[str, Any], template_key: str, t, rng: random.Random, patient: Patient | None, sc) -> None:
+    """Cross-field plausibility: the random fill is per field, so this removes the combinations a
+    nurse would never chart (PCA with pain 0, stupor patient answering questions, catheter care when
+    there is no catheter, PCA titration in a discharge record, fever of 41.6 ...)."""
+    opts = {f.key: {o.value for o in f.options} for _, f in t.iter_fields() if f.kind == "select"}
+    chemo = patient is not None and patient.kind == "chemo"
+    if "consciousness" in form and rng.random() < 0.85:
+        form["consciousness"] = "alert"
+    if form.get("consciousness") in ("stupor", "confuse"):
+        if "responds" in form:
+            form["responds"] = False
+        if "orientation" in form and {"no", "partial"} <= opts.get("orientation", set()):
+            form["orientation"] = "no" if form["consciousness"] == "stupor" else "partial"
+    # pain score vs analgesia
+    pm = form.get("pain_med") or form.get("pain_mgmt")
+    for nrs_key in ("nrs", "nrs1"):
+        if nrs_key in form:
+            if pm in ("pca", "pca_prn") and form[nrs_key] < 1:
+                form[nrs_key] = rng.randint(2, 5)
+            if pm == "none" and form[nrs_key] > 2:
+                form[nrs_key] = rng.randint(0, 2)
+    if "pca_edu" in form and form.get("pain_med") != "pca":
+        form["pca_edu"] = False
+    # post-op day logic (S3-1)
+    timing = form.get("timing")
+    scenario_gd = bool(sc) and "gd" in (sc.form.get("diet_status") or [])
+    if timing == "day0":
+        if form.get("diet_status") in ("ld", "gd") and not scenario_gd:
+            form["diet_status"] = rng.choice(["npo", "sow"])
+        if form.get("ambulation_plan") == "walk_today":
+            form["ambulation_plan"] = rng.choice(["evening_sit", "bedrest"])
+    elif timing in ("pod1", "pod2"):
+        if form.get("foley") == "keep":
+            form["foley"] = rng.choice(["removed", "none"])
+        if form.get("ambulation_plan") == "bedrest":
+            form["ambulation_plan"] = "walk_today"
+        if form.get("diet_status") == "npo":
+            form["diet_status"] = rng.choice(["sow", "ld"])
+    if form.get("weight_change") == "변화 없음":
+        stable = next((v for v in ("none", "no", "stable") if v in opts.get("weight_screen", set())), None)
+        if stable and form.get("weight_screen") in ("loss", "gain"):
+            form["weight_screen"] = stable
+        if form.get("weight_screen") in ("loss", "gain"):
+            form["weight_change"] = rng.choice(["1개월간 3kg 감소", "2개월간 5kg 감소"])
+        else:
+            form.pop("weight_change", None)
+    # glucose protocol: hypoglycaemia care goes with a low value, insulin with a high one
+    if "p_bst_value" in form:
+        if form.get("p_hypo_intervene"):
+            form["p_bst_value"] = rng.randint(48, 68)
+            form.pop("p_insulin_give", None)
+        else:
+            form["p_bst_value"] = min(int(form["p_bst_value"]), 380)
+            if form["p_bst_value"] < 70:
+                form["p_bst_value"] = rng.randint(90, 220)
+        if "p_bst_re" in form:
+            v = form["p_bst_value"]
+            form["p_bst_re"] = rng.randint(100, 160) if v < 70 else rng.randint(max(110, v - 120), max(120, v - 20))
+    # protocol items that contradict the record
+    drops: list[str] = []
+    no_drain = (template_key in ("s3_1", "s3_2", "s5", "s6") and form.get("drain") in (None, "none")) or \
+               (template_key == "s4" and form.get("device") != "drain") or chemo
+    if no_drain:
+        drops.append("p_drain")
+    no_foley = form.get("foley") in ("none", "removed") or form.get("voiding") in ("self", "foley_removed") or chemo or \
+               (template_key == "s4" and form.get("device") != "foley")
+    if no_foley:
+        drops += ["p_foley", "p_self_void", "p_peri_care", "p_urine_check", "p_residual", "p_void_"]
+    if form.get("diet_status") == "npo" or form.get("diet") == "npo":
+        drops.append("p_meal")
+    if template_key == "s4" or chemo or pm == "none" or (template_key == "s5" and pm not in (None, "pca", "pca_prn")):
+        drops.append("p_pca_")
+    if chemo:
+        drops += ["p_wound", "p_dressing", "p_dsg"]
+    for k in list(form):
+        if any(k.startswith(d) for d in drops):
+            form.pop(k)
+    for pre in ("apain", "cpain"):
+        if form.get(f"p_{pre}_score") is not None and int(form[f"p_{pre}_score"]) < 2 and \
+                (form.get(f"p_{pre}_intervene") or form.get(f"p_{pre}_reassess")):
+            form[f"p_{pre}_score"] = rng.randint(3, 7)  # nobody medicates a pain of 0
+        s_, r_ = form.get(f"p_{pre}_score"), form.get(f"p_{pre}_re_score")
+        if s_ is not None and r_ is not None and r_ >= s_:
+            form[f"p_{pre}_re_score"] = max(0, int(s_) - rng.randint(1, 3))
+    if form.get("meal1") == "npo":  # S6: still NPO at breakfast -> no lunch either
+        if "meal2" in form:
+            form["meal2"] = "npo"
+    for k in ("p_temp", "p_recheck_temp"):
+        if k in form and form[k] > 39.5:
+            form[k] = round(rng.uniform(37.8, 39.2), 1)
+    if "p_temp" in form and "p_recheck_temp" in form and form["p_recheck_temp"] >= form["p_temp"]:
+        form["p_recheck_temp"] = round(form["p_temp"] - rng.uniform(0.3, 1.0), 1)
+
+
 def random_form(template_key: str, rng: random.Random, patient: Patient | None = None) -> dict[str, Any]:
     t = get_template(template_key)
     sc = clinical.BY_KEY.get(patient.scenario) if patient is not None else None
@@ -213,7 +307,10 @@ def random_form(template_key: str, rng: random.Random, patient: Patient | None =
     form: dict[str, Any] = {}
     for _, f in t.iter_fields():
         if f.kind == "select":
-            if f.default is not None and rng.random() < 0.3:
+            none_opt = next((o.value for o in f.options if o.value in ("none", "na", "no")), None)
+            if none_opt is not None and rng.random() < 0.75:
+                form[f.key] = none_opt   # DNR, isolation, delirium, pressure injury ... are the exception, not the rule
+            elif f.default is not None and rng.random() < 0.3:
                 form[f.key] = f.default
             else:
                 form[f.key] = rng.choice(f.options).value
@@ -266,6 +363,7 @@ def random_form(template_key: str, rng: random.Random, patient: Patient | None =
         if "present_illness" in form:
             form["present_illness"] = rng.choice(sc.pi)
         _apply_scenario(form, template_key, {f.key: f for _, f in t.iter_fields()}, sc, rng)
+    _consistency(form, template_key, t, rng, patient, sc)
     if template_key == "s1" and patient is not None and not patient.sex.startswith("여"):
         form.pop("lmp", None)
         form.pop("marital", None) if rng.random() < 0.5 else None
