@@ -37,6 +37,8 @@ def list_recordings(limit: int = 2000) -> list[dict[str, Any]]:
                 "patient": (meta.get("patient") or {}).get("name"), "voice_id": meta.get("voice_id"),
                 "voice_name": meta.get("voice_name"), "engine": meta.get("engine"),
                 "duration": meta.get("duration_sec"), "noise": (meta.get("noise") or {}).get("enabled"),
+                "noise_level": (meta.get("noise") or {}).get("level"), "noise_types": (meta.get("noise") or {}).get("types") or [],
+                "noise_events": len((meta.get("noise") or {}).get("events") or []),   # so the list says what was mixed in without listening
                 "channel": (meta.get("augment") or {}).get("channel"), "disfluency": meta.get("disfluency_level", 0),
                 "style": meta.get("style"), "segments": meta.get("segments"), "chunk_verify": meta.get("chunk_verify"),
                 "review": (meta.get("review") or {}).get("status", "pending"),
