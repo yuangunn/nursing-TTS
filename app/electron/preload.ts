@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld("nursing", {
   appVersion: (): Promise<string> => ipcRenderer.invoke("app-version"),
   cancelSetup: (): Promise<boolean> => ipcRenderer.invoke("cancel-setup"),
   checkEnvironment: (): Promise<unknown> => ipcRenderer.invoke("check-environment"),
+  importOfflineBundle: (zipPath?: string): Promise<unknown> => ipcRenderer.invoke("import-offline-bundle", zipPath),
+  offlineBundleInfo: (): Promise<unknown> => ipcRenderer.invoke("offline-bundle-info"),
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke("open-external", url),
   checkUpdate: (force?: boolean): Promise<unknown> => ipcRenderer.invoke("check-update", force),
   getUpdateSettings: (): Promise<unknown> => ipcRenderer.invoke("get-update-settings"),

@@ -3,6 +3,7 @@ import { del, EngineInfo, get, ModelsInfo, post, put, Settings, UpdateInfo, Upda
 import Term from "../components/Term";
 import SignalSelect from "../components/SignalSelect";
 import InstallProgress from "../components/InstallProgress";
+import OfflineBundle from "../components/OfflineBundle";
 
 export default function SettingsPage() {
   const [s, setS] = useState<Settings | null>(null);
@@ -359,6 +360,7 @@ function BackendHelp({ dir, log }: { dir: string; log: string }) {
             <div className="muted">Python 3.10 이상 필요 (mac: <span className="kbd">brew install python</span>). 환경은 앱 데이터 폴더에 만들어집니다.</div>
           </div>
           {show && <InstallProgress key={withQwen ? "qwen" : "base"} withQwen={withQwen} />}
+          <OfflineBundle compact />
         </>
       )}
       <div className="muted" style={{ marginBottom: 6 }}>백엔드 폴더: {dir || "(브라우저 모드)"}{!window.nursing && <> · 개발 모드에서는 <span className="kbd">scripts/setup-backend.sh</span> (mac) / <span className="kbd">scripts\setup-backend.ps1</span> (Windows)</>}</div>

@@ -1,0 +1,55 @@
+name: Offline bundle
+
+# Builds the intranet (no-internet) bundles: a relocatable Python with every backend package, optionally with the
+# voice-cloning stack, and uploads them to a release (user 2026-10-17). Windows CUDA bundles (~3 GB) exceed the
+# GitHub release asset limit — build those locally with scripts/build-offline-bundle.ps1 -Qwen -Cuda.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to attach the bundles to (e.g. v0.1.4-beta)"
+        required: true
+      qwen:
+        description: "Include PyTorch + Qwen3-TTS + faster-whisper (mac MPS / Windows CPU)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Bundle (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest, name: mac-arm64, shell: bash }
+          - { os: macos-13, name: mac-x64, shell: bash }
+          - { os: windows-latest, name: win-x64, shell: pwsh }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build (bash)
+        if: matrix.shell == 'bash'
+        shell: bash
+        run: scripts/build-offline-bundle.sh ${{ inputs.qwen && '--qwen' || '' }} --out dist-offline
+      - name: Build (PowerShell)
+        if: matrix.shell == 'pwsh'
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File scripts/build-offline-bundle.ps1 ${{ inputs.qwen && '-Qwen' || '' }} -Out dist-offline
+      - name: Upload to release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          files=(dist-offline/*.zip)
+          for f in "${files[@]}"; do
+            size=$(wc -c < "$f")
+            if [ "$size" -gt 2000000000 ]; then echo "skip $f: $size bytes exceeds the 2 GB asset limit"; continue; fi
+            gh release upload "${{ inputs.tag }}" "$f" --repo "$GITHUB_REPOSITORY" --clobber
+          done

@@ -39,9 +39,101 @@ function venvUsable(venv: string): boolean {
   } catch { return true; }
 }
 
+/* ---------------- offline bundle (intranet PCs; user 2026-10-17) ----------------
+ * scripts/build-offline-bundle.{sh,ps1} packs a relocatable CPython with every package (and optionally the models)
+ * into a zip. Importing it extracts to userData/offline; the backend then runs on that Python, and models under
+ * offline/models/hub are used without any download. */
+function offlineDir(): string {
+  return path.join(app.getPath("userData"), "offline");
+}
+
+function offlinePython(): string {
+  return process.platform === "win32" ? path.join(offlineDir(), "python", "python.exe") : path.join(offlineDir(), "python", "bin", "python3");
+}
+
+interface BundleInfo { present: boolean; path: string; qwen: boolean; models: boolean; python: string; created: string }
+
+function offlineBundle(): BundleInfo {
+  const dir = offlineDir();
+  const present = fs.existsSync(offlinePython());
+  let meta: Record<string, unknown> = {};
+  try { meta = JSON.parse(fs.readFileSync(path.join(dir, "bundle.json"), "utf8")); } catch { /* no manifest */ }
+  const hub = path.join(dir, "models", "hub");
+  return { present, path: dir, qwen: !!meta.qwen || sitePackagesHas(path.join(dir, "python"), "qwen_tts"), models: fs.existsSync(hub) && fs.readdirSync(hub).length > 0,
+           python: String(meta.python || ""), created: String(meta.created || "") };
+}
+
+/** Is a package installed in this Python tree (venv or bundled runtime)? */
+function sitePackagesHas(root: string, pkg: string): boolean {
+  try {
+    const lib = process.platform === "win32" ? path.join(root, "Lib", "site-packages") : path.join(root, "lib");
+    if (!fs.existsSync(lib)) return false;
+    const dirs = process.platform === "win32" ? [lib] : fs.readdirSync(lib).map((d) => path.join(lib, d, "site-packages"));
+    return dirs.some((d) => fs.existsSync(path.join(d, pkg)));
+  } catch { return false; }
+}
+
 function findPython(dir: string): string | null {
   for (const v of [venvDir(), path.join(dir, ".venv")]) if (venvUsable(v)) return venvPython(v);
+  if (fs.existsSync(offlinePython())) return offlinePython();   // no venv: the imported offline bundle
   return null;
+}
+
+/** Extract a bundle zip into userData/offline and check that its Python can import the backend's dependencies. */
+async function importOfflineBundle(zipPath: string): Promise<{ ok: boolean; message: string; bundle?: BundleInfo }> {
+  const tmp = path.join(app.getPath("userData"), "offline.tmp");
+  const progress = (pct: number, message: string, detail = "") =>
+    mainWindow?.webContents.send("setup-progress", { phase: pct >= 100 ? "done" : "deps", pct, message, detail, elapsed: 0, eta: null, withQwen: false });
+  try {
+    if (!fs.existsSync(zipPath)) return { ok: false, message: "파일을 찾을 수 없습니다: " + zipPath };
+    fs.rmSync(tmp, { recursive: true, force: true });
+    fs.mkdirSync(tmp, { recursive: true });
+    progress(10, "오프라인 번들 푸는 중", path.basename(zipPath));
+    pushLog(`[offline] extracting ${zipPath}`);
+    const cmd = process.platform === "win32"
+      ? ["powershell", ["-NoProfile", "-Command", `Expand-Archive -LiteralPath '${zipPath.replace(/'/g, "''")}' -DestinationPath '${tmp.replace(/'/g, "''")}' -Force`]]
+      : process.platform === "darwin" ? ["ditto", ["-x", "-k", zipPath, tmp]] : ["unzip", ["-q", zipPath, "-d", tmp]];
+    const code = await new Promise<number>((resolve) => {
+      const child = spawn(cmd[0] as string, cmd[1] as string[], { windowsHide: true });
+      child.stderr?.on("data", (d) => pushLog(String(d)));
+      child.on("error", (e) => { pushLog(`[offline] ${e.message}`); resolve(-1); });
+      child.on("exit", (c) => resolve(c ?? -1));
+    });
+    if (code !== 0) return { ok: false, message: "압축을 풀지 못했습니다 (로그 확인)." };
+    // the zip holds one folder (nursing-tts-offline-…) with bundle.json inside
+    const root = fs.existsSync(path.join(tmp, "bundle.json")) ? tmp
+      : fs.readdirSync(tmp).map((d) => path.join(tmp, d)).find((d) => fs.existsSync(path.join(d, "bundle.json")));
+    if (!root) return { ok: false, message: "번들이 아닙니다 (bundle.json이 없습니다). scripts/build-offline-bundle로 만든 zip을 고르세요." };
+    const meta = JSON.parse(fs.readFileSync(path.join(root, "bundle.json"), "utf8"));
+    const want = process.platform === "win32" ? "win" : process.platform === "darwin" ? "mac" : "linux";
+    const arch = process.arch === "arm64" ? "arm64" : "x64";
+    if (meta.platform !== want || meta.arch !== arch) return { ok: false, message: `이 PC(${want}-${arch})용 번들이 아닙니다 (${meta.platform}-${meta.arch}).` };
+    progress(60, "번들 검사 중", `Python ${meta.python}`);
+    const py = process.platform === "win32" ? path.join(root, "python", "python.exe") : path.join(root, "python", "bin", "python3");
+    const check = await new Promise<string>((resolve) => {
+      const child = spawn(py, ["-c", "import fastapi, uvicorn, numpy, scipy, soundfile, httpx; print('ok')"], { cwd: backendDir(), windowsHide: true, env: { ...process.env, PYTHONUTF8: "1" } });
+      let out = "";
+      child.stdout?.on("data", (d) => { out += String(d); });
+      child.stderr?.on("data", (d) => { out += String(d); });
+      child.on("error", (e) => resolve(e.message));
+      child.on("exit", () => resolve(out.trim()));
+    });
+    if (!check.endsWith("ok")) return { ok: false, message: "번들의 Python이 백엔드 패키지를 불러오지 못합니다: " + check.slice(-300) };
+    progress(80, "설치 중", "이전 번들을 교체합니다");
+    backend?.kill(); backend = null;
+    fs.rmSync(offlineDir(), { recursive: true, force: true });
+    fs.renameSync(root, offlineDir());
+    fs.rmSync(tmp, { recursive: true, force: true });
+    const info = offlineBundle();
+    pushLog(`[offline] bundle installed at ${info.path} (qwen=${info.qwen}, models=${info.models})`);
+    progress(90, "백엔드 시작 중");
+    await startBackend();
+    progress(100, "완료", info.qwen ? "목소리 복제 엔진 포함" : "기본 백엔드");
+    return { ok: true, message: `오프라인 번들을 설치했습니다 (Python ${info.python}${info.qwen ? ", Qwen3-TTS" : ""}${info.models ? ", 모델 포함" : ""}).`, bundle: info };
+  } catch (e) {
+    progress(100, "오류", String(e));
+    return { ok: false, message: String(e) };
+  }
 }
 
 function systemPythonCandidates(): string[] {
@@ -89,13 +181,9 @@ function venvPyVersion(venv: string): Promise<PythonInfo> {
 }
 
 function qwenInstalled(): boolean {
-  const venv = venvDir();
-  try {
-    const lib = process.platform === "win32" ? path.join(venv, "Lib", "site-packages") : path.join(venv, "lib");
-    if (!fs.existsSync(lib)) return false;
-    const dirs = process.platform === "win32" ? [lib] : fs.readdirSync(lib).map((d) => path.join(lib, d, "site-packages"));
-    return dirs.some((d) => fs.existsSync(path.join(d, "qwen_tts")));
-  } catch { return false; }
+  const py = findPython(backendDir());
+  if (py && py === offlinePython()) return sitePackagesHas(path.join(offlineDir(), "python"), "qwen_tts");
+  return sitePackagesHas(venvDir(), "qwen_tts");
 }
 
 async function checkEnvironment() {
@@ -117,6 +205,8 @@ async function checkEnvironment() {
     venvDir: venvDir(),
     backendDir: backendDir(),
     dataDir: app.getPath("userData"),
+    offline: offlineBundle(),
+    pythonInUse: findPython(backendDir()) || "",
   };
 }
 
@@ -323,7 +413,12 @@ async function startBackend(): Promise<void> {
     pushLog("[main] 백엔드 Python 환경이 없습니다. 설정 탭에서 '백엔드 설치'를 실행하세요.");
     return;
   }
-  const env = { ...process.env, PYTHONUTF8: "1", PYTHONIOENCODING: "utf-8" };
+  const env: NodeJS.ProcessEnv = { ...process.env, PYTHONUTF8: "1", PYTHONIOENCODING: "utf-8" };
+  if (py === offlinePython()) {
+    const hub = path.join(offlineDir(), "models", "hub");
+    if (fs.existsSync(hub)) { env.HF_HUB_CACHE = hub; env.HF_HUB_OFFLINE = "1"; }   // models shipped in the bundle, no download attempts
+    pushLog(`[main] 오프라인 번들의 Python으로 백엔드를 시작합니다 (${py})`);
+  }
   backend = spawn(py, ["-m", "nursing_tts", "--port", String(BACKEND_PORT)], { cwd: dir, env, windowsHide: true });
   backend.stdout?.on("data", (d) => pushLog(String(d)));
   backend.stderr?.on("data", (d) => pushLog(String(d)));
@@ -386,6 +481,18 @@ ipcMain.handle("cancel-setup", () => {
   return true;
 });
 ipcMain.handle("check-environment", () => checkEnvironment());
+ipcMain.handle("import-offline-bundle", async (_e, zipPath?: string) => {
+  let p = zipPath;
+  if (!p) {
+    const r = await dialog.showOpenDialog({ properties: ["openFile"], filters: [{ name: "오프라인 번들 (zip)", extensions: ["zip"] }] });
+    if (r.canceled) return { ok: false, message: "취소됨" };
+    p = r.filePaths[0];
+  }
+  const res = await importOfflineBundle(p);
+  pushLog(`[offline] ${res.message}`);
+  return res;
+});
+ipcMain.handle("offline-bundle-info", () => offlineBundle());
 ipcMain.handle("open-external", (_e, url: string) => shell.openExternal(url));
 ipcMain.handle("app-version", () => app.getVersion());
 
