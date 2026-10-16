@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { del, EngineInfo, get, put, Settings, UpdateInfo, UpdateSettings } from "../lib/api";
+import { del, EngineInfo, get, ModelsInfo, post, put, Settings, UpdateInfo, UpdateSettings } from "../lib/api";
 import Term from "../components/Term";
 import SignalSelect from "../components/SignalSelect";
 import InstallProgress from "../components/InstallProgress";
@@ -12,6 +12,16 @@ export default function SettingsPage() {
   const [err, setErr] = useState("");
   const [log, setLog] = useState("");
   const [backendDir, setBackendDir] = useState("");
+  const [llmTest, setLlmTest] = useState("");
+  const testLlm = async () => {
+    setLlmTest("…");
+    try {
+      const r = await post<{ ok: boolean; sample?: string; error?: string }>("/api/llm/test");
+      setLlmTest(r.ok ? `✔ 응답 받음:\n${r.sample}` : `✘ ${r.error}`);
+    } catch (e) {
+      setLlmTest(`✘ ${String(e)}`);
+    }
+  };
 
   const load = async () => {
     try {
@@ -122,6 +132,8 @@ export default function SettingsPage() {
       </div>
 
       <div>
+        <HowItWorks />
+        <ModelsPanel />
         <div className="panel">
           <h2>저장 위치</h2>
           <div className="row">
@@ -166,8 +178,10 @@ export default function SettingsPage() {
             </div>
             <div className="narrow"><button onClick={() => { if (apiKey) { save({ llm_api_key: apiKey }); setApiKey(""); } }}>키 저장</button></div>
             <div className="narrow"><button className="danger" onClick={async () => { await del("/api/settings/llm_api_key"); load(); }}>키 삭제</button></div>
+            <div className="narrow"><button onClick={testLlm} disabled={llmTest === "…"} title="저장된 키로 짧은 문장을 한 번 다듬어 봅니다">키 테스트</button></div>
           </div>
-          <div className="muted">키는 이 PC의 설정 파일에만 저장되며 LLM 제공자에게만 전송됩니다. 환자명은 가명이지만, 외부 전송이 걱정되면 로컬 Ollama를 쓰세요.</div>
+          {llmTest && <div className={llmTest.startsWith("✔") ? "ok-text" : "error"} style={{ whiteSpace: "pre-wrap" }}>{llmTest}</div>}
+          <div className="muted">키는 이 PC의 설정 파일에만 저장되며 LLM 제공자에게만 전송됩니다. 환자명은 가명이지만, 외부 전송이 걱정되면 로컬 Ollama를 쓰세요. 다듬기는 선택 기능이라 키가 없어도 모든 녹음이 만들어집니다.</div>
         </div>
 
         <div className="panel">
@@ -349,6 +363,76 @@ function BackendHelp({ dir, log }: { dir: string; log: string }) {
       )}
       <div className="muted" style={{ marginBottom: 6 }}>백엔드 폴더: {dir || "(브라우저 모드)"}{!window.nursing && <> · 개발 모드에서는 <span className="kbd">scripts/setup-backend.sh</span> (mac) / <span className="kbd">scripts\setup-backend.ps1</span> (Windows)</>}</div>
       <div className="log">{log || "(로그 없음)"}</div>
+    </div>
+  );
+}
+
+
+/** 2026-10-17 (user): the frontend should say what the backend (local Python + on-device model) does and what the
+ *  LLM does, so an intranet user knows what needs the network. */
+function HowItWorks() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="panel">
+      <h2>동작 원리 <span className="hint">무엇이 이 PC에서 돌고, 무엇이 밖으로 나가는지</span>
+        <button className="small ghost" style={{ marginLeft: "auto" }} onClick={() => setOpen((v) => !v)}>{open ? "접기" : "자세히"}</button>
+      </h2>
+      <ul className="list" style={{ fontSize: 13, lineHeight: 1.6 }}>
+        <li><div className="grow"><b>백엔드 (이 PC의 Python)</b> — 대본 생성(규칙·병동 지식베이스), 발음 텍스트 변환, 소음 섞기·장비 증강, 되읽기 검증, 데이터셋 내보내기. 인터넷이 없어도 전부 됩니다.</div></li>
+        <li><div className="grow"><b>목소리 (로컬 온디바이스 모델)</b> — Qwen3-TTS가 등록한 참조 음성을 조건으로 대본을 읽습니다. 모델 파일(약 4.5 GB)을 한 번 받아 두면 이후에는 네트워크를 쓰지 않습니다. 되읽기 검증은 faster-whisper(로컬).</div></li>
+        <li><div className="grow"><b>LLM 다듬기 (선택, <Term k="BYOK" />)</b> — 유일하게 밖으로 나가는 기능. 규칙으로 만든 대본 텍스트만 본인 키의 Claude·GPT·Ollama로 보내 자연스럽게 고칩니다. 키가 없으면 그냥 꺼져 있고 녹음은 똑같이 만들어집니다.</div></li>
+        <li><div className="grow"><b>네트워크가 필요한 때</b> — 처음 설치(pip·모델 다운로드), 새 버전 확인(GitHub), LLM 다듬기. 그 외의 환자 정보·대본·음성은 이 PC 밖으로 나가지 않습니다.</div></li>
+      </ul>
+      {open && (
+        <div className="muted" style={{ marginTop: 8, lineHeight: 1.6 }}>
+          흐름: 체크 항목 → 템플릿 문구 선택·말투 적용(규칙) → 정답 텍스트(spoken) + 발음 텍스트(tts) → 문장 단위 합성(Qwen3-TTS, 참조 클립 조건) → 쉼·소음·증강 → (선택) Whisper 되읽기로 문장 CER 검사·재합성 → wav + txt + json 저장.
+          인트라넷 PC에서는 아래 "로컬 모델"의 폴더에 다른 PC에서 받은 모델을 복사해 두면 됩니다.
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Where the on-device models live, with the download links and an "open folder" button for intranet setups. */
+function ModelsPanel() {
+  const [info, setInfo] = useState<ModelsInfo | null>(null);
+  const [err, setErr] = useState("");
+  const load = () => get<ModelsInfo>("/api/models").then(setInfo).catch((e) => setErr(String(e)));
+  useEffect(() => { load(); }, []);
+  return (
+    <div className="panel">
+      <h2>로컬 모델 <span className="hint">온디바이스 음성·검증 모델의 위치</span>
+        <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+          <button className="small" onClick={load}>다시 확인</button>
+          {info && window.nursing && <button className="small primary" onClick={() => window.nursing?.openPath(info.cache_dir)}>📁 모델 폴더 열기</button>}
+        </span>
+      </h2>
+      {err && <div className="error">{err}</div>}
+      {info && (
+        <>
+          <table className="items">
+            <thead><tr><th>역할</th><th>모델</th><th>상태</th><th></th></tr></thead>
+            <tbody>
+              {info.models.map((m) => (
+                <tr key={m.id}>
+                  <td>{m.role}</td>
+                  <td><span className="kbd">{m.id}</span></td>
+                  <td>{m.cached ? <span className="badge ok">있음</span> : <span className="badge warn">없음</span>}</td>
+                  <td style={{ whiteSpace: "nowrap" }}>
+                    {m.url && <button className="small" onClick={() => window.nursing?.openExternal(m.url)} title={m.url}>다운로드 페이지</button>}{" "}
+                    <button className="small" onClick={() => navigator.clipboard.writeText(m.path).catch(() => undefined)} title={m.path}>경로 복사</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="muted" style={{ marginTop: 8, lineHeight: 1.6 }}>
+            모델 폴더: <span className="kbd">{info.cache_dir}</span><br />
+            인터넷이 없는 PC: 다른 PC에서 위 다운로드 페이지의 파일을 받거나 그 PC의 모델 폴더에 있는 <span className="kbd">models--Qwen--Qwen3-TTS-12Hz-1.7B-Base</span>, <span className="kbd">models--Systran--faster-whisper-small</span> 폴더를 통째로 복사해 이 모델 폴더에 넣으면 다운로드 없이 그대로 씁니다.
+            직접 받은 모델 폴더를 다른 곳에 두었다면 위 "Qwen3-TTS" 설정의 모델 칸에 그 폴더 경로를 적어도 됩니다. Python 자체를 받을 수 없는 PC용 설치본(Python·패키지 번들)은 로드맵 M4에 있습니다.
+          </div>
+        </>
+      )}
     </div>
   );
 }

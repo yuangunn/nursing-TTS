@@ -396,7 +396,8 @@ def start_specs(base: list[dict[str, Any]], opts: dict[str, Any], custom_noises:
     voice_ids = [v for v in (opts.get("voice_ids") or []) if v] or [""]
     noise = opts.get("noise") or {}
     noise_prob = float(opts.get("noise_prob", 0.5 if noise.get("enabled") else 0.0))
-    folder = output_dir() / (safe_filename(opts.get("folder_name") or f"import_{datetime.now().strftime('%Y%m%d_%H%M%S')}"))
+    folder = output_dir() if opts.get("no_folder") else \
+        output_dir() / (safe_filename(opts.get("folder_name") or f"import_{datetime.now().strftime('%Y%m%d_%H%M%S')}"))
     specs = []
     for sp in base:
         n = dict(noise)
@@ -406,7 +407,8 @@ def start_specs(base: list[dict[str, Any]], opts: dict[str, Any], custom_noises:
         dis = opts.get("disfluency")
         dis_level = int(dis) if dis not in (None, "", "random") else rng.choices([0, 1, 2, 3], weights=[40, 30, 20, 10])[0]
         specs.append({
-            **sp, "style": opts.get("style") or sp.get("style") or "formal", "seed": rng.randrange(1 << 30),
+            **sp, "style": opts.get("style") or sp.get("style") or "formal",
+            "seed": sp.get("seed") if opts.get("keep_seed") and sp.get("seed") is not None else rng.randrange(1 << 30),   # a reviewed script is reproduced as read
             "voice_id": rng.choice(voice_ids), "noise": n, "llm_polish": bool(opts.get("llm_polish")),
             "rounds_voice": bool(opts.get("rounds_voice")) and rng.random() < 0.4, "folder": str(folder), "disfluency": dis_level,
             "augment": opts.get("augment") or {}, "signal_format": opts.get("signal_format") or "strict", "signal_aliases": opts.get("signal_aliases"),

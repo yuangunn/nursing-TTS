@@ -645,6 +645,56 @@ def generate(req: GenerateRequest):
     return job.to_dict()
 
 
+@app.post("/api/generate/specs")
+def generate_specs(body: dict[str, Any]):
+    """녹음 만들기 queue: every spec is a script the user already read in 대본 생성 (template/form/patient/datetime/
+    style/seed/text_override); voice, noise, augmentation and disfluency come from the page once."""
+    specs = [sp for sp in (body.get("specs") or []) if sp.get("template") in TEMPLATES]
+    if not specs:
+        raise HTTPException(400, "녹음할 대본이 없습니다.")
+    opts = {**body, "keep_seed": True, "no_folder": not body.get("folder_name"), "voice_ids": [v for v in (body.get("voice_ids") or [body.get("voice_id")]) if v],
+            "noise_prob": 1.0 if (body.get("noise") or {}).get("enabled") else 0.0}
+    job = jobs.start_specs(specs, opts, noise_library.custom_clips())
+    return job.to_dict()
+
+
+@app.get("/api/models")
+def models_info():
+    """Where the on-device models live, so an intranet PC can be loaded by copying folders (user 2026-10-17)."""
+    s = load_settings()
+    try:
+        from huggingface_hub import constants as hf
+        cache = Path(hf.HF_HUB_CACHE)
+    except Exception:  # noqa: BLE001
+        cache = Path.home() / ".cache" / "huggingface" / "hub"
+    whisper = f"Systran/faster-whisper-{s.get('asr_model') or 'small'}"
+
+    def info(model_id: str, role: str) -> dict[str, Any]:
+        local = Path(model_id)
+        if local.exists():
+            return {"id": model_id, "role": role, "cached": True, "path": str(local), "url": ""}
+        folder = cache / ("models--" + model_id.replace("/", "--"))
+        return {"id": model_id, "role": role, "cached": folder.exists() and any(folder.rglob("config.json")) or any(folder.rglob("model.bin")) if folder.exists() else False,
+                "path": str(folder), "url": f"https://huggingface.co/{model_id}"}
+    return {"cache_dir": str(cache), "models": [info(s.get("qwen_model") or "Qwen/Qwen3-TTS-12Hz-1.7B-Base", "목소리 복제 (Qwen3-TTS)"),
+                                                 info(whisper, "되읽기 검증 (faster-whisper)")]}
+
+
+@app.post("/api/llm/test")
+def llm_test():
+    """BYOK check: polish one short sentence with the configured provider and report the outcome."""
+    s = load_settings()
+    if (s.get("llm_provider") or "none") == "none":
+        return {"ok": False, "error": "LLM 제공자가 '사용 안 함'입니다."}
+    if not s.get("llm_api_key"):
+        return {"ok": False, "error": "API 키가 저장되어 있지 않습니다."}
+    try:
+        out = llm.polish("2026년 10월 17일 오전 9시 홍길동 님 간호정보조사 기록입니다.\n환자분 고혈압으로 약 드시고 계시고 알레르기는 없다고 하십니다.", s)
+        return {"ok": True, "sample": out[:300]}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": str(e)[:300]}
+
+
 @app.post("/api/batch")
 def batch(req: BatchRequest):
     job = jobs.start_batch(req.model_dump(), noise_library.custom_clips())
