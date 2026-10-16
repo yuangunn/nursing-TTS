@@ -95,6 +95,7 @@ def test_fall_and_pressure_scores_match_their_risk_bands():
             assert f["p_braden_risk"] == braden_risk(f["p_braden"])
         s = build_script("s1", f, p, random_datetime(rng), style="formal", seed=1)
         assert "Morse" not in s.spoken_text and "모스" not in s.spoken_text
+        assert s.spoken_text.count("존스홉킨스") <= 1, s.spoken_text   # the tool is named once, with the score
     assert {"low", "moderate", "high"} <= levels
     for t in ("s5", "s3_1", "s6"):
         for _ in range(60):
