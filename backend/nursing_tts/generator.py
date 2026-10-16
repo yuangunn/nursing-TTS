@@ -135,6 +135,7 @@ class Script:
     sentences: list[str]
     structured: dict[str, Any] = field(default_factory=dict)
     seed: int = 0
+    turns: list[dict[str, str]] = field(default_factory=list)   # [{"speaker": nurse|patient, "text"}] — one per line of spoken_text
 
 
 # ---------------------------------------------------------------------------
@@ -353,7 +354,11 @@ def _sentences_from(text: str) -> list[str]:
 
 def build_script(template_key: str, form: dict[str, Any], patient: Patient, when: datetime,
                  style: str = "mixed", seed: int | None = None,
-                 include_closing: bool = True, signal_format: str = "strict", signal_aliases: bool = False) -> Script:
+                 include_closing: bool = True, signal_format: str = "strict", signal_aliases: bool = False,
+                 dialogue: bool = False) -> Script:
+    """``dialogue`` (S1 only): the items a nurse asks become question/answer turns (patient answers in 존댓말,
+    반말 from 80), the chart facts stay nurse narration; every line of spoken_text has a speaker in ``turns``."""
+    from . import dialogue as dialogue_mod
     rng = random.Random(seed)
     if seed is None:
         seed = rng.randrange(1, 2**31)
@@ -397,18 +402,39 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
                                                 random.Random(seed + 3), signal_aliases)
     paragraphs: list[str] = [sig_written]
     tts_paragraphs: list[str] = [sig_tts]
+    speakers: list[str] = ["nurse"]
+    dialogue = bool(dialogue) and template.key == "s1"
+    asked: set[str] = set()
+    pending_ack = ""
 
     intros = phrase_store.effective(template.key, "intros", "phrases", template.intros)
     if intros:
         intro = fix_josa(_fmt(rng.choice(intros), ctx)).strip()
         if intro:
             paragraphs.append(intro)
+            speakers.append("nurse")
 
     structured: dict[str, Any] = {}
     for section in template.sections:
         fragments: list[str] = []
         spoken_fields = [(f, form.get(f.key)) for f in section.fields]
         spoken_fields = [(f, v) for f, v in spoken_fields if v not in (None, "", [], {})]
+        turns_here: list[tuple[str, str]] = []
+        if dialogue:
+            narrated = []
+            for f, v in spoken_fields:
+                if f.key in dialogue_mod.SKIP_IN_DIALOGUE:
+                    continue
+                pair = dialogue_mod.qa(f.key, form, patient, rng, asked)
+                if pair is None:
+                    narrated.append((f, v))
+                    continue
+                turns_here += [("nurse", pair[0]), ("patient", pair[1])]
+                structured.setdefault(section.key, {})[f.key] = v
+                a = dialogue_mod.ack(rng)
+                if a:
+                    turns_here.append(("nurse", a))
+            spoken_fields = narrated
         # Force the last fragment of a section to close its sentence.
         for idx, (f, v) in enumerate(spoken_fields):
             is_last = idx == len(spoken_fields) - 1
@@ -429,11 +455,25 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
             else:
                 run = 0
         if fragments:
-            paragraphs.append(_join_fragments(fragments))
+            text = _join_fragments(fragments)
+            if pending_ack:                                 # "네." answers the patient before the next chart line
+                text, pending_ack = f"{pending_ack} {text}", ""
+            paragraphs.append(text)
+            speakers.append("nurse")
+        for sp, text in turns_here:
+            if sp == "nurse" and text in dialogue_mod.ACKS:   # "네." joins the next nurse line instead of standing alone
+                pending_ack = text
+                continue
+            if sp == "nurse" and pending_ack:
+                text, pending_ack = f"{pending_ack} {text}", ""
+            paragraphs.append(text)
+            speakers.append(sp)
+    pending_ack = ""
 
     closings = phrase_store.effective(template.key, "closings", "phrases", template.closings)
     if include_closing and closings:
         paragraphs.append(fix_josa(_fmt(rng.choice(closings), ctx)))
+        speakers.append("nurse")
 
     # an empty placeholder ("{stage}" when POD is unknown) must not leave "절제술 ." or double spaces
     paragraphs = [re.sub(r"\s+([.,!?])", r"\1", re.sub(r"[ \t]{2,}", " ", p)).strip() for p in paragraphs]
@@ -442,6 +482,7 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
     tts_rng = random.Random(seed + 1)
     tts_paragraphs += [korean.to_tts_text(p, tts_rng) for p in paragraphs[1:]]
     tts_text = "\n".join(tts_paragraphs)
+    turns = [{"speaker": sp, "text": p} for sp, p in zip(speakers, paragraphs)] if dialogue else []
 
     return Script(
         spoken_text=spoken_text,
@@ -458,6 +499,9 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
             "sections": structured,
             "signal_format": sig_key,
             "signal_parse": signal_mod.parse(spoken_text).to_dict(),
+            "dialogue": dialogue,
+            "turns": turns,
         },
         seed=seed,
+        turns=turns,
     )

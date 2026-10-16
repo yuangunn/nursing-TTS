@@ -7,11 +7,12 @@ import SignalSelect from "../components/SignalSelect";
 import { del, DEFAULT_PATIENT, get, nowLocalIso, patch, Patient, post, Settings, TemplateSchema } from "../lib/api";
 import { addToBasket, BasketItem, clearBasket, getBasket, removeFromBasket } from "../lib/scriptStore";
 
-interface PreviewResp { spoken_text: string; tts_text: string; seed: number; llm_polished: boolean; sentences?: string[]; issues?: string[] }
+interface Turn { speaker: string; text: string }
+interface PreviewResp { spoken_text: string; tts_text: string; seed: number; llm_polished: boolean; sentences?: string[]; issues?: string[]; turns?: Turn[] }
 interface Item {
   id: string; template: string; record_kind: string; patient: Patient; form: Record<string, unknown>; datetime: string;
   style: string; seed: number; spoken_text: string; tts_text: string; llm_polished: boolean; issues: string[];
-  text_override?: string | null; signal_format?: string; signal_aliases?: boolean | null;
+  text_override?: string | null; signal_format?: string; signal_aliases?: boolean | null; dialogue?: boolean; turns?: Turn[];
 }
 interface Flag { id: string; created: number; template: string; record_kind: string; patient: string; style: string; seed: number | null; sentence: string; note: string }
 
@@ -29,7 +30,17 @@ function sentencesOf(text: string): string[] {
   return out;
 }
 
-const shown = (it: Item) => it.text_override ?? it.spoken_text;
+const LABEL: Record<string, string> = { nurse: "간호사", patient: "환자" };
+/** Dialogue scripts are shown and edited with "간호사: / 환자: " prefixes; the backend strips them again. */
+const labelled = (it: Item) => it.turns?.length ? it.turns.map((t) => `${LABEL[t.speaker] || t.speaker}: ${t.text}`).join("\n") : it.spoken_text;
+const shown = (it: Item) => it.text_override ?? labelled(it);
+/** Lines of the current text with their speaker (from the prefix, or nurse). */
+function linesOf(text: string): { speaker: string; text: string }[] {
+  return text.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => {
+    const m = /^(간호사|환자):\s*/.exec(l);
+    return { speaker: m ? (m[1] === "환자" ? "patient" : "nurse") : "nurse", text: m ? l.slice(m[0].length) : l };
+  });
+}
 
 /** 2 · 대본 생성: make scripts (🎲 many at once, or one by hand from the form), read them sentence by sentence,
  *  change register / wording / text, flag sentences the ward never says, and put the good ones in the basket
@@ -60,6 +71,7 @@ export default function ScriptReviewPage({ onTab }: { onTab?: (t: Tab) => void }
   const [customSeed, setCustomSeed] = useState<number | null>(null);
   const [signalFormat, setSignalFormat] = useState("");
   const [signalAliases, setSignalAliases] = useState<boolean | null>(null);
+  const [dialogue, setDialogue] = useState(false);   // 간호정보조사만: 환자 대답 포함
   const debounce = useRef<number | null>(null);
   const template = useMemo(() => templates.find((t) => t.key === tkey), [templates, tkey]);
 
@@ -98,12 +110,12 @@ export default function ScriptReviewPage({ onTab }: { onTab?: (t: Tab) => void }
     try {
       const p = await post<PreviewResp>("/api/script/preview", {
         template: tkey, form, patient, datetime: when, style: customStyle, seed: opts?.newSeed ? null : customSeed,
-        signal_format: signalFormat || undefined, signal_aliases: signalAliases ?? undefined,
+        signal_format: signalFormat || undefined, signal_aliases: signalAliases ?? undefined, dialogue: dialogue && tkey === "s1",
       });
       setCustomSeed(p.seed);
       const it: Item = { id: CUSTOM, template: tkey, record_kind: kindOf(tkey), patient, form, datetime: when, style: customStyle, seed: p.seed,
         spoken_text: p.spoken_text, tts_text: p.tts_text, llm_polished: p.llm_polished, issues: p.issues || [], text_override: null,
-        signal_format: signalFormat || undefined, signal_aliases: signalAliases };
+        signal_format: signalFormat || undefined, signal_aliases: signalAliases, dialogue: dialogue && tkey === "s1", turns: p.turns || [] };
       setItems((arr) => arr.some((x) => x.id === CUSTOM) ? arr.map((x) => x.id === CUSTOM ? it : x) : [it, ...arr]);
       setSel(CUSTOM);
       setErr("");
@@ -111,14 +123,14 @@ export default function ScriptReviewPage({ onTab }: { onTab?: (t: Tab) => void }
       setErr(String(e));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [template, tkey, form, patient, when, customStyle, customSeed, signalFormat, signalAliases, templates]);
+  }, [template, tkey, form, patient, when, customStyle, customSeed, signalFormat, signalAliases, templates, dialogue]);
   useEffect(() => {
     if (mode !== "custom" || !template) return;
     if (debounce.current) window.clearTimeout(debounce.current);
     debounce.current = window.setTimeout(() => previewCustom(), 250);
     return () => { if (debounce.current) window.clearTimeout(debounce.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, form, patient, when, customStyle, tkey, template, signalFormat, signalAliases]);
+  }, [mode, form, patient, when, customStyle, tkey, template, signalFormat, signalAliases, dialogue]);
   const randomizeCustom = async () => {
     const r = await post<{ patient: Patient; form: Record<string, unknown>; datetime: string }>("/api/random-patient", { template: tkey });
     setPatient(r.patient);
@@ -139,9 +151,10 @@ export default function ScriptReviewPage({ onTab }: { onTab?: (t: Tab) => void }
       const seed = Math.floor(Math.random() * 1e9);
       try {
         const r = await post<{ patient: Patient; form: Record<string, unknown>; datetime: string }>("/api/random-patient", { template: tpl, seed });
-        const p = await post<PreviewResp>("/api/script/preview", { template: tpl, form: r.form, patient: r.patient, datetime: r.datetime, style, seed });
+        const dlg = dialogue && tpl === "s1";
+        const p = await post<PreviewResp>("/api/script/preview", { template: tpl, form: r.form, patient: r.patient, datetime: r.datetime, style, seed, dialogue: dlg });
         made.push({ id: `${seed}-${i}`, template: tpl, record_kind: kindOf(tpl), patient: r.patient, form: r.form, datetime: r.datetime,
-          style, seed: p.seed, spoken_text: p.spoken_text, tts_text: p.tts_text, llm_polished: p.llm_polished, issues: p.issues || [] });
+          style, seed: p.seed, spoken_text: p.spoken_text, tts_text: p.tts_text, llm_polished: p.llm_polished, issues: p.issues || [], dialogue: dlg, turns: p.turns || [] });
         setItems((arr) => [...arr.filter((x) => x.id === CUSTOM), ...made]);
         if (i === 0) setSel(made[0].id);
       } catch (e) {
@@ -162,8 +175,8 @@ export default function ScriptReviewPage({ onTab }: { onTab?: (t: Tab) => void }
     try {
       const st = opts.style ?? it.style;
       const p = await post<PreviewResp>("/api/script/preview", { template: it.template, form: it.form, patient: it.patient, datetime: it.datetime,
-        style: st, seed: opts.newSeed ? null : it.seed, llm_polish: opts.llm ?? false, signal_format: it.signal_format, signal_aliases: it.signal_aliases ?? undefined });
-      setItems((arr) => arr.map((x) => x.id === it.id ? { ...x, style: st, seed: p.seed, spoken_text: p.spoken_text, tts_text: p.tts_text, llm_polished: p.llm_polished, issues: p.issues || [], text_override: null } : x));
+        style: st, seed: opts.newSeed ? null : it.seed, llm_polish: opts.llm ?? false, signal_format: it.signal_format, signal_aliases: it.signal_aliases ?? undefined, dialogue: !!it.dialogue });
+      setItems((arr) => arr.map((x) => x.id === it.id ? { ...x, style: st, seed: p.seed, spoken_text: p.spoken_text, tts_text: p.tts_text, llm_polished: p.llm_polished, issues: p.issues || [], text_override: null, turns: p.turns || [] } : x));
       setEditing(false);
       setErr("");
     } catch (e) {
@@ -179,9 +192,9 @@ export default function ScriptReviewPage({ onTab }: { onTab?: (t: Tab) => void }
     setBusy(`${STYLES.find(([k]) => k === next)?.[1]}로 만드는 중…`);
     try {
       const p = await post<PreviewResp>("/api/script/preview", { template: it.template, form: it.form, patient: it.patient, datetime: it.datetime,
-        style: next, seed: it.seed, signal_format: it.signal_format, signal_aliases: it.signal_aliases ?? undefined });
+        style: next, seed: it.seed, signal_format: it.signal_format, signal_aliases: it.signal_aliases ?? undefined, dialogue: !!it.dialogue });
       const copy: Item = { ...it, id: `${it.id}-${next}-${Date.now().toString(36)}`, style: next, seed: p.seed, spoken_text: p.spoken_text, tts_text: p.tts_text,
-        llm_polished: p.llm_polished, issues: p.issues || [], text_override: null };
+        llm_polished: p.llm_polished, issues: p.issues || [], text_override: null, turns: p.turns || [] };
       setItems((arr) => { const i = arr.findIndex((x) => x.id === it.id); const n = [...arr]; n.splice(i + 1, 0, copy); return n; });
       setSel(copy.id);
       setErr("");
@@ -210,14 +223,18 @@ export default function ScriptReviewPage({ onTab }: { onTab?: (t: Tab) => void }
 
   const toBasket = (it: Item, go = false) => {
     const next = addToBasket({ template: it.template, form: it.form, patient: it.patient, datetime: it.datetime, style: it.style, seed: it.seed,
-      text_override: it.text_override ?? null, record_kind: it.record_kind, spoken_text: shown(it), issues: it.issues });
+      text_override: it.text_override ?? null, record_kind: it.record_kind, spoken_text: shown(it), issues: it.issues, dialogue: !!it.dialogue, turns: it.turns });
     setBasket(next);
     setBusy(`바구니에 담았습니다 (${next.length}개)`);
     setTimeout(() => setBusy(""), 1500);
     if (go) onTab?.("record");
   };
 
-  const sentences = useMemo(() => current ? sentencesOf(shown(current)) : [], [current]);
+  const sentences = useMemo(() => {
+    if (!current) return [] as { speaker: string; text: string }[];
+    if (!current.dialogue) return sentencesOf(shown(current)).map((text) => ({ speaker: "", text }));
+    return linesOf(shown(current)).flatMap((l) => sentencesOf(l.text).map((text) => ({ speaker: l.speaker, text })));
+  }, [current]);
   const flagCount = (it: Item) => flags.filter((f) => f.seed === it.seed && f.template === it.template).length;
   const inBasket = (it: Item) => basket.some((b) => b.template === it.template && b.seed === it.seed && b.style === it.style && (b.text_override ?? "") === (it.text_override ?? ""));
 
@@ -250,6 +267,9 @@ export default function ScriptReviewPage({ onTab }: { onTab?: (t: Tab) => void }
                 <div className="narrow" style={{ alignSelf: "end" }}><button className="primary" onClick={makeMany} disabled={!!busy || !chosen.length}>🎲 대본 {count}개 만들기</button></div>
                 <div className="muted" style={{ alignSelf: "end" }}>{busy}</div>
               </div>
+              <label className="small" style={{ display: "inline-flex", gap: 6, alignItems: "center" }} title="간호정보조사에서 묻는 항목이 간호사 질문(~까요?)과 환자 대답(~어요/네/아니오, 80세 이상은 ~어/응/아니)으로 나뉩니다. 녹음은 두 목소리로 만들어집니다">
+                <input type="checkbox" checked={dialogue} onChange={(e) => setDialogue(e.target.checked)} /> 간호정보조사는 환자 대답 포함(대화형)
+              </label>
             </>
           ) : (
             <>
@@ -276,6 +296,11 @@ export default function ScriptReviewPage({ onTab }: { onTab?: (t: Tab) => void }
                   </select>
                 </div>
               </div>
+              {tkey === "s1" && (
+                <label className="small" style={{ display: "inline-flex", gap: 6, alignItems: "center" }} title="묻는 항목이 간호사 질문(~까요?)과 환자 대답(~어요/네/아니오, 80세 이상은 ~어/응/아니)으로 나뉩니다. 녹음은 두 목소리로 만들어집니다">
+                  <input type="checkbox" checked={dialogue} onChange={(e) => setDialogue(e.target.checked)} /> 환자 대답 포함(대화형)
+                </label>
+              )}
               <div className="muted">{busy}</div>
             </>
           )}
@@ -295,7 +320,7 @@ export default function ScriptReviewPage({ onTab }: { onTab?: (t: Tab) => void }
               <tbody>
                 {items.map((it, i) => (
                   <tr key={it.id} onClick={() => { setSel(it.id); setEditing(false); }} style={{ cursor: "pointer", background: sel === it.id ? "rgba(56,189,248,0.12)" : undefined }}>
-                    <td>{it.id === CUSTOM ? "✎" : i + (items.some((x) => x.id === CUSTOM) ? 0 : 1)}</td><td>{it.record_kind}</td><td>{it.patient.name}</td>
+                    <td>{it.id === CUSTOM ? "✎" : i + (items.some((x) => x.id === CUSTOM) ? 0 : 1)}</td><td>{it.record_kind}{it.dialogue ? " 💬" : ""}</td><td>{it.patient.name}</td>
                     <td className="muted">{STYLES.find(([k]) => k === it.style)?.[1] || it.style}</td>
                     <td>{flagCount(it) ? <span className="badge warn">{flagCount(it)}</span> : ""}</td>
                     <td>{inBasket(it) ? "✓" : ""}</td>
@@ -349,6 +374,7 @@ export default function ScriptReviewPage({ onTab }: { onTab?: (t: Tab) => void }
                 <button className="small primary" onClick={() => toBasket(current)} title="녹음 만들기 단계의 바구니에 담습니다">🧺 바구니에 담기{inBasket(current) ? " ✓" : ""}</button>
                 <button className="small" onClick={() => toBasket(current, true)} title="담고 바로 녹음 만들기로 이동">🎙 담고 녹음 만들기로 →</button>
                 {current.llm_polished && <span className="muted">LLM 다듬기 적용됨</span>}
+                {current.dialogue && <span className="badge" title="녹음 만들기에서 환자 목소리를 고를 수 있습니다">💬 대화형 · 환자 {current.patient.age ?? ""}세{(current.patient.age ?? 0) >= 80 ? " 반말" : ""}</span>}
                 {current.text_override != null && <span className="badge warn">직접 수정됨</span>}
               </div>
               {current.issues.length > 0 && <div className="badge bad" style={{ marginTop: 6 }} title={current.issues.join("\n")}>⚠ 자동 검사 모순 {current.issues.length}개: {current.issues.join(" · ")}</div>}
@@ -359,12 +385,13 @@ export default function ScriptReviewPage({ onTab }: { onTab?: (t: Tab) => void }
                   onChange={(e) => setItems((arr) => arr.map((x) => x.id === current.id ? { ...x, text_override: e.target.value } : x))} />
               ) : (
                 <ul className="list" style={{ marginTop: 8 }}>
-                  {sentences.map((s, i) => {
+                  {sentences.map(({ speaker, text: s }, i) => {
                     const f = flagOf(current, s);
                     return (
-                      <li key={i} style={{ background: f ? "rgba(248,113,113,0.12)" : undefined }}>
+                      <li key={i} style={{ background: f ? "rgba(248,113,113,0.12)" : speaker === "patient" ? "rgba(167,139,250,0.08)" : undefined }}>
                         <input type="checkbox" checked={!!f} onChange={() => toggleFlag(current, s)} title="이렇게 말 안 한다" />
                         <div className="grow" style={{ lineHeight: 1.6 }}>
+                          {speaker && <span className="badge" style={{ marginRight: 6 }}>{LABEL[speaker]}</span>}
                           {i === 0 ? <span className="signal">{s}</span> : s}
                           {f && (
                             <input type="text" placeholder="메모: 병동에서는 어떻게 말하나요?" value={noteDraft[f.id] ?? f.note} style={{ fontSize: 12, marginTop: 2 }}
