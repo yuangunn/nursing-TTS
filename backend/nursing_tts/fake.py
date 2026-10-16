@@ -343,6 +343,9 @@ def _consistency(form: dict[str, Any], template_key: str, t, rng: random.Random,
             form["p_bst_re"] = rng.randint(100, 160) if v < 70 else rng.randint(max(110, v - 120), max(120, v - 20))
     # protocol items that contradict the record
     drops: list[str] = []
+    fall = form.get("fall") if isinstance(form.get("fall"), str) else None
+    if fall is not None:   # the fall protocol must match the assessed level (score 5 + "재사정 17점 고위험" is a contradiction)
+        drops += ["p_env_"] if fall == "high" else ["p_fall_", "p_call_bell", "p_jhfrat"]
     no_drain = (template_key in ("s3_1", "s3_2", "s5", "s6") and form.get("drain") in (None, "none")) or \
                (template_key == "s4" and form.get("device") != "drain") or chemo
     if no_drain:
