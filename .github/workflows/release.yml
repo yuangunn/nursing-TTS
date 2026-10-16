@@ -76,3 +76,72 @@ jobs:
           files=(release/*.dmg release/*.zip release/*.exe)
           if [ ${#files[@]} -eq 0 ]; then echo "no installers found"; exit 1; fi
           gh release upload "$RELEASE_TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+
+  # "-offline" installers: the same app with a relocatable Python + every package (+ Qwen3-TTS stack) inside
+  # resources/offline, so an intranet PC runs without pip. Models, voices and noises stay separate (user 2026-10-17).
+  offline:
+    name: Offline installer (${{ matrix.name }})
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest, name: mac-arm64, eb: "--mac --arm64", shell: bash }
+          - { os: macos-13, name: mac-x64, eb: "--mac --x64", shell: bash }
+          - { os: windows-latest, name: win-x64, eb: "--win --x64", shell: pwsh }
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - name: Build renderer + main
+        run: npm run build
+      - name: Python bundle (bash)
+        if: matrix.shell == 'bash'
+        shell: bash
+        run: |
+          ../scripts/build-offline-bundle.sh --qwen --out offline-build
+          mv offline-build/nursing-tts-offline-* offline-build/offline
+          rm -f offline-build/offline/*.zip
+      - name: Python bundle (PowerShell)
+        if: matrix.shell == 'pwsh'
+        shell: pwsh
+        run: |
+          powershell -ExecutionPolicy Bypass -File ..\scripts\build-offline-bundle.ps1 -Qwen -Out offline-build
+          Get-ChildItem offline-build -Directory -Filter "nursing-tts-offline-*" | Rename-Item -NewName "offline"
+      - name: electron-builder config with the bundle
+        shell: bash
+        run: |
+          node -e '
+            const pkg = require("./package.json");
+            const cfg = { ...pkg.build };
+            cfg.extraResources = [...(cfg.extraResources || []), { from: "offline-build/offline", to: "offline", filter: ["**/*"] }];
+            cfg.artifactName = "${productName}-offline-${version}-${os}-${arch}.${ext}";
+            if (cfg.mac) cfg.mac = { ...cfg.mac, target: ["dmg"] };   // no zip twin for the big variant
+            require("fs").writeFileSync("eb-offline.json", JSON.stringify(cfg, null, 2));
+          '
+      - name: Package
+        shell: bash
+        run: npx electron-builder ${{ matrix.eb }} --config eb-offline.json --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - name: Upload release assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          files=(release/*offline*.dmg release/*offline*.exe)
+          if [ ${#files[@]} -eq 0 ]; then echo "no offline installers found"; ls -la release; exit 1; fi
+          for f in "${files[@]}"; do
+            size=$(wc -c < "$f")
+            if [ "$size" -gt 2000000000 ]; then echo "skip $f: exceeds the 2 GB asset limit"; continue; fi
+            gh release upload "$RELEASE_TAG" "$f" --repo "$GITHUB_REPOSITORY" --clobber
+          done

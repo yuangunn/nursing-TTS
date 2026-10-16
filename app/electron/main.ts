@@ -47,20 +47,67 @@ function offlineDir(): string {
   return path.join(app.getPath("userData"), "offline");
 }
 
-function offlinePython(): string {
-  return process.platform === "win32" ? path.join(offlineDir(), "python", "python.exe") : path.join(offlineDir(), "python", "bin", "python3");
+/** Bundle roots in priority order: one the user imported (userData/offline), then one shipped inside the installer
+ *  (resources/offline — the "offline" dmg/exe variants built by the release workflow). */
+function offlineRoots(): string[] {
+  const roots = [offlineDir()];
+  if (app.isPackaged) roots.push(path.join(process.resourcesPath, "offline"));
+  return roots;
 }
 
-interface BundleInfo { present: boolean; path: string; qwen: boolean; models: boolean; python: string; created: string }
+function pythonIn(root: string): string {
+  return process.platform === "win32" ? path.join(root, "python", "python.exe") : path.join(root, "python", "bin", "python3");
+}
+
+function activeOfflineRoot(): string | null {
+  return offlineRoots().find((r) => fs.existsSync(pythonIn(r))) || null;
+}
+
+function offlinePython(): string {
+  const root = activeOfflineRoot();
+  return root ? pythonIn(root) : pythonIn(offlineDir());
+}
+
+interface BundleInfo { present: boolean; path: string; qwen: boolean; models: boolean; data: boolean; python: string; created: string; source: "imported" | "installer" | "" }
 
 function offlineBundle(): BundleInfo {
-  const dir = offlineDir();
-  const present = fs.existsSync(offlinePython());
+  const dir = activeOfflineRoot() || offlineDir();
+  const present = fs.existsSync(pythonIn(dir));
   let meta: Record<string, unknown> = {};
   try { meta = JSON.parse(fs.readFileSync(path.join(dir, "bundle.json"), "utf8")); } catch { /* no manifest */ }
   const hub = path.join(dir, "models", "hub");
   return { present, path: dir, qwen: !!meta.qwen || sitePackagesHas(path.join(dir, "python"), "qwen_tts"), models: fs.existsSync(hub) && fs.readdirSync(hub).length > 0,
-           python: String(meta.python || ""), created: String(meta.created || "") };
+           data: fs.existsSync(path.join(dir, "data")), python: String(meta.python || ""), created: String(meta.created || ""),
+           source: !present ? "" : dir === offlineDir() ? "imported" : "installer" };
+}
+
+/** The backend's data folder (config.py data_dir): NURSING_TTS_DATA or the OS app-data folder. */
+function backendDataDir(): string {
+  if (process.env.NURSING_TTS_DATA) return process.env.NURSING_TTS_DATA;
+  if (process.platform === "win32") return path.join(process.env.APPDATA || app.getPath("home"), "NursingTTS");
+  if (process.platform === "darwin") return path.join(app.getPath("home"), "Library", "Application Support", "NursingTTS");
+  return path.join(app.getPath("home"), ".nursing-tts");
+}
+
+/** A bundle made with --data carries this PC's voices and noise clips: copy them in without overwriting what exists. */
+function restoreBundleData(root: string): string {
+  const src = path.join(root, "data");
+  if (!fs.existsSync(src)) return "";
+  const dst = backendDataDir();
+  let copied = 0;
+  for (const sub of ["voices", "noises"]) {
+    const from = path.join(src, sub);
+    if (!fs.existsSync(from)) continue;
+    const to = path.join(dst, sub);
+    fs.mkdirSync(to, { recursive: true });
+    for (const name of fs.readdirSync(from)) {
+      const target = path.join(to, name);
+      if (fs.existsSync(target)) continue;              // keep what this PC already has (library.json, registered voices)
+      fs.cpSync(path.join(from, name), target, { recursive: true });
+      copied++;
+    }
+  }
+  return copied ? `목소리·소음 ${copied}개 항목을 데이터 폴더에 넣었습니다.` : "";
 }
 
 /** Is a package installed in this Python tree (venv or bundled runtime)? */
@@ -125,11 +172,12 @@ async function importOfflineBundle(zipPath: string): Promise<{ ok: boolean; mess
     fs.renameSync(root, offlineDir());
     fs.rmSync(tmp, { recursive: true, force: true });
     const info = offlineBundle();
-    pushLog(`[offline] bundle installed at ${info.path} (qwen=${info.qwen}, models=${info.models})`);
+    const dataMsg = restoreBundleData(offlineDir());
+    pushLog(`[offline] bundle installed at ${info.path} (qwen=${info.qwen}, models=${info.models}, data=${info.data}) ${dataMsg}`);
     progress(90, "백엔드 시작 중");
     await startBackend();
     progress(100, "완료", info.qwen ? "목소리 복제 엔진 포함" : "기본 백엔드");
-    return { ok: true, message: `오프라인 번들을 설치했습니다 (Python ${info.python}${info.qwen ? ", Qwen3-TTS" : ""}${info.models ? ", 모델 포함" : ""}).`, bundle: info };
+    return { ok: true, message: `오프라인 번들을 설치했습니다 (Python ${info.python}${info.qwen ? ", Qwen3-TTS" : ""}${info.models ? ", 모델 포함" : ""}). ${dataMsg}`.trim(), bundle: info };
   } catch (e) {
     progress(100, "오류", String(e));
     return { ok: false, message: String(e) };
@@ -415,7 +463,7 @@ async function startBackend(): Promise<void> {
   }
   const env: NodeJS.ProcessEnv = { ...process.env, PYTHONUTF8: "1", PYTHONIOENCODING: "utf-8" };
   if (py === offlinePython()) {
-    const hub = path.join(offlineDir(), "models", "hub");
+    const hub = path.join(activeOfflineRoot() || offlineDir(), "models", "hub");
     if (fs.existsSync(hub)) { env.HF_HUB_CACHE = hub; env.HF_HUB_OFFLINE = "1"; }   // models shipped in the bundle, no download attempts
     pushLog(`[main] 오프라인 번들의 Python으로 백엔드를 시작합니다 (${py})`);
   }
