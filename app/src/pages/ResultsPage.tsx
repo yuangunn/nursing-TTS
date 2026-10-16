@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Visualizer from "../components/Visualizer";
-import { apiUrl, del, ExportReport, get, post, RecordingItem, Settings } from "../lib/api";
+import { apiUrl, del, ExportReport, get, NoiseCatalogItem, post, RecordingItem, Settings } from "../lib/api";
 import { useEnergy } from "../lib/energy";
 
 type Filter = "all" | "pending" | "approved" | "rejected" | "failed";
@@ -36,6 +36,14 @@ export default function ResultsPage() {
   }, []);
 
   const [sortCer, setSortCer] = useState(false);
+
+  const [noiseOnly, setNoiseOnly] = useState(false);
+
+  const [noiseLabels, setNoiseLabels] = useState<Record<string, string>>({});
+
+  useEffect(() => { get<NoiseCatalogItem[]>("/api/noises").then((c) => setNoiseLabels(Object.fromEntries(c.map((n) => [n.key, n.label])))).catch(() => undefined); }, []);
+
+  const noiseText = (it: RecordingItem) => it.noise ? `${(it.noise_types || []).map((k) => noiseLabels[k] || k).join("·") || "소음"}${it.noise_level !== undefined && it.noise_level !== null ? ` ${it.noise_level}` : ""}` : "";
   const REASONS = ["발음 오류", "잡음 과다", "끊김·반복", "대본 오류", "목소리 다름", "기타"];
   const shown = useMemo(() => {
     const arr = items.filter((i) => {
@@ -45,8 +53,9 @@ export default function ResultsPage() {
       return true;
     });
     // worst CER first so review time goes where the problems are
-    return sortCer ? [...arr].sort((a, b) => (b.verify?.cer_best ?? -1) - (a.verify?.cer_best ?? -1)) : arr;
-  }, [items, filter, q, sortCer]);
+    const arr2 = noiseOnly ? arr.filter((x) => x.noise) : arr;
+    return sortCer ? [...arr2].sort((a, b) => (b.verify?.cer_best ?? -1) - (a.verify?.cer_best ?? -1)) : arr2;
+  }, [items, filter, q, sortCer, noiseOnly]);
 
   const stats = {
     total: items.length,
@@ -180,10 +189,11 @@ export default function ResultsPage() {
             </div>
             <div><input type="text" placeholder="환자명 / 파일명 / 기록종류 / 목소리 검색" value={q} onChange={(e) => setQ(e.target.value)} /></div>
             <div className="narrow"><button className={"small" + (sortCer ? " active" : "")} onClick={() => setSortCer(!sortCer)} title="ASR 검증 CER이 높은 녹음부터 보여 줍니다">{sortCer ? "CER 높은 순 ✓" : "CER 높은 순"}</button></div>
+            <div className="narrow"><button className={"small" + (noiseOnly ? " active" : "")} onClick={() => setNoiseOnly(!noiseOnly)} title="소음을 섞은 녹음만 보여 줍니다 (json의 noise 항목 기준)">{noiseOnly ? "소음 있는 것만 ✓" : "소음 있는 것만"}</button></div>
           </div>
           <div style={{ maxHeight: 420, overflow: "auto" }}>
             <table className="items">
-              <thead><tr><th>파일</th><th>종류</th><th>목소리</th><th>길이</th><th>CER</th><th>상태</th></tr></thead>
+              <thead><tr><th>파일</th><th>종류</th><th>목소리</th><th>길이</th><th>소음</th><th>CER</th><th>상태</th></tr></thead>
               <tbody>
                 {shown.map((it) => (
                   <tr key={it.rel} onClick={() => setSel(it)} style={{ cursor: "pointer", background: sel?.rel === it.rel ? "rgba(56,189,248,0.12)" : undefined }}>
@@ -191,11 +201,12 @@ export default function ResultsPage() {
                     <td>{it.record_kind || "-"}</td>
                     <td>{it.voice_name || "-"}</td>
                     <td>{it.duration ? `${it.duration}s` : ""}</td>
+                    <td title={noiseText(it)}>{it.noise ? `🔊 ${noiseText(it)}` : "—"}</td>
                     <td>{it.verify?.cer_best !== undefined ? `${Math.round((it.verify.cer_best || 0) * 100)}%` : "-"}</td>
                     <td>{badge(it)}</td>
                   </tr>
                 ))}
-                {!shown.length && <tr><td colSpan={6} className="muted">녹음이 없습니다.</td></tr>}
+                {!shown.length && <tr><td colSpan={7} className="muted">녹음이 없습니다.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -253,7 +264,7 @@ export default function ResultsPage() {
             </h2>
             <Visualizer autoPlay src={apiUrl(`/api/output/file?rel=${encodeURIComponent(sel.rel)}`)} onEnergy={setEnergy} height={130} />
             <div className="muted" style={{ margin: "8px 0" }}>
-              {sel.record_kind} · {sel.voice_name || "목소리 없음"} · {sel.engine} · {sel.duration}s · 소음 {sel.noise ? "O" : "X"} · 장비 {sel.channel || "-"} · 흐트러짐 {sel.disfluency ?? 0} · 시그널 {sel.signal_format || "-"}
+              {sel.record_kind} · {sel.voice_name || "목소리 없음"} · {sel.engine} · {sel.duration}s · 소음 {sel.noise ? `O (${noiseText(sel)}${sel.noise_events ? `, 이벤트 ${sel.noise_events}개` : ""})` : "X"} · 장비 {sel.channel || "-"} · 흐트러짐 {sel.disfluency ?? 0} · 시그널 {sel.signal_format || "-"}
             </div>
             <div className="preview" style={{ minHeight: 120 }}>
               <span className="signal">{(sel.spoken_text || "").split("\n")[0]}</span>{"\n" + (sel.spoken_text || "").split("\n").slice(1).join("\n")}

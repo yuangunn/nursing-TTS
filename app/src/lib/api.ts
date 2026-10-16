@@ -232,6 +232,9 @@ export interface RecordingItem {
   engine?: string;
   duration?: number;
   noise?: boolean;
+  noise_level?: number;
+  noise_types?: string[];
+  noise_events?: number;
   channel?: string;
   disfluency?: number;
   review?: string;
