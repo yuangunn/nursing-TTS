@@ -725,12 +725,13 @@ def voices_sample_audio(voice_id: str, sample_id: str):
 
 
 @app.get("/api/voices/{voice_id}/demo")
-def voices_demo(voice_id: str):
-    """A synthesised demo of one fixed sentence (cached per voice). The source recordings themselves are
-    not played back when choosing a voice."""
+def voices_demo(voice_id: str, pitch: float = 0.0, tempo: float = 1.0):
+    """A synthesised demo of one fixed sentence: the bundled clip if the app ships one for this voice, else a
+    per-voice cache, else synthesised now. The source recordings themselves are not played back when choosing
+    a voice. ``pitch`` (semitones) and ``tempo`` (rate) let the user hear the voice shifted."""
     if not voices_mod.get_voice(voice_id):
         raise HTTPException(404, "목소리가 없습니다.")
-    path = voices_mod.demo_path(voice_id)
+    path = voices_mod.bundled_demo(voice_id) or voices_mod.demo_path(voice_id)
     if not path.exists():
         from .korean import to_tts_text
         from .tts.registry import get_engine
@@ -743,7 +744,20 @@ def voices_demo(voice_id: str):
         except Exception as e:  # noqa: BLE001
             raise HTTPException(500, f"합성 실패 ({engine.label}): {e}")
         sf.write(path, np.clip(audio, -1, 1), sr, format="WAV", subtype="PCM_16")
-    return Response(content=path.read_bytes(), media_type="audio/wav", headers={"Cache-Control": "no-store"})
+    pitch = max(-12.0, min(12.0, float(pitch)))
+    tempo = max(0.5, min(2.0, float(tempo)))
+    if path.suffix == ".wav" and pitch == 0 and tempo == 1:
+        return Response(content=path.read_bytes(), media_type="audio/wav", headers={"Cache-Control": "no-store"})
+    from .audio.io import read_audio
+    from .rounds import pitch_shift, time_stretch
+    audio, sr = read_audio(path, 24000)
+    if pitch:
+        audio = pitch_shift(audio, sr, pitch)
+    if tempo != 1:
+        audio = time_stretch(audio, tempo)
+    buf = io.BytesIO()
+    sf.write(buf, np.clip(audio, -1, 1), sr, format="WAV", subtype="PCM_16")
+    return Response(content=buf.getvalue(), media_type="audio/wav", headers={"Cache-Control": "no-store"})
 
 
 @app.post("/api/voices/{voice_id}/test")

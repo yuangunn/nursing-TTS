@@ -65,6 +65,15 @@ def _save(v: Voice) -> None:
 DEMO_TEXT = "안녕하세요, 이 목소리의 샘플입니다. 환자분 활력징후 혈압 120에 80, 맥박 72, 체온 36.7도 측정되었습니다."
 
 
+ASSET_DEMOS = Path(__file__).resolve().parent / "assets" / "voice_demos"   # shipped with the app (scripts/build_voice_demos.py)
+
+
+def bundled_demo(voice_id: str) -> Path | None:
+    """Demo clip shipped in the bundle for this voice id, if any (FLAC)."""
+    p = ASSET_DEMOS / f"{voice_id}.flac"
+    return p if p.exists() else None
+
+
 def demo_path(voice_id: str) -> Path:
     """Synthesised demo clip (a fixed sentence) so the source recordings are never played back when
     choosing a voice (user, 2026-10-16). Removed whenever the samples change."""
