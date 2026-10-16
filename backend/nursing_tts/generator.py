@@ -164,17 +164,19 @@ def realize_vitals(value: dict[str, Any], rng: random.Random, verb_style: str = 
     v = dict(value)
     if v.get("bt"):
         v["bt_casual"] = korean.temperature_casual(float(v["bt"]))
+    slang = ("샛", "비피", "새츄레이션", "HR는", "RR은", "PR ")
+    vf = (lambda key: [f for f in _vf(key) if not any(s in f for s in slang)] or _vf(key)) if verb_style == "formal" else _vf
     if v.get("sbp") and v.get("dbp"):
-        parts.append(rng.choice(_vf("bp")).format(**v))
+        parts.append(rng.choice(vf("bp")).format(**v))
     if v.get("hr"):
-        parts.append(rng.choice(_vf("hr")).format(**v))
+        parts.append(rng.choice(vf("hr")).format(**v))
     if v.get("rr"):
-        parts.append(rng.choice(_vf("rr")).format(**v))
+        parts.append(rng.choice(vf("rr")).format(**v))
     if v.get("bt"):
         bt_forms = [f for f in _vf("bt") if verb_style != "formal" or "bt_casual" not in f]   # "열 7도 4" is ward slang, not 격식체
         parts.append(rng.choice(bt_forms or _vf("bt")).format(**v))
     if v.get("spo2"):
-        base = rng.choice(_vf("spo2")).format(**v)
+        base = rng.choice(vf("spo2")).format(**v)
         o2 = str(v.get("o2") or "")
         if o2 and o2 not in ("room air", "none", ""):
             base = rng.choice(_vf("o2_with")).format(base=base, o2=o2)
@@ -231,6 +233,7 @@ def _choose(variants: list[str], rng: random.Random, style: str, force_close: bo
     pool = variants
     if style in ("formal", "chart"):
         pool = [v for v in variants if not _is_connective(v)] or variants
+        pool = [v for v in pool if "?" not in v] or pool   # interview questions ("…있을까요?") belong to 현장 말투 only
     if style != "chart":
         # parenthetical chart forms "사정함(부위, 점수)" read badly aloud; prefer spoken variants
         pool = [v for v in pool if "(" not in v] or pool
@@ -297,7 +300,7 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
         local["v"] = str(value).strip()
         # Nominalised free text ("…옅어지고 있음", "…시행함") must not get "입니다" glued on: chart style keeps
         # it as is, spoken styles say it ("…있습니다", "…하였습니다") and then follow the register.
-        if re.search(r"(음|됨|함|임|없음|있음)$", local["v"]):
+        if re.search(r"(음|됨|함|임|없음|있음|입원|시작|예정|투여|내원|방문|완료|추적|진행 중)$", local["v"]):
             if style == "chart":
                 return _fmt("{v}.", local)
             return _finish(phrase_store.formal_from_chart(local["v"] + "."), {}, rng, style, force_close)

@@ -110,3 +110,35 @@ def test_fall_and_pressure_scores_match_their_risk_bands():
                 assert f["p_jhfrat"] >= 14
             if "p_braden" in f:
                 assert f["p_braden_risk"] == braden_risk(f["p_braden"])
+
+
+def test_admission_forms_are_coherent_and_formal_scripts_have_no_questions():
+    import random
+    from nursing_tts.fake import audit, random_datetime, random_form, random_patient
+    from nursing_tts.generator import build_script
+    rng = random.Random(13)
+    for i in range(250):
+        p = random_patient(rng, "s1")
+        f = random_form("s1", rng, p)
+        assert audit(f, p, "s1") == [], (audit(f, p, "s1"), p.surgery or p.regimen)
+        hist = set(f.get("history") or [])
+        meds = f.get("medications", "")
+        if "인슐린" in meds or "메트포르민" in meds:
+            assert "dm" in hist
+        if any(w in meds for w in ("암로디핀", "로사르탄", "텔미사르탄")):
+            assert "htn" in hist
+        s = build_script("s1", f, p, random_datetime(rng), style="formal", seed=i)
+        assert "?" not in s.spoken_text, s.spoken_text          # 격식체 문진에 질문 문장 없음
+        assert "이었다고" not in s.spoken_text
+        assert not any(k.startswith("p_") for k in f)
+        if int(f.get("nrs") or 0) == 0:
+            assert "더 아프다" not in s.spoken_text and "통증 양상" not in s.spoken_text
+        if "응급실" in f.get("chief_complaint", "") + f.get("present_illness", ""):
+            assert "외래 통해" not in s.spoken_text and "외래로 입원" not in s.spoken_text and "외래 경유" not in s.spoken_text
+        assert "올렸고 잘 드셨" not in s.spoken_text and "SOW" not in s.spoken_text   # post-op diet talk is not admission talk
+    rng = random.Random(21)
+    allergic = iso = sense = 0
+    for _ in range(200):
+        p = random_patient(rng, "s1"); f = random_form("s1", rng, p)
+        allergic += f.get("allergy") != ["none"]; iso += f.get("isolation") != "none"; sense += f.get("sense") != ["none"]
+    assert allergic < 60 and iso < 25 and sense < 80, (allergic, iso, sense)   # rare things stay rare

@@ -46,7 +46,7 @@ TEXT_POOLS: dict[str, list[str]] = {
     "s1.plan": ["수술 예정", "수술 후 조직검사 결과에 따라 추가 치료 결정 예정"],
     "supplements": ["오메가3", "홍삼", "비타민 D", "없음"],
     "family_history": ["부친 위암", "모친 당뇨", "없음", "형제 대장암", "부친 고혈압"],
-    "weight_change": ["2개월간 5kg 감소", "변화 없음", "1개월간 3kg 감소"],
+    "weight_change": ["3kg 감소", "5kg 감소", "변화 없음", "2kg 증가"],
     "devices": ["없음", "PICC", "장루"],
     "religion": ["기독교", "불교", "천주교", "무교"],
     "op_date": ["내일 10월 14일 오전 8시", "내일 오전 8시 30분", "내일 오후 1시", "모레 오전 8시"],
@@ -245,6 +245,8 @@ def _consistency(form: dict[str, Any], template_key: str, t, rng: random.Random,
         form["purpose"] = "symptom" if tox else ("chemo" if chemo else "op")   # THA patient must not be "admitted for tests"
     if "consciousness" in form and rng.random() < 0.85:
         form["consciousness"] = "alert"
+    if template_key == "s1" and patient is not None:
+        _derive_s1(form, patient, sc, rng)
     if template_key == "s5" and patient is not None and (patient.pod is not None or patient.kind == "chemo") \
             and str(form.get("plan", "")).startswith("내일 수술"):
         form["plan"] = "퇴원 교육 시행" if (patient.pod or 0) >= 3 else "오전에 강화폐활량계 교육 재확인"   # no "surgery tomorrow" after the op
@@ -262,6 +264,8 @@ def _consistency(form: dict[str, Any], template_key: str, t, rng: random.Random,
     # fall risk: Johns Hopkins score from the form, level from the score (scenario may force high/low)
     forced = set(sc.form.get("fall") or []) if sc is not None and "fall" in sc.form else set()
     if template_key == "s1" and "jhfrat" in form and "fall" in form:
+        if forced == {"high"} and form.get("mobility") == "independent":   # a forced high-risk patient walks with help
+            form["mobility"], form["adl"] = "device", "walker"
         score = jhfrat_score(form, patient)
         if forced == {"high"}:
             score = max(score, 14 + rng.randint(0, 4))
@@ -287,6 +291,8 @@ def _consistency(form: dict[str, Any], template_key: str, t, rng: random.Random,
             form["braden"] = max(int(form["braden"]), 19)
         if "pressure_risk" in form:   # spoken as "욕창 n점으로 저위험군" — the band must match the score
             form["pressure_risk"] = {"최고위험": "very_high", "고위험": "high", "중등도 위험": "moderate", "저위험": "low", "위험 없음": "none"}[braden_risk(int(form["braden"]))]
+    if template_key == "s1" and patient is not None:
+        _derive_s1_problems(form, patient, rng)
     if form.get("consciousness") == "alert" and "orientation" in form and rng.random() < 0.9:
         form["orientation"] = "yes"   # an alert patient is almost always oriented
     if form.get("weight_screen") == "neg":
@@ -322,13 +328,13 @@ def _consistency(form: dict[str, Any], template_key: str, t, rng: random.Random,
         if form.get("diet_status") == "npo":
             form["diet_status"] = rng.choice(["sow", "ld"])
     if form.get("weight_screen") in ("loss", "gain") and not form.get("weight_change"):
-        form["weight_change"] = rng.choice(["1개월간 3kg 감소", "2개월간 5kg 감소"] if form["weight_screen"] == "loss" else ["1개월간 3kg 증가"])
+        form["weight_change"] = rng.choice(["3kg 감소", "5kg 감소", "4kg 정도 감소"] if form["weight_screen"] == "loss" else ["3kg 증가"])
     if form.get("weight_change") == "변화 없음":
         stable = next((v for v in ("none", "no", "stable") if v in opts.get("weight_screen", set())), None)
         if stable and form.get("weight_screen") in ("loss", "gain"):
             form["weight_screen"] = stable
         if form.get("weight_screen") in ("loss", "gain"):
-            form["weight_change"] = rng.choice(["1개월간 3kg 감소", "2개월간 5kg 감소"])
+            form["weight_change"] = rng.choice(["3kg 감소", "5kg 감소"])
         else:
             form.pop("weight_change", None)
     # glucose protocol: hypoglycaemia care goes with a low value, insulin with a high one
@@ -441,7 +447,276 @@ def _fill(text: str, patient: Patient | None, sc=None) -> str:
             .replace("{cycles}", str((sc.form.get("_cycles") if sc else None) or patient.cycle)))
 
 
+_HISTORY_W = {"htn": 5, "dm": 4, "dyslipidemia": 3, "heart": 2, "thyroid": 2, "stroke": 1, "lung": 1, "ckd": 1, "prediabetes": 1, "tb": 1, "liver": 1}
+_YOUNG_HISTORY = ("thyroid", "dyslipidemia", "liver", "htn", "dm")
+_DETAIL = {
+    "htn": ["고혈압 {y}년 약 복용 중", "고혈압으로 {y}년째 외래 추적"], "dm": ["당뇨 {y}년 경구약 복용", "당뇨 {y}년 인슐린 사용"],
+    "heart": ["협심증으로 스텐트 시술 {y}년 전", "심방세동으로 약 복용 중"], "stroke": ["{y}년 전 뇌경색, 후유증 없음"],
+    "lung": ["COPD로 흡입기 사용 중"], "ckd": ["만성신질환 3기로 외래 추적 중"], "liver": ["B형 간염 보균"],
+    "thyroid": ["갑상선 기능 저하로 신지로이드 복용 중"], "tb": ["{y}년 전 결핵 완치"], "prediabetes": ["당뇨 전단계로 식이 조절 중"],
+    "dyslipidemia": ["고지혈증 약 복용 중"],
+}
+_MEDS = {
+    "htn": ["암로디핀 5mg qd", "로사르탄 50mg qd", "텔미사르탄 40mg qd"], "dm": ["메트포르민 500mg bid", "글리메피리드 2mg qd"],
+    "heart": ["비소프롤롤 5mg qd", "아스피린 100mg qd"], "stroke": ["클로피도그렐 75mg qd"], "lung": ["세레타이드 흡입기 bid"],
+    "thyroid": ["신지로이드 50mcg qd"], "dyslipidemia": ["아토르바스타틴 20mg qd"], "liver": ["바라크루드 0.5mg qd"],
+}
+_SITE_BY_WORD = [("고관절", "우측 고관절"), ("무릎", "무릎"), ("슬관절", "무릎"), ("어깨", "어깨"), ("견관절", "어깨"), ("회전근개", "어깨"),
+                 ("발목", "발목"), ("요골", "손목"), ("쇄골", "쇄골"), ("상완골", "어깨"), ("경골", "무릎 아래"), ("반월", "무릎"),
+                 ("유방", "유방"), ("치핵", "항문"), ("직장", "항문"), ("탈장", "서혜부"), ("담낭", "우상복부"), ("결장", "복부"),
+                 ("갑상선", "목"), ("전립선", "하복부"), ("방광", "하복부"), ("신장", "옆구리"), ("자궁", "하복부"), ("난소", "하복부"),
+                 ("부비동", "코 주위"), ("발", "발")]
+
+
+def _weighted_distinct(rng: random.Random, weights: dict[str, int], k: int) -> list[str]:
+    pool = dict(weights)
+    out: list[str] = []
+    while pool and len(out) < k:
+        keys = list(pool)
+        pick = rng.choices(keys, weights=[pool[x] for x in keys])[0]
+        out.append(pick)
+        del pool[pick]
+    return out
+
+
+def _derive_s1(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -> None:
+    """One coherent patient instead of independent field draws: the chronic conditions decide the past-history
+    detail, the medications and the antiplatelet answer; the complaint decides the route, vitals, diet, bowel,
+    pain and nursing problems (user, 2026-10-16: "중구난방이면 안 만드는 게 낫다")."""
+    age = patient.age or 50
+    cc = f"{form.get('chief_complaint', '')} {form.get('present_illness', '')} {patient.diagnosis}"
+    chemo = patient.kind == "chemo"
+    tox = chemo and chemo_toxicity(form.get("chief_complaint", ""))
+    forced_hist = sc is not None and ("s1.history" in sc.form or "history" in sc.form)
+    if "history" in form and not forced_hist:
+        p_none = 0.85 if age < 40 else 0.5 if age < 60 else 0.25
+        if rng.random() < p_none:
+            form["history"] = []
+        else:
+            w = {k: v for k, v in _HISTORY_W.items() if age >= 60 or k in _YOUNG_HISTORY}
+            form["history"] = _weighted_distinct(rng, w, 1 if age < 60 else rng.choice([1, 1, 2, 2, 3]))
+    hist = [h for h in (form.get("history") or []) if h in _HISTORY_W]
+    if "history_detail" in form:
+        if hist:
+            form["history_detail"] = ", ".join(rng.choice(_DETAIL[h]).format(y=rng.randint(2, 15)) for h in hist[:2])
+        else:
+            form.pop("history_detail", None)
+    if "medications" in form:
+        meds = [rng.choice(_MEDS[h]) for h in hist if h in _MEDS]
+        if "dm" in hist and "인슐린" in form.get("history_detail", ""):
+            meds = [m for m in meds if "메트포르민" not in m and "글리메피리드" not in m] + ["인슐린 자가 주사 (란투스 14단위)"]
+        if meds:
+            form["medications"] = ", ".join(meds)
+        else:
+            form.pop("medications", None)
+    if "antiplatelet" in form:
+        on_apt = any(w in form.get("medications", "") for w in ("아스피린", "클로피도그렐"))
+        form["antiplatelet"] = ("stopped" if not chemo else "taking") if on_apt else "na"
+    if "route" in form:
+        form["route"] = "er" if "응급실" in cc else "transfer" if "전원" in cc else "opd"
+    if "vitals" in form:
+        febrile = any(w in cc for w in ("발열", "오한", "호중구", "담낭염", "충수염", "농양", "감염"))
+        v = random_vitals(rng, "fever" if febrile and rng.random() < 0.8 else "normal")
+        if any(w in cc for w in ("탈수", "설사", "구토")):
+            v["hr"] = rng.randint(96, 112)
+        form["vitals"] = v
+    nausea = tox and any(w in cc for w in ("오심", "구토", "식사 못"))
+    if "diet" in form:
+        if nausea:
+            form["diet"] = rng.choice(["ld", "sd", "npo"])
+        elif tox and "설사" in cc:
+            form["diet"] = "sd"
+        elif "dm" in hist and rng.random() < 0.6:
+            form["diet"] = "dm"
+        elif "htn" in hist and rng.random() < 0.2:
+            form["diet"] = "lowsalt"
+        else:
+            form["diet"] = "gd"
+    if "appetite" in form:
+        form["appetite"] = "poor" if nausea or (tox and rng.random() < 0.5) else ("poor" if rng.random() < 0.15 else "good")
+    if "dysphagia" in form:
+        form["dysphagia"] = patient.department == "이비인후과" and rng.random() < 0.3
+    if "bowel" in form:
+        form["bowel"] = "diarrhea" if (tox and "설사" in cc) else rng.choices(["normal", "constipation"], weights=[88, 12] if age >= 60 else [95, 5])[0]
+    if "voiding" in form and form.get("voiding") == "foley":
+        form["voiding"] = "normal"
+    if "voiding" in form and age < 60 and rng.random() < 0.92:
+        form["voiding"] = "normal"
+    if "sleep" in form and "sleep_screen" in form:
+        form["sleep_screen"] = "neg" if form["sleep"] == "good" else ("pos" if rng.random() < 0.6 else "neg")
+    if "nrs" in form:
+        if chemo:
+            nrs = rng.randint(2, 4) if (tox and any(w in cc for w in ("복통", "설사", "통증"))) else rng.choice([0, 0, 0, 1])
+        elif any(w in cc for w in ("골절", "낙상", "미끄러", "탈구", "급성", "농양", "담낭염", "충수염", "치핵", "항문")):
+            nrs = rng.randint(4, 7)
+        elif any(w in cc for w in ("관절염", "통증", "저림", "탈출")):
+            nrs = rng.randint(2, 5)
+        else:
+            nrs = rng.choice([0, 0, 0, 1, 2])
+        form["nrs"] = nrs
+        if nrs == 0:
+            form.pop("pain_char", None)
+            form.pop("pain_site", None)
+        elif "pain_site" in form:
+            site = next((s for w, s in _SITE_BY_WORD if w in cc), None)
+            form["pain_site"] = site or ("복부" if chemo else form.get("pain_site", "수술 부위"))
+    if "emotion" in form:
+        form["emotion"] = ["anxiety"] if rng.random() < (0.3 if not chemo else 0.15) else ["none"]
+    if "symptom_screen" in form:
+        edema_ok = any(h in hist for h in ("heart", "ckd")) or patient.department == "정형외과"
+        form["symptom_screen"] = "pos" if edema_ok and rng.random() < 0.4 else "neg"
+        if form["symptom_screen"] == "neg":
+            form.pop("symptom_note", None)
+    if "weakness" in form:
+        weak = "stroke" in hist or (patient.department == "정형외과" and rng.random() < 0.3)
+        form["weakness"] = "pos" if weak and rng.random() < 0.7 else "neg"
+        if form["weakness"] == "pos":
+            form["weakness_note"] = "환측 다리" if patient.department == "정형외과" else rng.choice(["오른쪽 다리", "왼쪽 팔"])
+        else:
+            form.pop("weakness_note", None)
+    if "social_work" in form and rng.random() < 0.95:
+        form["social_work"] = "neg"
+    # an elective admission is awake; confusion only in the very old after a fall
+    if "consciousness" in form:
+        form["consciousness"] = "confuse" if (age >= 75 and any(w in cc for w in ("낙상", "골절", "미끄러")) and rng.random() < 0.15) else "alert"
+    if "isolation" in form:
+        form["isolation"] = "contact" if rng.random() < 0.05 else "none"
+    if "allergy" in form:
+        form["allergy"] = ["none"] if rng.random() < 0.8 else [rng.choices(["food", "penicillin", "antibiotic", "nsaid", "contrast", "other"], weights=[4, 3, 2, 2, 1, 1])[0]]
+    if "sense" in form:
+        p_none = 0.65 if age >= 65 else 0.85
+        form["sense"] = ["none"] if rng.random() < p_none else [rng.choices(["hearing", "vision", "speech", "foreign"], weights=[55, 40, 3, 2])[0]]
+    if "adl" in form and "mobility" in form:   # the two mobility answers must agree
+        form["adl"] = {"independent": "independent", "device": "walker", "assist": "assist", "bedrest": "wheelchair"}.get(form["mobility"], "independent")
+    if isinstance(form.get("vitals"), dict):
+        form["vitals"]["o2"] = "O2 2L nasal" if ("lung" in hist and rng.random() < 0.3) else "room air"
+    if "pain_char" in form:
+        dept = patient.department
+        form["pain_char"] = rng.choice(["dull", "movement", "tender"] if dept == "정형외과" else ["dull"] if dept == "이비인후과" else ["dull", "colicky", "tender"])
+    if "past_surgery" in form:
+        female = patient.sex.startswith("여")
+        cands = []
+        if age >= 25:
+            cands.append(f"{rng.randint(10, 30)}년 전 충수절제술")
+        if age >= 60:
+            cands.append(f"{rng.randint(1, 5)}년 전 백내장 수술")
+        if female and 35 <= age <= 60:
+            cands.append(f"{rng.randint(5, max(6, age - 28))}년 전 제왕절개")
+        if age >= 40 and "담낭" not in cc:
+            cands.append(f"{rng.randint(3, 10)}년 전 담낭절제술")
+        cands.append("어릴 때 편도절제술")
+        if chemo and "수술 후" in cc:
+            treat = "유방" if "유방" in cc else "대장" if any(w in cc for w in ("대장", "결장", "직장")) else ""
+            form["past_surgery"] = f"{rng.randint(1, 4)}개월 전 {treat + ' ' if treat else ''}수술"
+        elif rng.random() < 0.45:
+            form.pop("past_surgery", None)
+        else:
+            form["past_surgery"] = rng.choice(cands)
+    if "intake_screen" in form:
+        form["intake_screen"] = "decreased" if form.get("appetite") == "poor" else ("special" if rng.random() < 0.2 else "neg")
+        if form["intake_screen"] != "special":
+            form.pop("intake_note", None)
+    if "depression_screen" in form:
+        form["depression_screen"] = "pos" if rng.random() < 0.08 else "neg"
+        if "selfharm" in form and form["depression_screen"] == "neg":
+            form["selfharm"] = "none"
+    if "weight_screen" in form:
+        cancer = any(w in cc for w in ("암", "종양", "전이")) or chemo
+        form["weight_screen"] = "loss" if (cancer and rng.random() < 0.3) else ("gain" if rng.random() < 0.08 else "neg")
+
+
+def _derive_s1_problems(form: dict[str, Any], patient: Patient, rng: random.Random) -> None:
+    """Nursing problems follow the facts (no 급성 통증 at NRS 0, no 수술 불안 for a chemo admission)."""
+    if "nursing_problems" not in form:
+        return
+    chemo = patient.kind == "chemo"
+    tox = chemo and chemo_toxicity(form.get("chief_complaint", ""))
+    probs: list[str] = []
+    if chemo:
+        if tox and any(w in form.get("chief_complaint", "") for w in ("오심", "구토", "설사", "식사")):
+            probs.append("nutrition")
+        probs.append("infection")
+        probs.append("knowledge")
+    else:
+        probs += ["anxiety", "knowledge"]
+    if int(form.get("nrs") or 0) >= 3:
+        probs.append("pain")
+    if form.get("fall") in ("moderate", "high"):
+        probs.append("fall")
+    if form.get("pressure_risk") in ("moderate", "high", "very_high"):
+        probs.append("skin")
+    if form.get("appetite") == "poor" or form.get("weight_screen") == "loss":
+        probs.append("nutrition")
+    out: list[str] = []
+    for p in probs:
+        if p not in out:
+            out.append(p)
+    form["nursing_problems"] = out[:4] or ["knowledge"]
+
+
+def audit(form: dict[str, Any], patient: Patient | None, template_key: str) -> list[str]:
+    """Contradictions a nurse would catch; empty when the form is coherent. Used to re-draw random forms and
+    shown as warnings in the app (user, 2026-10-16: 외래 입원인데 응급실 경유, 통증 0점인데 더 아프다 …)."""
+    issues: list[str] = []
+    cc = f"{form.get('chief_complaint', '')} {form.get('present_illness', '')}"
+    hist = set(form.get("history") or [])
+    detail = str(form.get("history_detail") or "")
+    meds = str(form.get("medications") or "")
+    if "응급실" in cc and form.get("route") not in (None, "er"):
+        issues.append("응급실 경유로 왔는데 입원 경로가 응급실이 아님")
+    if patient is not None and "purpose" in form:
+        want = "symptom" if (patient.kind == "chemo" and chemo_toxicity(form.get("chief_complaint", ""))) else ("chemo" if patient.kind == "chemo" else "op")
+        if form["purpose"] != want:
+            issues.append("입원 목적이 환자 종류와 다름")
+    if int(form.get("nrs") or 0) == 0 and ("pain_char" in form or "pain_site" in form):
+        issues.append("통증 0점인데 통증 양상/부위가 있음")
+    if form.get("sleep") == "good" and form.get("sleep_screen") == "pos":
+        issues.append("잘 잔다는데 수면 선별 양성")
+    if "당뇨" in detail and not hist & {"dm", "prediabetes"}:
+        issues.append("과거력 상세에 당뇨가 있는데 기저질환에 없음")
+    if "고혈압" in detail and "htn" not in hist:
+        issues.append("과거력 상세에 고혈압이 있는데 기저질환에 없음")
+    for words, need, label in ((("인슐린", "메트포르민", "글리메피리드"), {"dm"}, "당뇨약"), (("암로디핀", "로사르탄", "텔미사르탄"), {"htn"}, "혈압약"),
+                               (("비소프롤롤", "콩코르"), {"heart"}, "심장약"), (("신지로이드", "레보티록신"), {"thyroid"}, "갑상선약"),
+                               (("아토르바스타틴", "로수바스타틴"), {"dyslipidemia"}, "고지혈증약")):
+        if any(w in meds for w in words) and not hist & need:
+            issues.append(f"{label}을 먹는데 해당 기저질환이 없음")
+    if "stroke" not in hist and "heart" not in hist and form.get("antiplatelet") in ("taking", "stopped") and not any(w in meds for w in ("아스피린", "클로피도그렐")):
+        issues.append("항혈소판제 복용이라는데 약 목록에 없음")
+    probs = set(form.get("nursing_problems") or [])
+    if "pain" in probs and int(form.get("nrs") or 0) < 3:
+        issues.append("통증이 없거나 약한데 간호 문제가 급성 통증")
+    if "fall" in probs and form.get("fall") == "low":
+        issues.append("낙상 저위험인데 간호 문제가 낙상 위험")
+    if form.get("weight_screen") == "neg" and form.get("weight_change"):
+        issues.append("체중 변화 없음인데 체중 변화 내용이 있음")
+    vs = form.get("vitals") if isinstance(form.get("vitals"), dict) else None
+    if vs and float(vs.get("bt") or 36.5) >= 38.0 and not any(w in cc + str(patient.diagnosis if patient else "") for w in ("발열", "오한", "호중구", "염", "감염", "농양")):
+        issues.append("발열이 있는데 주호소·진단에 열 날 이유가 없음")
+    if patient is not None and patient.kind == "chemo" and ("pain_char" in form) and int(form.get("nrs") or 0) == 0:
+        issues.append("항암 환자 통증 0점인데 통증 양상 있음")
+    if "adl" in form and "mobility" in form and (form["mobility"] == "independent") != (form["adl"] == "independent"):
+        issues.append("보행 상태와 일상생활 보행 답이 다름")
+    if form.get("appetite") == "good" and form.get("intake_screen") == "decreased":
+        issues.append("식욕 양호인데 식사량 감소 선별")
+    if form.get("allergy_reaction") and form.get("allergy") in (["none"], []):
+        issues.append("알레르기 없음인데 반응 양상이 있음")
+    if patient is not None and "제왕절개" in str(form.get("past_surgery") or "") and (not patient.sex.startswith("여") or (patient.age or 0) > 70):
+        issues.append("제왕절개 과거력이 환자와 맞지 않음")
+    return issues
+
+
 def random_form(template_key: str, rng: random.Random, patient: Patient | None = None) -> dict[str, Any]:
+    """Random form that passes ``audit`` (re-drawn up to 6 times; the derivations make this rare)."""
+    form = _random_form_once(template_key, rng, patient)
+    for _ in range(5):
+        if not audit(form, patient, template_key):
+            break
+        form = _random_form_once(template_key, rng, patient)
+    return form
+
+
+def _random_form_once(template_key: str, rng: random.Random, patient: Patient | None = None) -> dict[str, Any]:
     t = get_template(template_key)
     sc = clinical.BY_KEY.get(patient.scenario) if patient is not None else None
     sc_pools = sc.pools if sc else {}

@@ -254,7 +254,7 @@ def test_protocol_checklists():
     from nursing_tts.templates import TEMPLATES
     for key, t in TEMPLATES.items():
         prot = [s for s in t.sections if s.group == "protocol"]
-        assert prot or key == "s4", key   # discharge record is education only (user, 2026-10-16)
+        assert prot or key in ("s4", "s1"), key   # discharge record and admission interview have no charting checklist
         keys = [f.key for s in t.sections for f in s.fields]
         assert len(keys) == len(set(keys)), f"duplicate field keys in {key}"
     form = {"p_sleep_obs": True, "p_fall_intervene": True, "p_apain_assess": True, "p_apain_score": 5, "p_pca_end": True,

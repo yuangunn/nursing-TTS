@@ -4,10 +4,10 @@ import Term from "../components/Term";
 import { del, get, patch, Patient, post, Settings, TemplateSchema } from "../lib/api";
 import { setHandoff, takeHandoff } from "../lib/scriptStore";
 
-interface PreviewResp { spoken_text: string; tts_text: string; seed: number; llm_polished: boolean; sentences?: string[] }
+interface PreviewResp { spoken_text: string; tts_text: string; seed: number; llm_polished: boolean; sentences?: string[]; issues?: string[] }
 interface Item {
   id: string; template: string; record_kind: string; patient: Patient; form: Record<string, unknown>; datetime: string;
-  style: string; seed: number; spoken_text: string; tts_text: string; llm_polished: boolean;
+  style: string; seed: number; spoken_text: string; tts_text: string; llm_polished: boolean; issues: string[];
 }
 interface Flag { id: string; created: number; template: string; record_kind: string; patient: string; style: string; seed: number | null; sentence: string; note: string }
 
@@ -59,7 +59,7 @@ export default function ScriptReviewPage({ onTab }: { onTab?: (t: Tab) => void }
           const p = await post<PreviewResp>("/api/script/preview", { template: h.template, form: h.form, patient: h.patient, datetime: h.datetime, style: h.style, seed: h.seed });
           const it: Item = { id: `h${Date.now()}`, template: h.template, record_kind: ts.find((t) => t.key === h.template)?.signal_kind || h.template,
             patient: h.patient, form: h.form, datetime: h.datetime, style: h.style, seed: p.seed,
-            spoken_text: h.text_override ?? p.spoken_text, tts_text: p.tts_text, llm_polished: p.llm_polished };
+            spoken_text: h.text_override ?? p.spoken_text, tts_text: p.tts_text, llm_polished: p.llm_polished, issues: p.issues || [] };
           setItems([it]);
           setSel(it.id);
         }
@@ -85,7 +85,7 @@ export default function ScriptReviewPage({ onTab }: { onTab?: (t: Tab) => void }
         const r = await post<{ patient: Patient; form: Record<string, unknown>; datetime: string }>("/api/random-patient", { template, seed });
         const p = await post<PreviewResp>("/api/script/preview", { template, form: r.form, patient: r.patient, datetime: r.datetime, style, seed });
         made.push({ id: `${seed}-${i}`, template, record_kind: kindOf(template), patient: r.patient, form: r.form, datetime: r.datetime,
-          style, seed: p.seed, spoken_text: p.spoken_text, tts_text: p.tts_text, llm_polished: p.llm_polished });
+          style, seed: p.seed, spoken_text: p.spoken_text, tts_text: p.tts_text, llm_polished: p.llm_polished, issues: p.issues || [] });
         setItems([...made]);
         if (i === 0) setSel(made[0].id);
       } catch (e) {
@@ -102,7 +102,7 @@ export default function ScriptReviewPage({ onTab }: { onTab?: (t: Tab) => void }
       const st = opts.style ?? it.style;
       const p = await post<PreviewResp>("/api/script/preview", { template: it.template, form: it.form, patient: it.patient, datetime: it.datetime,
         style: st, seed: opts.newSeed ? null : it.seed, llm_polish: opts.llm ?? false });
-      setItems((arr) => arr.map((x) => x.id === it.id ? { ...x, style: st, seed: p.seed, spoken_text: p.spoken_text, tts_text: p.tts_text, llm_polished: p.llm_polished } : x));
+      setItems((arr) => arr.map((x) => x.id === it.id ? { ...x, style: st, seed: p.seed, spoken_text: p.spoken_text, tts_text: p.tts_text, llm_polished: p.llm_polished, issues: p.issues || [] } : x));
       setErr("");
     } catch (e) {
       setErr(String(e));
@@ -214,6 +214,7 @@ export default function ScriptReviewPage({ onTab }: { onTab?: (t: Tab) => void }
                 <button className="small primary" onClick={() => toRecord(current)} title="이 대본 그대로 녹음 만들기 단계로">🎙 이 대본으로 녹음 만들기</button>
               </div>
               {current.llm_polished && <div className="muted">LLM 다듬기 적용됨</div>}
+              {current.issues.length > 0 && <div className="badge bad" style={{ marginTop: 6 }} title={current.issues.join("\n")}>⚠ 자동 검사 모순 {current.issues.length}개: {current.issues.join(" · ")}</div>}
               {showTts ? (
                 <div className="preview" style={{ marginTop: 8 }}>{current.tts_text}</div>
               ) : (
