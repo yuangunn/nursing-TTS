@@ -360,6 +360,8 @@ export interface NoiseCatalogItem {
   continuous: boolean;
   duration?: number;
 }
+export interface ModelInfo { id: string; role: string; cached: boolean; path: string; url: string }
+export interface ModelsInfo { cache_dir: string; models: ModelInfo[] }
 export interface EnrollScript {
   id: string;
   title: string;

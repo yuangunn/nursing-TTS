@@ -432,3 +432,29 @@ def test_unknown_pod_leaves_no_dangling_space_before_punctuation():
                                                      "patient": {"name": "강지원", "surgery": "TLH c BSO", "diagnosis": "자궁근종", "pod": None},
                                                      "datetime": "2026-10-20T10:30", "style": "formal", "seed": 2}).json()
         assert " ." not in r["spoken_text"] and " ," not in r["spoken_text"] and "  " not in r["spoken_text"], r["spoken_text"]
+
+
+def test_generate_specs_queue_models_and_llm_test():
+    """녹음 만들기 takes a queue of reviewed scripts; /api/models tells where the on-device models live; the BYOK test
+    reports a clear reason when no provider is configured."""
+    save_settings({"tts_engine": "silent", "llm_provider": "none"})
+    r = client.post("/api/random-patient", json={"template": "s4", "seed": 5}).json()
+    p = client.post("/api/script/preview", json={"template": "s4", "form": r["form"], "patient": r["patient"], "datetime": r["datetime"], "style": "formal", "seed": 5}).json()
+    specs = [{"template": "s4", "form": r["form"], "patient": r["patient"], "datetime": r["datetime"], "style": "formal", "seed": p["seed"]},
+             {"template": "s4", "form": r["form"], "patient": r["patient"], "datetime": r["datetime"], "style": "chart", "seed": 9, "text_override": p["spoken_text"]}]
+    job = client.post("/api/generate/specs", json={"specs": specs, "voice_id": "", "noise": {"enabled": False}, "disfluency": 0}).json()
+    assert job["total"] == 2
+    import time
+    for _ in range(200):
+        j = client.get(f"/api/jobs/{job['id']}").json()
+        if j["status"] in ("done", "error"):
+            break
+        time.sleep(0.1)
+    assert j["status"] == "done", j
+    assert j["items"][0]["spoken_text"] == p["spoken_text"]          # same seed -> the script the user read
+    assert j["items"][1]["spoken_text"].strip() == p["spoken_text"].strip()   # text_override wins
+    assert client.post("/api/generate/specs", json={"specs": []}).status_code == 400
+    m = client.get("/api/models").json()
+    assert m["cache_dir"] and len(m["models"]) == 2 and all(k in m["models"][0] for k in ("id", "cached", "path", "url"))
+    t = client.post("/api/llm/test").json()
+    assert t["ok"] is False and "LLM" in t["error"]
