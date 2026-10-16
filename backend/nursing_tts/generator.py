@@ -428,6 +428,8 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
     if include_closing and closings:
         paragraphs.append(fix_josa(_fmt(rng.choice(closings), ctx)))
 
+    # an empty placeholder ("{stage}" when POD is unknown) must not leave "절제술 ." or double spaces
+    paragraphs = [re.sub(r"\s+([.,!?])", r"\1", re.sub(r"[ \t]{2,}", " ", p)).strip() for p in paragraphs]
     spoken_text = "\n".join(paragraphs)
     # TTS layer: signal line already phonetic; convert the rest.
     tts_rng = random.Random(seed + 1)

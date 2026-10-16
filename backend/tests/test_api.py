@@ -420,3 +420,11 @@ def test_table_import_parse_map_and_generate():
     assert j["status"] == "done" and j["kind"] == "import" and len(j["items"]) == 2, j
     meta = client.get("/api/output/meta", params={"rel": j["items"][0]["files"]["wav"].split("output/")[-1] if "output/" in j["items"][0]["files"]["wav"] else "import_test/" + j["items"][0]["files"]["wav"].rsplit("/", 1)[-1]}).json()
     assert meta["patient"]["name"] == "박철수" and meta["template"] == "s4"
+
+
+def test_unknown_pod_leaves_no_dangling_space_before_punctuation():
+    for t in ("s4", "s5", "s3_1"):
+        r = client.post("/api/script/preview", json={"template": t, "form": client.get(f"/api/templates/{t}/defaults").json(),
+                                                     "patient": {"name": "강지원", "surgery": "TLH c BSO", "diagnosis": "자궁근종", "pod": None},
+                                                     "datetime": "2026-10-20T10:30", "style": "formal", "seed": 2}).json()
+        assert " ." not in r["spoken_text"] and " ," not in r["spoken_text"] and "  " not in r["spoken_text"], r["spoken_text"]
