@@ -32,7 +32,7 @@ export interface UpdateInfo {
 }
 export interface UpdateSettings { skipVersion: string; token: string; feedUrl: string; lastCheck: number; lastResult?: UpdateInfo }
 export interface PythonInfo { found: boolean; version: string; path: string; ok: boolean }
-export interface BundleInfo { present: boolean; path: string; qwen: boolean; models: boolean; python: string; created: string }
+export interface BundleInfo { present: boolean; path: string; qwen: boolean; models: boolean; data?: boolean; python: string; created: string; source?: "imported" | "installer" | "" }
 export interface EnvInfo {
   platform: string;
   arch: string;

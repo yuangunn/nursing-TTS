@@ -4,11 +4,13 @@
 #   scripts/build-offline-bundle.sh                 # base backend (pipeline + system/HTTP engines)
 #   scripts/build-offline-bundle.sh --qwen          # + PyTorch, Qwen3-TTS, faster-whisper (voice cloning)
 #   scripts/build-offline-bundle.sh --qwen --models # + the model weights (Qwen 1.7B ≈ 4.5 GB, whisper small ≈ 0.5 GB)
+#   scripts/build-offline-bundle.sh --data          # + this PC's registered voices and noise clips (app data folder)
 #   scripts/build-offline-bundle.sh --out DIR       # where to build (default: dist-offline/)
 #
 # Output: <out>/nursing-tts-offline-<os>-<arch>[-qwen][-models].zip containing
 #   python/      relocatable CPython (python-build-standalone) with every package installed
 #   models/hub/  Hugging Face cache (only with --models)
+#   data/        voices/ and noises/ copied from this PC's app data folder (only with --data; private, never in a release)
 #   bundle.json  what is inside
 # On the intranet PC: install the app, then 설정 → 백엔드 → "📦 오프라인 번들 가져오기" (or 처음 설정 마법사) and pick the zip.
 # Models can also be copied later into the folder shown under 설정 → 로컬 모델.
@@ -20,10 +22,12 @@ PY_VER="3.12.15"
 OUT="dist-offline"
 WITH_QWEN=0
 WITH_MODELS=0
+WITH_DATA=0
 for a in "$@"; do
   case "$a" in
     --qwen) WITH_QWEN=1 ;;
     --models) WITH_MODELS=1 ;;
+    --data) WITH_DATA=1 ;;
     --out=*) OUT="${a#--out=}" ;;
     --out) shift_out=1 ;;
     *) if [ "${shift_out:-0}" = 1 ]; then OUT="$a"; shift_out=0; else echo "unknown option $a" >&2; exit 2; fi ;;
@@ -39,6 +43,7 @@ esac
 SUFFIX=""
 if [ $WITH_QWEN = 1 ]; then SUFFIX="$SUFFIX-qwen"; fi
 if [ $WITH_MODELS = 1 ]; then SUFFIX="$SUFFIX-models"; fi
+if [ $WITH_DATA = 1 ]; then SUFFIX="$SUFFIX-data"; fi
 NAME="nursing-tts-offline-${OS}-${ARCH}${SUFFIX}"
 WORK="$OUT/$NAME"
 rm -rf "$WORK"; mkdir -p "$WORK"
@@ -73,14 +78,28 @@ else
   echo "== 3/4 models skipped (copy them later into the folder shown under 설정 → 로컬 모델)"
 fi
 
+if [ $WITH_DATA = 1 ]; then
+  # same folder the backend uses (config.py data_dir): NURSING_TTS_DATA or the OS app-data folder
+  DATA_DIR="${NURSING_TTS_DATA:-}"
+  if [ -z "$DATA_DIR" ]; then
+    case "$OS" in mac) DATA_DIR="$HOME/Library/Application Support/NursingTTS" ;; *) DATA_DIR="$HOME/.nursing-tts" ;; esac
+  fi
+  echo "== 3b/4 voices + noises from $DATA_DIR"
+  mkdir -p "$WORK/data"
+  for sub in voices noises; do
+    if [ -d "$DATA_DIR/$sub" ]; then cp -R "$DATA_DIR/$sub" "$WORK/data/$sub"; echo "   $sub: $(du -sh "$WORK/data/$sub" | cut -f1)"; fi
+  done
+fi
+
 echo "== 4/4 bundle.json + zip"
 APP_VERSION=$(node -p "require('./app/package.json').version" 2>/dev/null || echo "")
-QWEN_JSON=false; MODELS_JSON=false
+QWEN_JSON=false; MODELS_JSON=false; DATA_JSON=false
 if [ $WITH_QWEN = 1 ]; then QWEN_JSON=true; fi
 if [ $WITH_MODELS = 1 ]; then MODELS_JSON=true; fi
+if [ $WITH_DATA = 1 ]; then DATA_JSON=true; fi
 cat > "$WORK/bundle.json" <<EOF
 {"name": "nursing-tts-offline", "platform": "${OS}", "arch": "${ARCH}", "python": "${PY_VER}", "qwen": ${QWEN_JSON},
- "models": ${MODELS_JSON}, "app_version": "${APP_VERSION}", "created": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"}
+ "models": ${MODELS_JSON}, "data": ${DATA_JSON}, "app_version": "${APP_VERSION}", "created": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"}
 EOF
 rm -f "$OUT/$NAME.zip"
 (cd "$OUT" && zip -ryq "$NAME.zip" "$NAME")
