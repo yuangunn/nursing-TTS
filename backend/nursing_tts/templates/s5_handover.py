@@ -110,7 +110,7 @@ TEMPLATE = RecordTemplate(
             sel("fall", "낙상", FALL_RISK, default="low"),
             sel("pressure", "욕창", [
                 opt("none", "없음"),
-                opt("risk", "고위험", "욕창 고위험으로 2시간마다 체위 변경 중입니다.", "욕창 위험 있어 체위 변경하고 있고,"),
+                opt("risk", "고위험", "욕창 고위험군으로 2시간마다 체위 변경 중입니다.", "욕창 고위험군이라 체위 변경하고 있고,"),
                 opt("present", "욕창 있음", "천골 부위 욕창 드레싱 중입니다.", "욕창 드레싱 하고 있고,"),
             ], default="none", skip_values=("none",)),
             sel("delirium", "섬망", [

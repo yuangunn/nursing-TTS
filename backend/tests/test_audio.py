@@ -19,7 +19,7 @@ def test_mix_snr():
     sr = 24000
     t = np.arange(int(6 * sr)) / sr
     speech = (0.3 * np.sin(2 * np.pi * 220 * t)).astype(np.float32)
-    cfg = NoiseConfig(enabled=True, level=50, types=["room_tone", "monitor_pulse", "crowd_babble"], seed=1, head_pad=0, tail_pad=0)
+    cfg = NoiseConfig(enabled=True, level=50, types=["room_tone", "monitor_pulse", "crowd_babble"], each_prob=1.0, seed=1, head_pad=0, tail_pad=0)
     mixed, events = mix(speech, sr, cfg)
     assert len(mixed) == len(speech)
     assert events
@@ -231,3 +231,26 @@ def test_bad_sentences_are_resynthesized_until_readback_passes():
     assert [s["retries"] for s in segs] == [0, 2, 0]
     assert segs[1]["cer"] == 0.05 and segs[0]["cer"] == 0.02
     assert abs(float(audio.max()) - 0.3) < 1e-6              # the third take of the bad chunk is what got kept
+
+
+def test_only_real_clips_are_offered_and_each_is_mixed_probabilistically(tmp_path):
+    import numpy as np
+    import soundfile as sf
+    from nursing_tts.audio.mixer import NoiseClip, NoiseConfig, mix
+    from nursing_tts import noise_library
+    assert all(not it["builtin"] for it in noise_library.catalogue())   # no synthetic noises in the catalogue
+    sr = 24000
+    rng = np.random.default_rng(1)
+    clips = []
+    for i, cont in enumerate((True, False, False)):
+        p = tmp_path / f"clip{i}.wav"
+        sf.write(p, (0.2 * rng.standard_normal(sr * 3)).astype("float32"), sr)
+        clips.append(NoiseClip(id=f"c{i}", label=f"실제 소음 {i}" if i else "병실 룸톤", path=p, category="custom", continuous=cont, gain=0.5))
+    speech = np.zeros(sr * 6, dtype="float32")
+    seen = set()
+    for seed in range(12):   # types empty -> all real clips, each with each_prob; never an empty pick
+        _, events = mix(speech, sr, NoiseConfig(enabled=True, level=40, types=[], each_prob=0.5, seed=seed, head_pad=0, tail_pad=0), custom=clips)
+        types = {e["type"] for e in events}
+        assert types and types <= {"c0", "c1", "c2"}, types
+        seen |= types
+    assert seen == {"c0", "c1", "c2"}

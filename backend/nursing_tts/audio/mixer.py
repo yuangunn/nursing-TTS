@@ -27,7 +27,8 @@ class NoiseClip:
 class NoiseConfig:
     enabled: bool = False
     level: int = 35                     # 0..100 loudness of the ambience
-    types: list[str] = field(default_factory=lambda: ["room_tone", "monitor_pulse", "crowd_babble", "footsteps"])
+    types: list[str] = field(default_factory=list)   # empty = every real clip in the library
+    each_prob: float = 0.6              # each enabled clip is mixed into a given recording with this probability
     density: float = 4.0                # events per minute
     reverb: bool = False
     seed: int | None = None
@@ -93,9 +94,13 @@ def mix(speech: np.ndarray, sr: int, cfg: NoiseConfig, custom: list[NoiseClip] |
 
     custom = custom or []
     custom_map = {c.id: c for c in custom}
-    types = [t for t in cfg.types if t in noise_mod.BUILTIN or t in custom_map]
+    floor = _floor_clip(custom, sr)
+    types = [t for t in cfg.types if t in noise_mod.BUILTIN or t in custom_map] if cfg.types else list(custom_map)
+    if types:   # each real clip comes and goes between recordings; never an empty selection when some were enabled
+        picked = [t for t in types if rng.random() < cfg.each_prob]
+        types = picked or [str(rng.choice(types))]
     if not types and not extra_voices:
-        return _finish(speech, sr, cfg, rng), events
+        return _finish(speech, sr, cfg, rng, floor), events
 
     bed = np.zeros(n, dtype=np.float32)
     layer = np.zeros(n, dtype=np.float32)
@@ -160,17 +165,32 @@ def mix(speech: np.ndarray, sr: int, cfg: NoiseConfig, custom: list[NoiseClip] |
         ambience *= target / a_rms
 
     out = speech + ambience
-    return _finish(out, sr, cfg, rng), events
+    return _finish(out, sr, cfg, rng, floor), events
 
 
-def _finish(out: np.ndarray, sr: int, cfg: NoiseConfig, rng: np.random.Generator) -> np.ndarray:
-    """Always-on touches: faint room-tone floor under everything, light (or chosen) room reverb, peak guard."""
+_FLOOR_CACHE: dict[str, np.ndarray] = {}
+
+
+def _floor_clip(custom: list[NoiseClip], sr: int) -> np.ndarray | None:
+    """The ward's real room tone (a library clip labelled 룸톤/room tone) for the always-on floor."""
+    for c in custom:
+        if "룸톤" in c.label or "room tone" in c.label.lower():
+            key = f"{c.path}:{sr}"
+            if key not in _FLOOR_CACHE:
+                _FLOOR_CACHE[key], _ = read_audio(c.path, sr)
+            return _FLOOR_CACHE[key]
+    return None
+
+
+def _finish(out: np.ndarray, sr: int, cfg: NoiseConfig, rng: np.random.Generator, floor: np.ndarray | None = None) -> np.ndarray:
+    """Always-on touches: faint room-tone floor under everything (the real room tone when the library has one,
+    else synthetic), light (or chosen) room reverb, peak guard."""
     if cfg.reverb:
         out = apply_room(out, sr, rng)
     elif cfg.room_wet and cfg.room_wet > 0:
         out = apply_room(out, sr, rng, wet=float(cfg.room_wet))
     if cfg.floor_dbfs and -90 < cfg.floor_dbfs < 0:
-        bed = noise_mod.render("room_tone", len(out) / sr, sr, rng, n=len(out))
+        bed = _fit(floor, len(out), rng) if floor is not None and len(floor) > sr else noise_mod.render("room_tone", len(out) / sr, sr, rng, n=len(out))
         bed = bed / (rms(bed) + 1e-9) * (10 ** (cfg.floor_dbfs / 20))
         out = out + bed
     peak = float(np.max(np.abs(out)))
