@@ -95,7 +95,8 @@ def mix(speech: np.ndarray, sr: int, cfg: NoiseConfig, custom: list[NoiseClip] |
     custom = custom or []
     custom_map = {c.id: c for c in custom}
     floor = _floor_clip(custom, sr)
-    types = [t for t in cfg.types if t in noise_mod.BUILTIN or t in custom_map] if cfg.types else list(custom_map)
+    selectable = [c.id for c in custom if not _is_floor_label(c.label)]   # the room tone is the floor, never a picked noise
+    types = [t for t in cfg.types if (t in noise_mod.BUILTIN or t in custom_map) and t in selectable + list(noise_mod.BUILTIN)] if cfg.types else selectable
     if types:   # each real clip comes and goes between recordings; never an empty selection when some were enabled
         picked = [t for t in types if rng.random() < cfg.each_prob]
         types = picked or [str(rng.choice(types))]
@@ -171,10 +172,14 @@ def mix(speech: np.ndarray, sr: int, cfg: NoiseConfig, custom: list[NoiseClip] |
 _FLOOR_CACHE: dict[str, np.ndarray] = {}
 
 
+def _is_floor_label(label: str) -> bool:
+    return "룸톤" in label or "room tone" in label.lower()
+
+
 def _floor_clip(custom: list[NoiseClip], sr: int) -> np.ndarray | None:
     """The ward's real room tone (a library clip labelled 룸톤/room tone) for the always-on floor."""
     for c in custom:
-        if "룸톤" in c.label or "room tone" in c.label.lower():
+        if _is_floor_label(c.label):
             key = f"{c.path}:{sr}"
             if key not in _FLOOR_CACHE:
                 _FLOOR_CACHE[key], _ = read_audio(c.path, sr)

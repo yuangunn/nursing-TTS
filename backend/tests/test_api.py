@@ -93,6 +93,9 @@ def test_batch():
 def test_noises():
     cat = client.get("/api/noises").json()
     assert all(not n["builtin"] for n in cat)   # only the ward's real recordings are offered (user, 2026-10-16)
+    rt = client.post("/api/noises", files={"file": ("rt.wav", _wav_bytes(2), "audio/wav")}, data={"label": "병실 룸톤 테스트"}).json()["id"]
+    assert all(n["key"] != rt for n in client.get("/api/noises").json())   # room tone feeds the floor, hidden from the list
+    client.delete(f"/api/noises/{rt}")
     r = client.post("/api/noises", files={"file": ("ward.wav", _wav_bytes(2), "audio/wav")}, data={"label": "병동 녹음"})
     assert r.status_code == 200
     nid = r.json()["id"]

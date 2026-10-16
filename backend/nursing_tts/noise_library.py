@@ -48,9 +48,16 @@ def custom_clips() -> list[NoiseClip]:
     return out
 
 
+def is_floor(label: str) -> bool:
+    """The room-tone recording is the always-on floor under every recording, not a selectable noise."""
+    return "룸톤" in label or "room tone" in label.lower()
+
+
 def catalogue() -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []   # synthetic noises are no longer offered: only the ward's real recordings (user, 2026-10-16)
     for it in _load():
+        if is_floor(it["label"]):
+            continue
         items.append({"key": it["id"], "label": it["label"], "builtin": False, "continuous": bool(it.get("continuous")),
                       "duration": it.get("duration", 0), "file": it["file"]})
     return items
