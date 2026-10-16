@@ -8,7 +8,7 @@
     "built": "2026-10-16"
   },
   "4c48034fb7": {
-    "name": "공개 화자 Zeroth-187",
+    "name": "기본 음성 남5",
     "sex": "남",
     "note": "출처: Zeroth-Korean (CC BY 4.0, Lucas Jo·Wonkyum Lee, OpenSLR 40, HF kresnik/zeroth_korean) · 화자 187 · F0 추정 140 Hz",
     "text": "안녕하세요, 이 목소리의 샘플입니다. 환자분 활력징후 혈압 120에 80, 맥박 72, 체온 36.7도 측정되었습니다.",
@@ -16,7 +16,7 @@
     "built": "2026-10-16"
   },
   "e467e16ddd": {
-    "name": "공개 화자 Zeroth-191",
+    "name": "기본 음성 여7",
     "sex": "여",
     "note": "출처: Zeroth-Korean (CC BY 4.0, Lucas Jo·Wonkyum Lee, OpenSLR 40, HF kresnik/zeroth_korean) · 화자 191 · F0 추정 253 Hz",
     "text": "안녕하세요, 이 목소리의 샘플입니다. 환자분 활력징후 혈압 120에 80, 맥박 72, 체온 36.7도 측정되었습니다.",
@@ -24,11 +24,107 @@
     "built": "2026-10-16"
   },
   "e8a53b9657": {
-    "name": "공개 화자 Zeroth-201",
+    "name": "기본 음성 여8",
     "sex": "여",
     "note": "출처: Zeroth-Korean (CC BY 4.0, Lucas Jo·Wonkyum Lee, OpenSLR 40, HF kresnik/zeroth_korean) · 화자 201 · F0 추정 304 Hz",
     "text": "안녕하세요, 이 목소리의 샘플입니다. 환자분 활력징후 혈압 120에 80, 맥박 72, 체온 36.7도 측정되었습니다.",
     "seconds": 10.9,
+    "built": "2026-10-16"
+  },
+  "0241afce7c": {
+    "name": "기본 음성 남4",
+    "sex": "남",
+    "note": "출처: Zeroth-Korean (CC BY 4.0, Lucas Jo·Wonkyum Lee, OpenSLR 40, HF kresnik/zeroth_korean) · 화자 154 · F0 추정 154 Hz",
+    "text": "안녕하세요, 이 목소리의 샘플입니다. 환자분 활력징후 혈압 120에 80, 맥박 72, 체온 36.7도 측정되었습니다.",
+    "seconds": 7.4,
+    "built": "2026-10-16"
+  },
+  "1bbc247aab": {
+    "name": "기본 음성 남3",
+    "sex": "남",
+    "note": "출처: Zeroth-Korean (CC BY 4.0, Lucas Jo·Wonkyum Lee, OpenSLR 40, HF kresnik/zeroth_korean) · 화자 150 · F0 추정 117 Hz",
+    "text": "안녕하세요, 이 목소리의 샘플입니다. 환자분 활력징후 혈압 120에 80, 맥박 72, 체온 36.7도 측정되었습니다.",
+    "seconds": 7.8,
+    "built": "2026-10-16"
+  },
+  "276bee12db": {
+    "name": "기본 음성 여6",
+    "sex": "여",
+    "note": "출처: Zeroth-Korean (CC BY 4.0, Lucas Jo·Wonkyum Lee, OpenSLR 40, HF kresnik/zeroth_korean) · 화자 180 · F0 추정 207 Hz",
+    "text": "안녕하세요, 이 목소리의 샘플입니다. 환자분 활력징후 혈압 120에 80, 맥박 72, 체온 36.7도 측정되었습니다.",
+    "seconds": 9.0,
+    "built": "2026-10-16"
+  },
+  "37f32a2b98": {
+    "name": "기본 음성 여4",
+    "sex": "여",
+    "note": "출처: Zeroth-Korean (CC BY 4.0, Lucas Jo·Wonkyum Lee, OpenSLR 40, HF kresnik/zeroth_korean) · 화자 164 · F0 추정 200 Hz",
+    "text": "안녕하세요, 이 목소리의 샘플입니다. 환자분 활력징후 혈압 120에 80, 맥박 72, 체온 36.7도 측정되었습니다.",
+    "seconds": 9.0,
+    "built": "2026-10-16"
+  },
+  "46a3de682e": {
+    "name": "기본 음성 남7",
+    "sex": "남",
+    "note": "출처: Zeroth-Korean (CC BY 4.0, Lucas Jo·Wonkyum Lee, OpenSLR 40, HF kresnik/zeroth_korean) · 화자 207 · F0 추정 132 Hz",
+    "text": "안녕하세요, 이 목소리의 샘플입니다. 환자분 활력징후 혈압 120에 80, 맥박 72, 체온 36.7도 측정되었습니다.",
+    "seconds": 9.1,
+    "built": "2026-10-16"
+  },
+  "505c3d8201": {
+    "name": "기본 음성 여2",
+    "sex": "여",
+    "note": "출처: Zeroth-Korean (CC BY 4.0, Lucas Jo·Wonkyum Lee, OpenSLR 40, HF kresnik/zeroth_korean) · 화자 130 · F0 추정 209 Hz",
+    "text": "안녕하세요, 이 목소리의 샘플입니다. 환자분 활력징후 혈압 120에 80, 맥박 72, 체온 36.7도 측정되었습니다.",
+    "seconds": 9.0,
+    "built": "2026-10-16"
+  },
+  "56b4f4aa49": {
+    "name": "기본 음성 남1",
+    "sex": "남",
+    "note": "출처: Zeroth-Korean (CC BY 4.0, Lucas Jo·Wonkyum Lee, OpenSLR 40, HF kresnik/zeroth_korean) · 화자 114 · F0 추정 98 Hz",
+    "text": "안녕하세요, 이 목소리의 샘플입니다. 환자분 활력징후 혈압 120에 80, 맥박 72, 체온 36.7도 측정되었습니다.",
+    "seconds": 9.3,
+    "built": "2026-10-16"
+  },
+  "9091da3c58": {
+    "name": "기본 음성 여5",
+    "sex": "여",
+    "note": "출처: Zeroth-Korean (CC BY 4.0, Lucas Jo·Wonkyum Lee, OpenSLR 40, HF kresnik/zeroth_korean) · 화자 168 · F0 추정 203 Hz",
+    "text": "안녕하세요, 이 목소리의 샘플입니다. 환자분 활력징후 혈압 120에 80, 맥박 72, 체온 36.7도 측정되었습니다.",
+    "seconds": 9.7,
+    "built": "2026-10-16"
+  },
+  "c1cfb47107": {
+    "name": "기본 음성 남6",
+    "sex": "남",
+    "note": "출처: Zeroth-Korean (CC BY 4.0, Lucas Jo·Wonkyum Lee, OpenSLR 40, HF kresnik/zeroth_korean) · 화자 192 · F0 추정 149 Hz",
+    "text": "안녕하세요, 이 목소리의 샘플입니다. 환자분 활력징후 혈압 120에 80, 맥박 72, 체온 36.7도 측정되었습니다.",
+    "seconds": 9.0,
+    "built": "2026-10-16"
+  },
+  "cd1645b4b1": {
+    "name": "기본 음성 남2",
+    "sex": "남",
+    "note": "출처: Zeroth-Korean (CC BY 4.0, Lucas Jo·Wonkyum Lee, OpenSLR 40, HF kresnik/zeroth_korean) · 화자 116 · F0 추정 122 Hz",
+    "text": "안녕하세요, 이 목소리의 샘플입니다. 환자분 활력징후 혈압 120에 80, 맥박 72, 체온 36.7도 측정되었습니다.",
+    "seconds": 8.8,
+    "built": "2026-10-16"
+  },
+  "cfdf2106b1": {
+    "name": "기본 음성 여3",
+    "sex": "여",
+    "note": "출처: Zeroth-Korean (CC BY 4.0, Lucas Jo·Wonkyum Lee, OpenSLR 40, HF kresnik/zeroth_korean) · 화자 160 · F0 추정 226 Hz",
+    "text": "안녕하세요, 이 목소리의 샘플입니다. 환자분 활력징후 혈압 120에 80, 맥박 72, 체온 36.7도 측정되었습니다.",
+    "seconds": 12.2,
+    "built": "2026-10-16"
+  },
+  "f264a10ba3": {
+    "name": "기본 음성 여1",
+    "sex": "여",
+    "note": "출처: Zeroth-Korean (CC BY 4.0, Lucas Jo·Wonkyum Lee, OpenSLR 40, HF kresnik/zeroth_korean) · 화자 106 · F0 추정 200 Hz",
+    "text": "안녕하세요, 이 목소리의 샘플입니다. 환자분 활력징후 혈압 120에 80, 맥박 72, 체온 36.7도 측정되었습니다.",
+    "seconds": 9.6,
     "built": "2026-10-16"
   }
 }
