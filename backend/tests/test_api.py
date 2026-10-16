@@ -379,3 +379,16 @@ def test_formal_vitals_do_not_use_temperature_slang():
     for i in range(60):
         txt = realize_vitals({"sbp": 120, "dbp": 80, "hr": 72, "rr": 18, "bt": 38.3, "spo2": 97}, random.Random(i), verb_style="formal")
         assert "8도" not in txt and "38.3" in txt, txt
+
+
+def test_script_review_flags_roundtrip():
+    client.delete("/api/script-review")
+    f = client.post("/api/script-review", json={"template": "s4", "record_kind": "퇴원간호", "patient": "홍길동", "style": "formal",
+                                                 "seed": 7, "sentence": "참을 만하다고 하십니다.", "note": "이렇게 말 안 함"}).json()
+    assert f["id"] and f["sentence"] == "참을 만하다고 하십니다."
+    assert client.post("/api/script-review", json={"sentence": "  "}).status_code == 400
+    lst = client.get("/api/script-review").json()
+    assert any(x["id"] == f["id"] for x in lst["items"]) and "[퇴원간호] 참을 만하다고 하십니다. — 이렇게 말 안 함" in lst["markdown"]
+    assert client.patch(f"/api/script-review/{f['id']}", json={"note": "고침"}).json()["note"] == "고침"
+    assert client.delete(f"/api/script-review/{f['id']}").json()["removed"] == 1
+    assert client.get("/api/script-review").json()["items"] == []

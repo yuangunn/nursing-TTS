@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel
 
-from . import __version__, dataset, jobs, llm, noise_library, phrase_store, signal as signal_mod, verify as verify_mod, voices as voices_mod
+from . import __version__, dataset, jobs, llm, noise_library, phrase_store, script_review, signal as signal_mod, verify as verify_mod, voices as voices_mod
 from .templates.extra_phrases import VITALS_FORMS
 from .audio.augment import preset_catalogue
 from .audio import noise as noise_mod
@@ -522,6 +522,37 @@ def preview(req: PreviewRequest):
             "sentences": script.sentences, "llm_polished": polished,
             "signal_format": script.structured.get("signal_format"), "signal_parse": script.structured.get("signal_parse"),
             "filename": f"{when.strftime('%Y%m%d_%H%M')}_{jobs.safe_filename(req.patient.name)}"}
+
+
+@app.get("/api/script-review")
+def script_review_list():
+    items = script_review.load()
+    return {"items": items, "markdown": script_review.as_markdown(items)}
+
+
+@app.post("/api/script-review")
+def script_review_add(body: dict[str, Any]):
+    if not (body.get("sentence") or "").strip():
+        raise HTTPException(400, "문장이 비어 있습니다.")
+    return script_review.add(body)
+
+
+@app.patch("/api/script-review/{flag_id}")
+def script_review_update(flag_id: str, body: dict[str, Any]):
+    it = script_review.update(flag_id, body.get("note", ""))
+    if not it:
+        raise HTTPException(404, "no such flag")
+    return it
+
+
+@app.delete("/api/script-review/{flag_id}")
+def script_review_delete(flag_id: str):
+    return {"removed": script_review.remove(flag_id)}
+
+
+@app.delete("/api/script-review")
+def script_review_clear():
+    return {"removed": script_review.remove(None)}
 
 
 @app.get("/api/signal/formats")
