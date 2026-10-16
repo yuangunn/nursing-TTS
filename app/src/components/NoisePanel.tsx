@@ -35,19 +35,29 @@ export default function NoisePanel({ value, onChange, extra, voiceId }: Props) {
     onChange({ ...value, types: types.length === all.length && all.every((x) => types.includes(x)) ? [] : types });
   };
 
-  const play = (url: string, key: string) => {
+  const stop = () => {
     if (audioRef.current) {
       audioRef.current.pause();
+      audioRef.current.src = "";
+      audioRef.current = null;
     }
+    setPreviewing("");
+  };
+  /** ▶ starts the clip; pressing the same button again (■) stops it. */
+  const play = (url: string, key: string) => {
+    if (previewing === key) { stop(); return; }
+    stop();
     const a = new Audio(url);
     audioRef.current = a;
     setPreviewing(key);
     a.onended = () => setPreviewing("");
     a.play().catch(() => setPreviewing(""));
   };
+  useEffect(() => () => stop(), []);   // leaving the page stops the preview
 
   const previewMix = async () => {
     setErr("");
+    if (previewing === "__mix") { stop(); return; }
     try {
       const { blob } = await postBlob("/api/noises/preview-mix", value);
       play(URL.createObjectURL(blob), "__mix");

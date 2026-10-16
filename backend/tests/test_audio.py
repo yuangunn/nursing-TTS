@@ -251,6 +251,6 @@ def test_only_real_clips_are_offered_and_each_is_mixed_probabilistically(tmp_pat
     for seed in range(12):   # types empty -> all real clips, each with each_prob; never an empty pick
         _, events = mix(speech, sr, NoiseConfig(enabled=True, level=40, types=[], each_prob=0.5, seed=seed, head_pad=0, tail_pad=0), custom=clips)
         types = {e["type"] for e in events}
-        assert types and types <= {"c0", "c1", "c2"}, types
+        assert types and types <= {"c1", "c2"}, types   # c0 is the room tone: floor only, never a picked noise
         seen |= types
-    assert seen == {"c0", "c1", "c2"}
+    assert seen == {"c1", "c2"}
