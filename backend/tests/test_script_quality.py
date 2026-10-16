@@ -202,3 +202,27 @@ def test_other_templates_are_coherent():
                     assert f["pca_remove"] == "removed"
                 if f["meal1"] == "npo":
                     assert f["meal2"] == "npo"
+
+
+def test_fall_history_follows_the_admission_and_each_register_has_several_endings():
+    """2026-10-17: 낙상력 is asked in the interview and is 'yes' when the patient came in after a fall (JHFRAT +5);
+    every register offers several real endings for one phrase (하였습니다/했습니다/드렸습니다, 고요/구요, 함/하였음)."""
+    import random
+    from nursing_tts import phrase_store
+    from nursing_tts.fake import random_form, random_patient, jhfrat_score
+    rng = random.Random(8)
+    seen_yes = 0
+    for _ in range(300):
+        p = random_patient(rng, "s1"); f = random_form("s1", rng, p)
+        cc = f.get("chief_complaint", "") + f.get("present_illness", "")
+        if any(w in cc for w in ("낙상", "미끄러", "넘어")):
+            assert f["fall_history"] == "yes", cc
+            seen_yes += 1
+        forced_high = p.scenario in ("THA", "BKA", "Tracheostomy")   # the scenario forces 고위험 (score raised to 14+)
+        assert f["jhfrat"] == jhfrat_score(f, p) or (forced_high and f["jhfrat"] >= 14), (p.scenario, f["jhfrat"], jhfrat_score(f, p))
+    assert seen_yes >= 5
+    endings = {}
+    for style in ("formal", "casual", "chart"):
+        endings[style] = {phrase_store.stylize("보호자분께 수술 대기실 위치 설명하였습니다.", random.Random(i), style, expand=True).rsplit(" ", 1)[-1] for i in range(200)}
+    assert len(endings["formal"]) >= 3 and len(endings["casual"]) >= 4 and len(endings["chart"]) >= 2, endings
+    assert "설명드렸습니다." in endings["formal"] and "설명했구요," in endings["casual"] and "설명하였음." in endings["chart"]
