@@ -14,6 +14,8 @@ export interface NursingBridge {
   appVersion(): Promise<string>;
   cancelSetup(): Promise<boolean>;
   checkEnvironment(): Promise<EnvInfo>;
+  importOfflineBundle(zipPath?: string): Promise<{ ok: boolean; message: string; bundle?: BundleInfo }>;
+  offlineBundleInfo(): Promise<BundleInfo>;
   openExternal(url: string): Promise<void>;
   checkUpdate(force?: boolean): Promise<UpdateInfo>;
   getUpdateSettings(): Promise<UpdateSettings>;
@@ -30,6 +32,7 @@ export interface UpdateInfo {
 }
 export interface UpdateSettings { skipVersion: string; token: string; feedUrl: string; lastCheck: number; lastResult?: UpdateInfo }
 export interface PythonInfo { found: boolean; version: string; path: string; ok: boolean }
+export interface BundleInfo { present: boolean; path: string; qwen: boolean; models: boolean; python: string; created: string }
 export interface EnvInfo {
   platform: string;
   arch: string;
@@ -42,6 +45,8 @@ export interface EnvInfo {
   venvDir: string;
   backendDir: string;
   dataDir: string;
+  offline?: BundleInfo;
+  pythonInUse?: string;
 }
 export type SetupPhase = "venv" | "pip" | "deps" | "qwen" | "model" | "start" | "done" | "error" | "cancelled";
 export interface SetupProgress {

@@ -3,6 +3,7 @@ import { EngineInfo, EnrollScript, EnvInfo, get, post, put, Settings, Voice } fr
 import { AppStatus, setOnboarded } from "../lib/onboarding";
 import { Recorder, startRecording } from "../lib/wav";
 import InstallProgress from "./InstallProgress";
+import OfflineBundle from "./OfflineBundle";
 
 /**
  * First-run wizard. Full screen until the user finishes (or skips) it.
@@ -129,6 +130,7 @@ export default function SetupWizard({ status, refresh, onFinish }: Props) {
                 <span><b>Qwen3-TTS 목소리 복제 엔진도 설치</b> <span className="badge warn">약 6.5 GB · 10~25분</span><br /><small className="muted">등록한 간호사 목소리로 한국어를 합성하려면 필요합니다. Apple Silicon 또는 NVIDIA GPU에서 실시간의 약 2배 시간이 걸리고, CPU만 있으면 매우 느립니다. 급하면 끄고 시스템 음성으로 흐름을 먼저 확인해도 됩니다.</small></span>
               </label>
               {(!installed || withQwen) && <InstallProgress key={withQwen ? "qwen" : "base"} withQwen={withQwen} onDone={async (ok) => { if (ok) await refresh(); }} />}
+              <OfflineBundle onDone={async () => { await refresh(); await checkEnv(); }} />
               <div className="wizard-actions">
                 <button onClick={back}>← 이전</button>
                 <button className="primary" onClick={next} disabled={!installed && electron}>다음 →</button>

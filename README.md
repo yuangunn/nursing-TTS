@@ -112,6 +112,20 @@ npm run dist:mac    # macOS dmg
 
 설치 버전은 `resources/backend` 안의 Python 가상환경을 찾습니다. 배포 PC에서도 `scripts/setup-backend.*`를 한 번 실행해 `.venv`를 만들어 주세요.
 
+### 4) 인트라넷(인터넷 없는 PC) 설치 — 오프라인 번들
+
+설치 후 Python이나 pip, 모델을 내려받을 수 없는 PC용입니다. 인터넷이 되는 PC에서 번들 zip을 만들어 USB 등으로 옮깁니다.
+
+```bash
+# 인터넷 되는 PC (같은 OS·아키텍처여야 함)
+scripts/build-offline-bundle.sh --qwen            # macOS/Linux: Python + 패키지 + Qwen3-TTS/faster-whisper
+scripts/build-offline-bundle.sh --qwen --models   # + 모델 파일(약 5 GB)까지 한 번에
+powershell -ExecutionPolicy Bypass -File scripts\build-offline-bundle.ps1 -Qwen          # Windows (CPU PyTorch)
+powershell -ExecutionPolicy Bypass -File scripts\build-offline-bundle.ps1 -Qwen -Cuda    # Windows + NVIDIA (cu128, 약 3 GB)
+```
+
+번들은 `dist-offline/nursing-tts-offline-<os>-<arch>[-qwen][-models].zip`로 만들어집니다(안에 relocatable CPython `python/`, 선택 `models/hub/`, `bundle.json`). 인트라넷 PC에서는 앱 설치 파일을 깔고 **처음 설정 마법사의 "백엔드 설치" 단계** 또는 **설정 → 백엔드**에서 "📦 오프라인 번들(zip) 가져오기"로 그 zip을 고르면, 앱 데이터 폴더 `offline/`에 풀려 그 Python으로 백엔드가 뜹니다. 모델을 번들에 넣지 않았다면 설정 → 로컬 모델의 폴더에 `models--Qwen--Qwen3-TTS-12Hz-1.7B-Base`, `models--Systran--faster-whisper-small` 폴더를 복사하세요. GitHub Actions의 "Offline bundle" 워크플로로도 mac(arm64/x64)·Windows(CPU) 번들을 릴리스에 올릴 수 있습니다(2 GB 넘는 CUDA 번들은 로컬에서 만들어 옮김).
+
 ## TTS 엔진
 
 | 엔진 | 목소리 복제 | 비고 |
