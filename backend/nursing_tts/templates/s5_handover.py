@@ -65,7 +65,7 @@ TEMPLATE = RecordTemplate(
             ], default="foley_removed"),
             sel("bowel", "배변", [
                 opt("none_yet", "아직 없음", "배변은 아직 없습니다.", "대변은 아직 안 보셨고,"),
-                opt("done", "있음", "배변 1회 있었습니다.", "대변 한 번 보셨고,"),
+                opt("done", "있음", "배변 1회 있었습니다.", "대변 한 번 보셨고,", "대변 한 번 보셨습니다."),
                 opt("diarrhea", "설사", "설사 3회 있어 관찰 중입니다.", "묽은 변 여러 번 보셔서 관찰 중이고,"),
             ], default="none_yet", speak_prob=0.7),
             sel("sleep", "수면", [

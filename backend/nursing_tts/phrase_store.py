@@ -195,6 +195,35 @@ def expand_styles(phrase: str) -> list[str]:
     return [p]
 
 
+# Ending variety inside one register (user 2026-10-17: "어투마다 어미가 3~5개는 있어야, 말도 안 되는 어미는 말고").
+# Each rule only swaps one real ward ending for another of the same register and politeness.
+_FORMAL_ALT: list[tuple[re.Pattern[str], list[str]]] = [
+    (re.compile(r"설명하였습니다\.$"), ["설명드렸습니다.", "설명했습니다."]),
+    (re.compile(r"교육하였습니다\.$"), ["교육했습니다.", "교육해 드렸습니다."]),
+    (re.compile(r"안내하였습니다\.$"), ["안내드렸습니다.", "안내했습니다."]),
+    (re.compile(r"확인하였습니다\.$"), ["확인했습니다."]),
+    (re.compile(r"시행하였습니다\.$"), ["시행했습니다."]),
+    (re.compile(r"하였습니다\.$"), ["했습니다."]),
+    (re.compile(r"되었습니다\.$"), ["됐습니다."]),
+]
+_CHART_ALT: list[tuple[re.Pattern[str], str]] = [(re.compile(r"함\.$"), "하였음."), (re.compile(r"됨\.$"), "되었음."), (re.compile(r"음\.$"), "음.")]
+
+
+def vary_ending(text: str, rng: random.Random, register: str) -> str:
+    """formal: 하였습니다 → 했습니다/드렸습니다 (40%), connective: 고요 → 구요 (40%), chart: 함 → 하였음 (30%)."""
+    if register == "formal" and rng.random() < 0.4:
+        for rx, alts in _FORMAL_ALT:
+            if rx.search(text):
+                return rx.sub(rng.choice(alts), text)
+    elif register == "connective" and text.endswith("고요,") and rng.random() < 0.4:
+        return text[:-3] + "구요,"
+    elif register == "chart" and rng.random() < 0.3:
+        for rx, rep in _CHART_ALT:
+            if rx.search(text):
+                return rx.sub(rep, text)
+    return text
+
+
 def stylize(text: str, rng: random.Random, style: str = "mixed", allow_connective: bool = True,
             expand: bool | None = None) -> str:
     """Apply the style expander to an already-formatted sentence."""
@@ -204,13 +233,14 @@ def stylize(text: str, rng: random.Random, style: str = "mixed", allow_connectiv
         return text
     if style == "chart":
         # 기록체: "~함/~됨/~임". Connectives stay as they are ("~하고,").
-        return chart_form(text)
+        return vary_ending(chart_form(text), rng, "chart")
     variants = expand_styles(text)
     if len(variants) == 1 and variants[0] != text:
         return variants[0]
     if len(variants) == 1:
         return text
     formal, conn, casual = variants
+    formal, conn = vary_ending(formal, rng, "formal"), vary_ending(conn, rng, "connective")
     if style == "formal":
         options, weights = [formal, conn, casual], [9, 1, 0]
     elif style == "casual":

@@ -25,7 +25,7 @@ CONSCIOUSNESS = [
     opt("confuse", "혼돈(confuse)",
         "의식 confuse 상태입니다.", "지남력 떨어지고 confuse 하십니다.", "멘탈 confuse 하시고,"),
     opt("stupor", "혼미(stupor)",
-        "의식 stupor 상태입니다.", "강한 자극에만 반응하는 stupor 상태입니다."),
+        "의식 stupor 상태입니다.", "강한 자극에만 반응하는 stupor 상태입니다.", "stupor 상태로 강한 자극에만 반응하십니다."),
 ]
 
 ORIENTATION = [
@@ -86,7 +86,7 @@ CODE_STATUS = [  # 이 병동은 "full code"라는 말을 쓰지 않는다: DNR/
 ISOLATION = [
     opt("none", "격리 아님", "격리 아닙니다.", "격리 대상 아니고,", "격리 해당 없습니다."),
     opt("contact", "접촉 격리", "접촉 격리 중입니다.", "접촉 격리 환자이고,", "접촉격리 적용 중이구요,"),
-    opt("droplet", "비말 격리", "비말 격리 중입니다.", "비말격리 환자이고,"),
+    opt("droplet", "비말 격리", "비말 격리 중입니다.", "비말격리 환자이고,", "비말 격리 적용 중이십니다."),
     opt("airborne", "공기 격리", "음압실 공기 격리 중입니다.", "공기 격리 환자이고,"),
 ]
 

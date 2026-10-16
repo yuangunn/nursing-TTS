@@ -227,6 +227,8 @@ def jhfrat_score(form: dict[str, Any], patient: Patient | None) -> int:
     s += {"drowsy": 1, "confuse": 3}.get(form.get("consciousness") or "", 0)
     if any(x in (form.get("sense") or []) for x in ("vision", "hearing")):
         s += 2
+    if form.get("fall_history") == "yes":
+        s += 5                                   # JHFRAT: one fall in the 6 months before admission
     return max(0, min(35, s))
 
 
@@ -592,6 +594,9 @@ def _derive_s1(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
             form.pop("weakness_note", None)
     if "social_work" in form and rng.random() < 0.95:
         form["social_work"] = "neg"
+    if "fall_history" in form:   # the fall that brought the patient in counts (user 2026-10-17)
+        fell = any(w in cc for w in ("낙상", "미끄러", "넘어", "골절"))
+        form["fall_history"] = "yes" if fell or (age >= 75 and rng.random() < 0.08) else "no"
     # an elective admission is awake; confusion only in the very old after a fall
     if "consciousness" in form:
         form["consciousness"] = "confuse" if (age >= 75 and any(w in cc for w in ("낙상", "골절", "미끄러")) and rng.random() < 0.15) else "alert"
@@ -1425,6 +1430,8 @@ def audit(form: dict[str, Any], patient: Patient | None, template_key: str) -> l
         issues.append("알레르기 없음인데 반응 양상이 있음")
     if patient is not None and "제왕절개" in str(form.get("past_surgery") or "") and (not patient.sex.startswith("여") or (patient.age or 0) > 70):
         issues.append("제왕절개 과거력이 환자와 맞지 않음")
+    if template_key == "s1" and "fall_history" in form and any(w in cc for w in ("낙상", "미끄러", "넘어")) and form["fall_history"] != "yes":
+        issues.append("낙상으로 입원했는데 낙상력 없음")
     return issues
 
 
