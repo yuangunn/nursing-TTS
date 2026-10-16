@@ -382,7 +382,7 @@ export const DEFAULT_PATIENT: Patient = {
 export const DEFAULT_NOISE: NoiseSettings = {
   enabled: false,
   level: 35,
-  types: ["room_tone", "monitor_pulse", "crowd_babble", "footsteps"],
+  types: [],
   density: 4,
   reverb: false,
 };

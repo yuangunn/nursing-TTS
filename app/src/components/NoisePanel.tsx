@@ -26,8 +26,10 @@ export default function NoisePanel({ value, onChange, extra, voiceId }: Props) {
   }, []);
 
   const toggle = (k: string) => {
-    const types = value.types.includes(k) ? value.types.filter((x) => x !== k) : [...value.types, k];
-    onChange({ ...value, types });
+    const all = catalog.map((n) => n.key);
+    const current = value.types.length ? value.types : all;   // empty = all real clips
+    const types = current.includes(k) ? current.filter((x) => x !== k) : [...current, k];
+    onChange({ ...value, types: types.length === all.length && all.every((x) => types.includes(x)) ? [] : types });
   };
 
   const play = (url: string, key: string) => {
@@ -60,7 +62,7 @@ export default function NoisePanel({ value, onChange, extra, voiceId }: Props) {
       if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
       const item = await r.json();
       await load();
-      if (!value.types.includes(item.id)) onChange({ ...value, types: [...value.types, item.id] });
+      if (value.types.length && !value.types.includes(item.id)) onChange({ ...value, types: [...value.types, item.id] });
     } catch (e) {
       setErr(String(e));
     } finally {
@@ -78,7 +80,7 @@ export default function NoisePanel({ value, onChange, extra, voiceId }: Props) {
       if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
       const item = await r.json();
       await load();
-      onChange({ ...value, types: [...value.types, item.id] });
+      if (value.types.length) onChange({ ...value, types: [...value.types, item.id] });
     } catch (e) {
       setErr(String(e));
     }
@@ -93,7 +95,7 @@ export default function NoisePanel({ value, onChange, extra, voiceId }: Props) {
       if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
       const j = await r.json();
       await load();
-      onChange({ ...value, types: [...value.types, ...j.added.map((a: { id: string }) => a.id)] });
+      if (value.types.length) onChange({ ...value, types: [...value.types, ...j.added.map((a: { id: string }) => a.id)] });
       if (j.failed.length) setErr(`${j.failed.length}개 파일 실패: ${j.failed.map((f: { file: string }) => f.file).join(", ")}`);
     } catch (e) {
       setErr(String(e));
@@ -134,13 +136,13 @@ export default function NoisePanel({ value, onChange, extra, voiceId }: Props) {
       </div>
       <div className="pill-grid" style={{ marginTop: 10 }}>
         {catalog.map((n) => {
-          const on = value.types.includes(n.key);
+          const on = value.types.length === 0 || value.types.includes(n.key);
           return (
             <div key={n.key} className={"pill" + (on ? " on" : "")} onClick={() => value.enabled && toggle(n.key)} style={{ opacity: value.enabled ? 1 : 0.5 }}>
               <input type="checkbox" checked={on} disabled={!value.enabled} onChange={() => toggle(n.key)} onClick={(e) => e.stopPropagation()} />
               <div style={{ flex: 1 }}>
                 <div className="t">{n.label}</div>
-                <div className="d">{n.builtin ? (n.continuous ? "지속 배경음" : "랜덤 이벤트") : `내 파일 · ${n.duration ?? 0}s`}</div>
+                <div className="d">{n.continuous ? "배경음" : "이벤트"} · 실제 녹음 {n.duration ?? 0}s</div>
               </div>
               <button className="small" title="미리듣기" onClick={(e) => { e.stopPropagation(); play(apiUrl(`/api/noises/${n.key}/preview`), n.key); }}>
                 {previewing === n.key ? "■" : "▶"}

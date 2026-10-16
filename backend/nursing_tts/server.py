@@ -57,7 +57,8 @@ class PatientModel(BaseModel):
 class NoiseModel(BaseModel):
     enabled: bool = False
     level: int = 35
-    types: list[str] = ["room_tone", "monitor_pulse", "crowd_babble", "footsteps"]
+    types: list[str] = []            # empty = every real clip in the library
+    each_prob: float = 0.6
     density: float = 4.0
     reverb: bool = False
 

@@ -95,7 +95,10 @@ def test_fall_and_pressure_scores_match_their_risk_bands():
             assert f["p_braden_risk"] == braden_risk(f["p_braden"])
         s = build_script("s1", f, p, random_datetime(rng), style="formal", seed=1)
         assert "Morse" not in s.spoken_text and "모스" not in s.spoken_text
-        assert s.spoken_text.count("존스홉킨스") <= (2 if f["fall"] == "high" else 1), s.spoken_text   # score (+ high-risk re-assessment)
+        for w in ("Braden", "존스홉킨스", "JHFRAT", "브레이든"):
+            assert w not in s.spoken_text, (w, s.spoken_text)          # ward talk: "낙상 n점으로 중위험군", never the tool name
+        assert re.search(r"낙상 \d+점으로 .*위험", s.spoken_text) or "낙상 " in s.spoken_text, s.spoken_text
+        assert f["pressure_risk"] == {"최고위험": "very_high", "고위험": "high", "중등도 위험": "moderate", "저위험": "low", "위험 없음": "none"}[braden_risk(f["braden"])]
         if f["fall"] != "high":
             assert not any(k.startswith("p_fall_") for k in f), [k for k in f if k.startswith("p_fall_")]
     assert {"low", "moderate", "high"} <= levels

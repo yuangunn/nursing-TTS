@@ -120,7 +120,8 @@ def _noise_cfg(raw: dict[str, Any] | None, settings: dict[str, Any], rng: random
     return NoiseConfig(
         enabled=bool(raw.get("enabled", False)),
         level=int(raw.get("level", settings.get("noise_default_level", 35))),
-        types=list(raw.get("types") or ["room_tone", "monitor_pulse", "crowd_babble", "footsteps"]),
+        types=list(raw.get("types") or []),             # empty = all of the ward's real clips, each with each_prob
+        each_prob=float(raw.get("each_prob", 0.6)),
         density=float(raw.get("density", 4.0)),
         reverb=bool(raw.get("reverb", False)),
         seed=rng.randrange(1 << 30),

@@ -285,6 +285,8 @@ def _consistency(form: dict[str, Any], template_key: str, t, rng: random.Random,
             form["braden"] = min(int(form["braden"]), 14)
         elif patient is not None and (patient.age or 0) < 65 and form.get("mobility") == "independent":
             form["braden"] = max(int(form["braden"]), 19)
+        if "pressure_risk" in form:   # spoken as "욕창 n점으로 저위험군" — the band must match the score
+            form["pressure_risk"] = {"최고위험": "very_high", "고위험": "high", "중등도 위험": "moderate", "저위험": "low", "위험 없음": "none"}[braden_risk(int(form["braden"]))]
     if form.get("consciousness") == "alert" and "orientation" in form and rng.random() < 0.9:
         form["orientation"] = "yes"   # an alert patient is almost always oriented
     if form.get("weight_screen") == "neg":
@@ -505,6 +507,10 @@ def random_form(template_key: str, rng: random.Random, patient: Patient | None =
     # keep things consistent with the scenario the patient was drawn from
     if sc is not None:
         first = sc.kind == "chemo" and patient.cycle == 1
+        if sc.kind == "chemo" and not first and "present_illness" in form:
+            pi_pool = coherent_pool(patient.diagnosis, sc.pi) or list(sc.pi)
+            if all("1차 시작" in x for x in pi_pool):   # only first-cycle histories fit this diagnosis → make it cycle 1
+                patient.cycle, first = 1, True
         if "chief_complaint" in form:
             pool = coherent_pool(patient.diagnosis, sc.cc) or list(sc.cc)
             pool = [x for x in pool if first or "1차 시작" not in x] or pool   # "보조 항암 1차 시작" only on cycle 1

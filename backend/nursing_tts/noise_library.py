@@ -9,7 +9,6 @@ from typing import Any
 
 from .audio.io import duration, normalize_peak, read_audio, write_wav
 from .audio.mixer import NoiseClip
-from .audio.noise import BUILTIN
 from .config import data_dir
 
 
@@ -50,7 +49,7 @@ def custom_clips() -> list[NoiseClip]:
 
 
 def catalogue() -> list[dict[str, Any]]:
-    items = [{"key": k, "label": v.label, "builtin": True, "continuous": v.continuous} for k, v in BUILTIN.items()]
+    items: list[dict[str, Any]] = []   # synthetic noises are no longer offered: only the ward's real recordings (user, 2026-10-16)
     for it in _load():
         items.append({"key": it["id"], "label": it["label"], "builtin": False, "continuous": bool(it.get("continuous")),
                       "duration": it.get("duration", 0), "file": it["file"]})

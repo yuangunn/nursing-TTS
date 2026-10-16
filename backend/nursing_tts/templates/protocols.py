@@ -72,8 +72,8 @@ def fall_high() -> Section:
         ], phrases=[], default=["near", "low", "rail", "wheel"], speak_prob=0.0),
         _b("call_bell", "call bell 제공함", "call bell 제공함.", "콜벨 손 닿는 곳에 두고 사용법 설명함.", "콜벨 제공하고 필요 시 호출하도록 교육함."),
         _b("fall_bracelet", "낙상 고위험 팔찌/표식 적용함", "낙상 고위험 팔찌 적용함.", "낙상 고위험 표식 부착함."),
-        _b("fall_reassess", "낙상 위험도 재사정함", "낙상 위험도 재사정함, 존스홉킨스 {p_jhfrat}점.", "존스홉킨스 낙상 평가 재사정 {p_jhfrat}점으로 고위험 유지됨."),
-        _n("jhfrat", "존스홉킨스 낙상 점수", 16, 0, 35, 1),
+        _b("fall_reassess", "낙상 위험도 재사정함", "낙상 위험도 재사정함, {p_jhfrat}점 고위험군.", "낙상 재사정 {p_jhfrat}점으로 고위험군 유지됨."),
+        _n("jhfrat", "낙상 점수 (존스홉킨스)", 16, 0, 35, 1),
     ])
 
 
@@ -282,8 +282,8 @@ def glucose() -> Section:
 
 def pressure_injury() -> Section:
     return Section("prot_skin", "피부 통합성 장애 위험 (욕창 예방)", hint="Braden, 체위변경, 피부 사정, 압력 완화", fields=[
-        _b("braden_check", "욕창 위험도 사정함", "욕창 위험도 사정함, Braden {p_braden}점.", "Braden {p_braden}점으로 {p_braden_risk} 확인함."),
-        _n("braden", "Braden 점수", 18, 6, 23, 1),
+        _b("braden_check", "욕창 위험도 사정함", "욕창 위험도 사정함, {p_braden}점 {p_braden_risk}.", "욕창 {p_braden}점으로 {p_braden_risk} 확인함."),
+        _n("braden", "욕창 점수 (Braden)", 18, 6, 23, 1),
         _s("braden_risk", "위험도", [opt("위험 없음", "위험 없음 (19~23)"), opt("저위험", "저위험 (15~18)"), opt("중등도 위험", "중등도 위험 (13~14)"), opt("고위험", "고위험 (10~12)"), opt("최고위험", "최고위험 (9 이하)")], "저위험"),
         _b("skin_assess", "피부 상태 사정함", "피부 상태 사정함({p_skin_note}).", "천골·발뒤꿈치 등 압박 부위 피부 사정함, {p_skin_note}."),
         _s("skin_note", "피부 상태", [opt("발적 없음", "발적 없음"), opt("천골 부위 발적 있음", "천골 부위 발적 있음"), opt("피부 건조함", "피부 건조하여 보습제 적용함")], "발적 없음"),

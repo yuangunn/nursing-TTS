@@ -92,13 +92,14 @@ def test_batch():
 
 def test_noises():
     cat = client.get("/api/noises").json()
-    assert any(n["key"] == "nebulizer" for n in cat)
-    assert client.get("/api/noises/nebulizer/preview").status_code == 200
+    assert all(not n["builtin"] for n in cat)   # only the ward's real recordings are offered (user, 2026-10-16)
     r = client.post("/api/noises", files={"file": ("ward.wav", _wav_bytes(2), "audio/wav")}, data={"label": "병동 녹음"})
     assert r.status_code == 200
     nid = r.json()["id"]
-    assert any(n["key"] == nid for n in client.get("/api/noises").json())
-    assert client.post("/api/noises/preview-mix", json={"level": 50, "types": ["room_tone", nid]}).status_code == 200
+    assert any(n["key"] == nid and not n["builtin"] for n in client.get("/api/noises").json())
+    assert client.get(f"/api/noises/{nid}/preview").status_code == 200
+    assert client.post("/api/noises/preview-mix", json={"level": 50, "types": [nid]}).status_code == 200
+    assert client.post("/api/noises/preview-mix", json={"level": 50, "types": []}).status_code == 200   # empty = all real clips
     assert client.delete(f"/api/noises/{nid}").json()["ok"]
 
 
