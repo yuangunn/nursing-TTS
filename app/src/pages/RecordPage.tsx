@@ -23,6 +23,7 @@ interface Preview {
   seed: number;
   filename: string;
   llm_polished: boolean;
+  issues?: string[];
 }
 
 interface Props {
@@ -257,6 +258,7 @@ export default function RecordPage({ status, onTab }: Props) {
             <div className="preview muted">대본이 여기에 표시됩니다…</div>
           )}
           <div className="muted" style={{ marginTop: 6 }}>
+            {preview?.issues?.length ? <span className="badge bad" title={preview.issues.join("\n")}>⚠ 모순 {preview.issues.length}: {preview.issues[0]}</span> : null}
             {edited !== null ? <span className="badge warn">직접 수정됨 — 수정한 텍스트가 그대로 녹음·저장됩니다</span> : preview?.llm_polished ? <span className="badge">LLM 다듬기 적용됨</span> : "대본을 직접 고쳐도 됩니다 (첫 줄 시그널은 형식을 유지하세요)."}
             {preview && <> · 파일명: <b>{preview.filename}.wav</b> / .txt / .json</>}
             {preview?.signal_parse && (preview.signal_parse.ok

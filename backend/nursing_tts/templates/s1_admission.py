@@ -91,7 +91,7 @@ TEMPLATE = RecordTemplate(
                              "약이나 음식에 알러지 없으실까요? 따로 없으시고,", "혹시 알레르기 있으세요? 없으시구요,"],
                default=["none"]),
             txt("allergy_reaction", "반응 양상", placeholder="예: 두드러기",
-                phrases=["반응은 {v}이었다고 합니다.", "{v} 반응 있었다고 하시고,", "{v} 나타났었다고 하십니다."]),
+                phrases=["반응은 {v}(이)었다고 합니다.", "{v} 반응 있었다고 하시고,", "{v} 나타났었다고 하십니다."]),
         ]),
         Section("meds", "투약", hint="복용 약, 항응고제/항혈소판제 중단 여부", fields=[
             txt("medications", "복용 중인 약", placeholder="예: 암로디핀 5mg, 메트포르민 500mg bid",
@@ -297,7 +297,7 @@ TEMPLATE = RecordTemplate(
         ]),
         Section("problems", "간호 문제", fields=[
             multi("nursing_problems", "초기 간호진단", [
-                opt("anxiety", "수술 관련 불안", nouns=["수술 관련 불안"]),
+                opt("anxiety", "불안", nouns=["불안"]),
                 opt("nutrition", "영양 불균형 위험", nouns=["영양 불균형 위험"]),
                 opt("pain", "급성 통증", nouns=["급성 통증"]),
                 opt("fall", "낙상 위험", nouns=["낙상 위험"]),

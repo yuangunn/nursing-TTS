@@ -526,8 +526,9 @@ def preview(req: PreviewRequest):
             spoken = new
         except Exception as e:  # noqa: BLE001
             raise HTTPException(502, f"LLM 호출 실패: {e}")
+    from .fake import audit
     return {"spoken_text": spoken, "tts_text": script.tts_text, "signal": script.signal, "seed": script.seed,
-            "sentences": script.sentences, "llm_polished": polished,
+            "sentences": script.sentences, "llm_polished": polished, "issues": audit(req.form, Patient(**req.patient.model_dump()), req.template),
             "signal_format": script.structured.get("signal_format"), "signal_parse": script.structured.get("signal_parse"),
             "filename": f"{when.strftime('%Y%m%d_%H%M')}_{jobs.safe_filename(req.patient.name)}"}
 

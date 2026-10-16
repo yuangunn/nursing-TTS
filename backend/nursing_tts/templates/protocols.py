@@ -315,7 +315,7 @@ _BUILDERS = {
 }
 
 BY_RECORD: dict[str, list[str]] = {
-    "s1": ["routine", "fall_high", "fall_low", "pain_acute", "pain_chronic", "medication", "glucose", "skin", "anxiety"],
+    "s1": [],   # the admission interview has no charting checklist (real 문진 recordings; user 2026-10-16)
     "s2": ["fall_high", "fall_low", "pain_chronic", "medication", "breathing", "glucose", "anxiety"],
     "s3_1": ["routine", "fall_high", "fall_low", "pain_acute", "wound", "medication", "breathing", "drain", "catheter", "fever", "nausea", "glucose", "skin"],
     "s3_2": ["routine", "fall_high", "pain_acute", "wound", "medication", "breathing", "drain", "catheter", "fever", "nausea", "glucose"],
