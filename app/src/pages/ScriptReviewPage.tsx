@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Tab } from "../components/Sidebar";
+import Term from "../components/Term";
 import { del, get, patch, Patient, post, Settings, TemplateSchema } from "../lib/api";
 import { setHandoff, takeHandoff } from "../lib/scriptStore";
 
@@ -209,7 +210,7 @@ export default function ScriptReviewPage({ onTab }: { onTab?: (t: Tab) => void }
                 </select>
                 <button className="small" onClick={() => repreview(current, { newSeed: true })}>🔀 다른 문구로</button>
                 <button className="small" disabled={!settings || settings.llm_provider === "none"} title={settings?.llm_provider === "none" ? "설정에서 LLM API 키를 등록하세요" : ""} onClick={() => repreview(current, { llm: true })}>✨ LLM으로 다듬기</button>
-                <button className="small" onClick={() => setShowTts((v) => !v)}>{showTts ? "정답 텍스트" : "TTS 발음 텍스트"}</button>
+                <button className="small" onClick={() => setShowTts((v) => !v)}>{showTts ? "정답 텍스트" : <Term k="TTS 발음 텍스트" />}</button>
                 <button className="small primary" onClick={() => toRecord(current)} title="이 대본 그대로 녹음 만들기 단계로">🎙 이 대본으로 녹음 만들기</button>
               </div>
               {current.llm_polished && <div className="muted">LLM 다듬기 적용됨</div>}

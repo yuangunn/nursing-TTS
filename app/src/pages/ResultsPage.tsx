@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Visualizer from "../components/Visualizer";
+import Term from "../components/Term";
 import { apiUrl, del, ExportReport, get, NoiseCatalogItem, post, RecordingItem, Settings } from "../lib/api";
 import { useEnergy } from "../lib/energy";
 
@@ -156,7 +157,7 @@ export default function ResultsPage() {
   const badge = (it: RecordingItem) => {
     if (it.review === "approved") return <span className="badge ok">승인</span>;
     if (it.review === "rejected") return <span className="badge bad">반려</span>;
-    if (it.verify?.passed === false) return <span className="badge warn">ASR 불일치</span>;
+    if (it.verify?.passed === false) return <span className="badge warn"><Term k="ASR" /> 불일치</span>;
     return <span className="badge">대기</span>;
   };
 
@@ -175,7 +176,7 @@ export default function ResultsPage() {
             <div><div className="k">총 분량</div><div className="v">{stats.minutes.toFixed(1)}분</div></div>
             <div><div className="k">승인</div><div className="v">{stats.approved}</div></div>
             <div><div className="k">반려</div><div className="v">{stats.rejected}</div></div>
-            <div><div className="k">ASR 불일치</div><div className="v">{stats.failed}</div></div>
+            <div><div className="k"><Term k="ASR" /> 불일치</div><div className="v">{stats.failed}</div></div>
           </div>
           <div className="row">
             <div className="narrow">
@@ -193,7 +194,7 @@ export default function ResultsPage() {
           </div>
           <div style={{ maxHeight: 420, overflow: "auto" }}>
             <table className="items">
-              <thead><tr><th>파일</th><th>종류</th><th>목소리</th><th>길이</th><th>소음</th><th>CER</th><th>상태</th></tr></thead>
+              <thead><tr><th>파일</th><th>종류</th><th>목소리</th><th>길이</th><th>소음</th><th><Term k="CER" /></th><th>상태</th></tr></thead>
               <tbody>
                 {shown.map((it) => (
                   <tr key={it.rel} onClick={() => setSel(it)} style={{ cursor: "pointer", background: sel?.rel === it.rel ? "rgba(56,189,248,0.12)" : undefined }}>
@@ -236,7 +237,7 @@ export default function ResultsPage() {
           <div className="checks">
             <label><input type="checkbox" checked={exp.only_approved} onChange={(e) => setExp({ ...exp, only_approved: e.target.checked })} /> 승인된 것만</label>
             <label><input type="checkbox" checked={exp.exclude_rejected} onChange={(e) => setExp({ ...exp, exclude_rejected: e.target.checked })} /> 반려 제외</label>
-            <label><input type="checkbox" checked={exp.exclude_failed_verify} onChange={(e) => setExp({ ...exp, exclude_failed_verify: e.target.checked })} /> ASR 불일치 제외</label>
+            <label><input type="checkbox" checked={exp.exclude_failed_verify} onChange={(e) => setExp({ ...exp, exclude_failed_verify: e.target.checked })} /> <Term k="ASR" /> 불일치 제외</label>
             <label><input type="checkbox" checked={exp.include_fillers} onChange={(e) => setExp({ ...exp, include_fillers: e.target.checked })} /> 전사에 추임새 포함(verbatim)</label>
             <label title="합성 때 기록한 문장 구간으로 자르므로 전사가 정확히 맞습니다. Whisper는 30초 창이라 긴 녹음을 그대로 못 넣습니다"><input type="checkbox" checked={exp.max_clip_sec > 0} onChange={(e) => setExp({ ...exp, max_clip_sec: e.target.checked ? 30 : 0 })} /> 긴 녹음을 30초 이하로 분할 (Whisper 학습용)</label>
           </div>

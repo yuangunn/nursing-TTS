@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import Term from "./Term";
 import { get } from "../lib/api";
 
 interface Fmt { key: string; label: string; written: string }
@@ -25,7 +26,7 @@ export default function SignalSelect({ value, onChange, allowDefault = true, ali
   return (
     <div className="row" style={{ marginBottom: 0 }}>
       <div>
-        <label>시그널(녹음 시작 문장) 형식</label>
+        <label><Term k="시그널" />(녹음 시작 문장) 형식</label>
         <select value={value} onChange={(e) => onChange(e.target.value)}>
           {allowDefault && <option value="">설정 기본값 ({fmts.find((f) => f.key === def)?.label || def})</option>}
           <option value="random">무작위 혼합 (필수 형식 40% + 변형들{custom.length ? ` + 내 형식 ${custom.length}개` : ""})</option>

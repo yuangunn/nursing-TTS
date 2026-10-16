@@ -3,6 +3,7 @@ import { apiUrl, del, EnrollScript, get, patch, post, postBlob, Voice } from "..
 import { Recorder, startRecording } from "../lib/wav";
 import Visualizer from "../components/Visualizer";
 import VoiceDemo from "../components/VoiceDemo";
+import Term from "../components/Term";
 
 type SortKey = "name" | "sex" | "created" | "preset" | "note";
 import { useEnergy } from "../lib/energy";
@@ -318,7 +319,7 @@ export default function VoicesPage() {
             <div className="panel">
               <h2>
                 <button className="link" onClick={() => setShowClips(!showClips)} style={{ font: "inherit", padding: 0 }}>
-                  {showClips ? "▾" : "▸"} 고급: 참조 클립 관리
+                  {showClips ? "▾" : "▸"} 고급: <Term k="참조 클립" /> 관리
                 </button>
                 <span className="hint">복제 엔진이 합성마다 쓰는 원음과 전사. 전사를 고치거나 잘못 잘린 클립을 지울 때만 ★ = 기본 참조</span>
               </h2>
