@@ -16,3 +16,6 @@ app/release/
 backend/local_data/
 output/
 .DS_Store
+
+# Claude session helpers/logs (local only)
+.claude-logs/
