@@ -254,13 +254,13 @@ def test_protocol_checklists():
     from nursing_tts.templates import TEMPLATES
     for key, t in TEMPLATES.items():
         prot = [s for s in t.sections if s.group == "protocol"]
-        assert prot or key in ("s4", "s1"), key   # discharge record and admission interview have no charting checklist
+        assert bool(prot) == (key == "s6"), key   # only the progress record carries the charting checklist (2026-10-17)
         keys = [f.key for s in t.sections for f in s.fields]
         assert len(keys) == len(set(keys)), f"duplicate field keys in {key}"
     form = {"p_sleep_obs": True, "p_fall_intervene": True, "p_apain_assess": True, "p_apain_score": 5, "p_pca_end": True,
             "p_temp_measure": True, "p_temp": 38.4, "p_bst": True, "p_bst_value": 210}
     for style in ("chart", "mixed", "formal", "casual"):
-        r = client.post("/api/script/preview", json={"template": "s3_1", "form": form, "patient": {"name": "테스트"},
+        r = client.post("/api/script/preview", json={"template": "s6", "form": form, "patient": {"name": "테스트"},
                                                      "datetime": "2026-10-14T07:00", "style": style, "seed": 3}).json()
         txt = r["spoken_text"]
         assert "{" not in txt and "}" not in txt, txt

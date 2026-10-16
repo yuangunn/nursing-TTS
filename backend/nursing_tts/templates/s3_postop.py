@@ -7,7 +7,7 @@ TEMPLATE = RecordTemplate(
     title="S3-1. 수술/검사 직후 설명",
     signal_kind="수술후설명",
     description="수술 직후~POD 1-2 또는 검사 직후, 환자 상태·수술기록·처방을 보면서 구술합니다.",
-    intros=["{name}님 진단명 {dx}, {surgery_en}, {surgery_abbr} 수술후 간호기록 시작합니다.",
+    intros=["{name}님 진단명 {dx}, {surgery} 수술후 간호기록 시작합니다.",
             "진단명 {dx}, {surgery} 환자분 수술 후 간호기록입니다.",
             "{dx}(으)로 {surgery} 시행하신 {name}님 수술 후 간호기록 시작합니다."],
     closings=["여기까지 {name} 님 수술 후 간호기록 마치겠습니다.", "이상 {surgery_abbr} 수술후 간호기록 마치겠습니다.", "이상 수술 후 간호기록 마치겠습니다.", "수술후 간호기록 이상입니다."],
@@ -80,16 +80,16 @@ TEMPLATE = RecordTemplate(
                 opt("gd", "일반식 가능", "식이 제한 없이 일반식 드셔도 된다고 설명하였습니다.", "식사는 일반식으로 드시고,", "식이 제한 없으시구요,"),
             ], default="npo"),
             sel("abdomen", "복부 상태", [
-                opt("soft", "팽만 없음", "복부 팽만 없고 gas out 안 된 상태입니다.", "복부 팽만 없고,", "복부 부드럽고 팽만 없으시구요,"),
+                opt("soft", "팽만 없음", "복부 팽만 없고 부드럽습니다.", "복부 팽만 없고,", "복부 부드럽고 팽만 없으시구요,"),
                 opt("distended", "팽만", "복부 팽만 있습니다.", "복부 팽만 있어 관찰 중이고,"),
                 opt("gas_out", "가스 배출됨", "가스 배출 확인되었습니다.", "gas out 확인됐고,"),
             ], default="soft"),
         ]),
         Section("lines", "라인/튜브/배액", hint="수액, 배액관(위치·양상·양), 도뇨관, 비위관", fields=[
             sel("drain", "배액관", [
-                opt("jp_sang", "JP sanguineous", "우측 복부 JP 1개 있고 배액 sanguineous 양상으로 현재 {drain_amount}cc 배액되었습니다. 배액관 당겨지지 않도록 주의하고 혈액색이 짙어지거나 양이 갑자기 늘면 알리도록 설명하였습니다.",
+                opt("jp_sang", "JP sanguineous", "수술 부위 JP 1개 있고 배액 sanguineous 양상으로 현재 {drain_amount}cc 배액되었습니다. 배액관 당겨지지 않도록 주의하고 혈액색이 짙어지거나 양이 갑자기 늘면 알리도록 설명하였습니다.",
                     "JP 1개 sanguineous {drain_amount}cc 나왔고 당겨지지 않게 주의하시라고 교육했고,",
-                    "복부 JP 배액 sanguineous 양상 {drain_amount}cc 이고 색 짙어지거나 양 늘면 알리시라고 했구요,",
+                    "JP 배액 sanguineous 양상 {drain_amount}cc 이고 색 짙어지거나 양 늘면 알리시라고 했구요,",
                     "JP drain 1개 수술 부위에 가지고 오셨고 수술 직후 {drain_amount}cc sanguineous하게 배액되었습니다.",
                     "JP drain 한 개 가지고 오셨고 {drain_amount}cc sanguineous하게 나오고 있구요,"),
                 opt("jp_sero", "JP serosanguineous", "JP 배액 serosanguineous 양상 {drain_amount}cc 입니다.", "JP serosanguineous {drain_amount}cc 나왔고,",
@@ -119,7 +119,7 @@ TEMPLATE = RecordTemplate(
         ]),
         Section("wound", "상처 관리", hint="드레싱 상태, 젖음·출혈 시 보고", fields=[
             sel("dressing", "드레싱 상태", [
-                opt("clean", "깨끗", "복부 수술 부위 드레싱 깨끗하고 oozing 없습니다.", "수술 부위 드레싱 깨끗하고 oozing 없고,", "드레싱 clean 하구요,"),
+                opt("clean", "깨끗", "수술 부위 드레싱 깨끗하고 oozing 없습니다.", "수술 부위 드레싱 깨끗하고 oozing 없고,", "드레싱 clean 하구요,"),
                 opt("oozing", "oozing", "수술 부위 드레싱에 소량 oozing 있어 담당의 확인 후 드레싱 교환했습니다.", "드레싱 oozing 소량 있어 보강했고,"),
                 opt("bleeding", "출혈", "수술 부위 출혈 있어 담당의 noti 하였습니다.", "드레싱 피 비쳐서 noti 했고,"),
             ], default="clean"),
@@ -138,7 +138,7 @@ TEMPLATE = RecordTemplate(
                 phrases=["{v}.", "{v}이고,", "{v}구요,"]),
         ]),
         Section("report", "보고해야 할 증상", fields=[
-            boolean("report_edu", "보고 증상 교육", phrases=["38도 이상 발열, 숨참, 심한 복통, 드레싱 젖거나 피 비칠 때 즉시 알리도록 교육하였습니다.",
+            boolean("report_edu", "보고 증상 교육", phrases=["38도 이상 발열, 숨참, 심한 통증, 드레싱 젖거나 피 비칠 때 즉시 알리도록 교육하였습니다.",
                     "발열, 숨참, 심한 통증, 출혈 있으면 바로 호출하시라고 교육했고,",
                     "38도 이상 열나거나 숨차거나 배 많이 아프면 즉시 알리시라고 설명드렸구요,"], default=True),
         ]),

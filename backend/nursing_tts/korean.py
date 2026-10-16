@@ -210,6 +210,7 @@ ABBREVIATIONS: dict[str, list[str]] = {
     "AST": ["에이에스티"], "ALT": ["에이엘티"], "ALP": ["에이엘피"], "T-bil": ["티빌"], "albumin": ["알부민"],
     "PT": ["피티"], "aPTT": ["에이피티티"], "INR": ["아이엔알"], "glucose": ["글루코스"], "HbA1c": ["당화혈색소", "에이원씨"],
     "CBC": ["씨비씨"], "LFT": ["엘에프티"], "RFT": ["알에프티"], "culture": ["컬쳐"], "F/U": ["에프유", "팔로업"],
+    "iPTH": ["아이피티에이치"], "urine analysis": ["유린 어날리시스", "소변 검사"], "urine": ["유린"], "analysis": ["어날리시스"],
     "f/u": ["에프유", "팔로업"], "noti": ["노티"], "Noti": ["노티"], "notify": ["노티파이"],
     "I/O": ["아이오", "인풋 아웃풋"], "I&O": ["아이오"], "UO": ["유오"],
     # status
@@ -294,7 +295,7 @@ _SURGERY_READINGS: list[tuple[tuple[str, ...], list[str]]] = [
     (("Meniscectomy", "meniscectomy"), ["메니섹토미", "반월상연골 절제술", "관절경 연골 절제"]),
     (("Meniscal repair", "meniscal repair"), ["메니스칼 리페어", "반월상연골 봉합술", "연골판 봉합"]),
     (("ORIF",), ["오알아이에프", "오리프", "관혈적 정복 내고정술", "골절 금속판 고정 수술"]),
-    (("BKA",), ["비케이에이", "하퇴 절단술", "무릎 아래 절단"]),
+    (("BKA",), ["비케이에이", "무릎 아래쪽 절단"]),
     (("Rotator cuff repair", "rotator cuff repair"), ["로테이터 커프 리페어", "회전근개 봉합술", "어깨 회전근개 봉합", "로테이터 커프 수술"]),
     (("Breast reconstruction", "breast recon"), ["브레스트 리컨스트럭션", "브레스트 리컨", "유방 재건술", "유방 재건"]),
     (("Hemorrhoidectomy", "hemorrhoidectomy"), ["헤모로이덱토미", "치핵 절제술", "치질 수술", "헤모 수술"]),

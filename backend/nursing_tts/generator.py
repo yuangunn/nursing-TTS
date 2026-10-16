@@ -165,7 +165,7 @@ def realize_vitals(value: dict[str, Any], rng: random.Random, verb_style: str = 
     if v.get("bt"):
         v["bt_casual"] = korean.temperature_casual(float(v["bt"]))
     slang = ("샛", "비피", "새츄레이션", "HR는", "RR은", "PR ")
-    vf = (lambda key: [f for f in _vf(key) if not any(s in f for s in slang)] or _vf(key)) if verb_style == "formal" else _vf
+    vf = (lambda key: [f for f in _vf(key) if not any(s in f for s in slang)] or _vf(key)) if verb_style in ("formal", "chart") else _vf
     if v.get("sbp") and v.get("dbp"):
         parts.append(rng.choice(vf("bp")).format(**v))
     if v.get("hr"):
@@ -173,7 +173,7 @@ def realize_vitals(value: dict[str, Any], rng: random.Random, verb_style: str = 
     if v.get("rr"):
         parts.append(rng.choice(vf("rr")).format(**v))
     if v.get("bt"):
-        bt_forms = [f for f in _vf("bt") if verb_style != "formal" or "bt_casual" not in f]   # "열 7도 4" is ward slang, not 격식체
+        bt_forms = [f for f in _vf("bt") if verb_style not in ("formal", "chart") or "bt_casual" not in f]   # "열 7도 4" is ward slang, not 격식체/기록체
         parts.append(rng.choice(bt_forms or _vf("bt")).format(**v))
     if v.get("spo2"):
         base = rng.choice(vf("spo2")).format(**v)
@@ -292,7 +292,10 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
         if isinstance(v, float) and v.is_integer():
             v = int(v)
         local["v"] = v
-        phrase = _choose(phrase_store.effective(ctx.get("_template", ""), f.key, "phrases", f.phrases), rng, style, force_close)
+        pool = phrase_store.effective(ctx.get("_template", ""), f.key, "phrases", f.phrases)
+        if f.key.startswith("nrs") and v == 0:
+            pool = [p for p in pool if "호소" not in p and "아픈 정도" not in p and "정도" not in p] or pool
+        phrase = _choose(pool, rng, style, force_close)
         return _finish(phrase, local, rng, style, force_close)
     if f.kind == "text":
         if rng.random() > f.speak_prob:
@@ -300,7 +303,7 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
         local["v"] = str(value).strip()
         # Nominalised free text ("…옅어지고 있음", "…시행함") must not get "입니다" glued on: chart style keeps
         # it as is, spoken styles say it ("…있습니다", "…하였습니다") and then follow the register.
-        if re.search(r"(음|됨|함|임|없음|있음|입원|시작|예정|투여|내원|방문|완료|추적|진행 중)$", local["v"]):
+        if re.search(r"(음|됨|함|임|없음|있음|입원|시작|예정|투여|내원|방문|완료|추적|보냄|하심|계심|\s중)$", local["v"]):
             if style == "chart":
                 return _fmt("{v}.", local)
             return _finish(phrase_store.formal_from_chart(local["v"] + "."), {}, rng, style, force_close)
@@ -397,8 +400,9 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
 
     intros = phrase_store.effective(template.key, "intros", "phrases", template.intros)
     if intros:
-        intro = fix_josa(_fmt(rng.choice(intros), ctx))
-        paragraphs.append(intro)
+        intro = fix_josa(_fmt(rng.choice(intros), ctx)).strip()
+        if intro:
+            paragraphs.append(intro)
 
     structured: dict[str, Any] = {}
     for section in template.sections:

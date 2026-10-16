@@ -224,6 +224,7 @@ export default function RecordPage({ status, onTab }: Props) {
           {template?.sections.filter((s) => s.group !== "protocol").map((s) => renderSection(s))}
         </div>
 
+        {template?.sections.some((s) => s.group === "protocol") && (
         <div className="panel">
           <h2><span className="step-badge">4</span> 간호 프로토콜 체크리스트 <span className="hint">정규 차팅 · 간호진단별 중재 항목, 체크한 항목이 "~함" 기록체 또는 선택한 말투로 발화됩니다</span>
             <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
@@ -234,6 +235,7 @@ export default function RecordPage({ status, onTab }: Props) {
           </h2>
           {template?.sections.filter((s) => s.group === "protocol").map((s) => renderSection(s, true))}
         </div>
+        )}
       </div>
 
       <div>

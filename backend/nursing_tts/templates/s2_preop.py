@@ -60,15 +60,15 @@ TEMPLATE = RecordTemplate(
             multi("prep", "전처치", [
                 opt("bowel_prep", "하제 복용", nouns=["저녁 8시 하제 복용"]),
                 opt("enema", "관장", nouns=["수술 당일 아침 관장"]),
-                opt("shave", "제모", nouns=["복부 전체 클리퍼 제모"]),
+                opt("shave", "제모", nouns=["수술 부위 클리퍼 제모", "클리퍼 제모"]),
                 opt("skin_prep", "피부 소독", nouns=["클로르헥시딘 피부 소독"]),
                 opt("shower", "샤워", nouns=["수술 전 샤워"]),
                 opt("antibiotic", "예방적 항생제", nouns=["예방적 항생제 피부반응검사"]),
                 opt("none", "해당 없음"),
-            ], phrases=["{v} 예정이고 설명하였습니다.", "전처치로 {v} 시행 예정입니다.", "{v} 시행하였습니다.", "{v} 하기로 하고 설명드렸구요,"],
+            ], phrases=["{v} 예정이고 설명하였습니다.", "전처치로 {v} 시행 예정입니다.", "{v} 하기로 하고 설명드렸구요,"],
                none_phrases=["특별한 전처치는 없습니다.", "전처치 해당 없고,"], default=["bowel_prep", "shave"]),
             txt("prep_detail", "전처치 상세", placeholder="예: 오늘 저녁 8시 하제 복용 예정",
-                phrases=["{v}.", "{v}이고,"]),
+                phrases=["{v}.", "{v}이고,"]),   # free text for the user; the virtual patient leaves it empty (the 전처치 item already says it)
         ]),
         Section("remove", "제거물", hint="틀니, 안경/렌즈, 장신구, 매니큐어, 보청기", fields=[
             multi("removables", "제거물", [
@@ -84,12 +84,12 @@ TEMPLATE = RecordTemplate(
         ]),
         Section("consent", "동의서/확인", hint="수술·마취·수혈 동의서, 혈액형, 팔찌, 마킹", fields=[
             multi("consents", "동의서", [
-                opt("op", "수술 동의서", nouns=["수술"]),
-                opt("anes", "마취 동의서", nouns=["마취"]),
-                opt("tf", "수혈 동의서", nouns=["수혈"]),
-            ], phrases=["{v} 동의서 확인했습니다.", "{v} 동의서 작성된 것 확인했고,", "{v} 동의서 확인했구요,"],
+                opt("op", "수술 동의서", nouns=["수술 동의서"]),
+                opt("anes", "마취 동의서", nouns=["마취 동의서"]),
+                opt("tf", "수혈 동의서", nouns=["수혈 동의서"]),
+            ], phrases=["{v} 확인했습니다.", "{v} 작성된 것 확인했고,", "{v} 확인했구요,"],
                none_phrases=["동의서 아직 미작성으로 담당의 확인 요청했습니다."], default=["op", "anes", "tf"]),
-            boolean("marking", "수술 부위 마킹", phrases=["수술 부위 마킹 확인했습니다.", "복부 주위 마킹 확인했고,"],
+            boolean("marking", "수술 부위 마킹", phrases=["수술 부위 마킹 확인했습니다.", "수술 부위 마킹 되어 있는 것 확인했고,"],
                     false_phrases=["수술 부위 마킹 아직 안 되어 있어 담당의 noti 했습니다."], default=True),
             txt("blood_type", "혈액형", placeholder="예: A형 Rh+",
                 phrases=["혈액형 {v}, 팔찌 확인했습니다.", "혈액형 {v} 확인했고,", "{v}이고 팔찌 확인했구요,"], default="A형 Rh+"),
@@ -103,14 +103,14 @@ TEMPLATE = RecordTemplate(
             txt("duration", "예상 소요 시간", placeholder="예: 3~4시간",
                 phrases=["수술 시간은 {v} 정도 예상된다고 설명했습니다.", "수술은 {v} 정도 걸리고,"], speak_prob=0.8),
             multi("attachments", "예상 부착물", [
-                opt("jp", "JP 배액관", nouns=["복부 JP 1개", "JP 배액관"]),
+                opt("jp", "JP 배액관", nouns=["JP 배액관"]),
                 opt("hemovac", "Hemovac 배액관", nouns=["Hemovac 배액관", "헤모박"]),
                 opt("foley", "소변줄", nouns=["소변줄"]),
                 opt("iv", "수액 라인", nouns=["수액 라인"]),
                 opt("ltube", "L-tube", nouns=["L-tube"]),
                 opt("pca", "PCA", nouns=["PCA"]),
                 opt("o2", "산소", nouns=["산소"]),
-            ], phrases=["수술 후 {v} 있을 수 있다고 설명하였습니다.", "{v} 있고 통증은 PCA로 조절한다고 설명하였습니다.",
+            ], phrases=["수술 후 {v} 있을 수 있다고 설명하였습니다.", "수술 후 {v} 가지고 올라오실 수 있다고 설명하였습니다.",
                         "수술 후 {v} 달고 올라오신다고 설명드렸구요,"], default=["jp", "foley", "iv", "pca"]),
         ]),
         Section("edu", "수술 전 교육", hint="심호흡·기침, 강화폐활량계, 하지 운동, 조기 이상", fields=[
@@ -129,9 +129,9 @@ TEMPLATE = RecordTemplate(
             ], default="done"),
         ]),
         Section("qa", "환자 질문/반응", fields=[
-            txt("question", "환자 질문과 대응", placeholder="예: 식사 시작 시점 질문 → 가스 배출 후 단계적 진행 설명",
-                phrases=["{v}.", "환자분이 {v}.", "{v} 설명드렸습니다."],
-                example="환자가 수술 후 식사 시작 시점을 질문하여 가스 배출 후 물부터 미음, 죽, 단계적으로 진행한다고 답변했습니다"),
+            txt("question", "환자 질문과 대응", placeholder="예: 수술 후 식사 시작 시점 질문하여 가스 배출 후 단계적 진행 설명함",
+                phrases=["{v}.", "환자분이 {v}."],
+                example="수술 후 식사 시작 시점 질문하여 가스 배출 후 물부터 미음, 죽, 단계적으로 진행한다고 설명함"),
             sel("understanding", "이해도", [
                 opt("both", "환자·보호자 이해", "환자분과 보호자분 모두 이해했다고 표현하였습니다.", "환자, 보호자 교육 내용 이해하셨고,"),
                 opt("patient", "환자만", "환자분 이해했다고 하셨습니다.", "환자분 이해 표현하셨고,"),

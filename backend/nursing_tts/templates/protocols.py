@@ -97,7 +97,7 @@ def _pain(prefix: str, title: str, hint: str, acute: bool) -> Section:
            "{p_%s_site} 통증 {p_%s_scale} {p_%s_score}점으로 사정함, {p_%s_char} 양상, {p_%s_duration}." % ((prefix,) * 5),
            "{p_%s_site}에 {p_%s_char} 통증 호소함, {p_%s_scale} {p_%s_score}점." % ((prefix,) * 4)),
         _t(f"{prefix}_site", "부위", "예: 수술 부위 복부", "수술 부위" if acute else "허리"),
-        _s(f"{prefix}_scale", "척도", [opt("NRS", "NRS"), opt("FLACC", "FLACC"), opt("VAS", "VAS"), opt("PAINAD", "PAINAD")], "NRS"),
+        _s(f"{prefix}_scale", "척도", [opt("NRS", "NRS"), opt("VAS", "VAS"), opt("PAINAD", "PAINAD"), opt("FLACC", "FLACC")], "NRS"),   # 성인 병동: NRS가 기본
         _n(f"{prefix}_score", "정도 (0~10)", 3 if acute else 4, 0, 10),
         _s(f"{prefix}_char", "통증 양상", [opt("쑤시는", "쑤시는"), opt("찌르는", "찌르는"), opt("당기는", "당기는"), opt("욱신거리는", "욱신거리는"),
                                       opt("둔한", "둔한"), opt("타는 듯한", "타는 듯한"), opt("쥐어짜는", "쥐어짜는"), opt("저린", "저린")], "쑤시는" if acute else "둔한"),
@@ -106,9 +106,9 @@ def _pain(prefix: str, title: str, hint: str, acute: bool) -> Section:
            "{p_%s_drug} {p_%s_route} 투여함." % (prefix, prefix), "처방에 따라 {p_%s_drug} {p_%s_route}로 투여하고 반응 관찰함." % (prefix, prefix)),
         _t(f"{prefix}_drug", "처방명", "예: 트라마돌 50mg", "트라마돌 50mg" if acute else "아세트아미노펜 650mg"),
         _s(f"{prefix}_route", "투여경로", [opt("IV", "IV"), opt("PO", "PO"), opt("IM", "IM"), opt("SC", "SC"), opt("PCA", "PCA")], "IV" if acute else "PO"),
-        _b(f"{prefix}_nonpharm", "비약물적 중재함", "비약물적 중재함({p_%s_nonpharm_note})." % prefix, "{p_%s_nonpharm_note} 적용함." % prefix),
-        _s(f"{prefix}_nonpharm_note", "비약물 중재", [opt("체위 변경", "체위 변경"), opt("ice pack 적용", "ice pack 적용"), opt("온찜질", "온찜질"),
-                                                opt("이완요법·심호흡", "이완요법·심호흡"), opt("주의 전환", "주의 전환")], "체위 변경"),
+        _b(f"{prefix}_nonpharm", "비약물적 중재함", "비약물적 중재함({p_%s_nonpharm_note})." % prefix, "{p_%s_nonpharm_note}." % prefix),
+        _s(f"{prefix}_nonpharm_note", "비약물 중재", [opt("체위 변경함", "체위 변경함"), opt("ice pack 적용함", "ice pack 적용함"), opt("온찜질 적용함", "온찜질 적용함"),
+                                                opt("이완요법과 심호흡 교육함", "이완요법과 심호흡 교육함"), opt("주의 전환 시행함", "주의 전환 시행함")], "체위 변경함"),
         _b(f"{prefix}_edu", "통증에 대한 정보를 제공함", "통증에 대한 정보를 제공함(통증 심해지기 전에 진통제 사용할 것을 교육함).",
            "통증 심해지기 전에 진통제 요구하도록 교육함.", "통증 사정 척도와 진통제 사용 시점에 대해 교육함."),
         _b(f"{prefix}_reassess", "중재 후 통증 재사정함", "중재 후 통증 재사정함, {p_%s_scale} {p_%s_re_score}점." % (prefix, prefix),
@@ -315,12 +315,11 @@ _BUILDERS = {
 }
 
 BY_RECORD: dict[str, list[str]] = {
-    "s1": [],   # the admission interview has no charting checklist (real 문진 recordings; user 2026-10-16)
-    "s2": ["fall_high", "fall_low", "pain_chronic", "medication", "breathing", "glucose", "anxiety"],
-    "s3_1": ["routine", "fall_high", "fall_low", "pain_acute", "wound", "medication", "breathing", "drain", "catheter", "fever", "nausea", "glucose", "skin"],
-    "s3_2": ["routine", "fall_high", "pain_acute", "wound", "medication", "breathing", "drain", "catheter", "fever", "nausea", "glucose"],
-    "s4": [],   # discharge record is education only; dressing/IV/antibiotic/glucose charting belongs to routine records (user, 2026-10-16)
-    "s5": ["routine", "fall_high", "fall_low", "pain_acute", "pain_chronic", "wound", "medication", "breathing", "drain", "catheter", "fever", "nausea", "glucose", "skin"],
+    # 2026-10-17: the charting checklist belongs to the routine progress record only.  Education records (S1·S2·S3-1·S4),
+    # the event record (S3-2, which already narrates 사정→노티→중재→재사정) and the spoken handover (S5) read like one
+    # narrative; "~함" checklist items mixed into them produced contradictions (PCA 종료 on a PCA patient, 발열 노티
+    # without fever, 낙상 재사정 17점 for a walking 34-year-old).
+    "s1": [], "s2": [], "s3_1": [], "s3_2": [], "s4": [], "s5": [],
     "s6": ["routine", "fall_high", "fall_low", "pain_acute", "wound", "medication", "breathing", "drain", "catheter", "fever", "nausea", "glucose", "skin"],
 }
 
