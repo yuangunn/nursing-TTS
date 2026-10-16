@@ -398,3 +398,25 @@ def test_scenarios_endpoint_lists_ops_and_regimens():
     sc = client.get("/api/scenarios").json()
     assert sum(1 for s in sc if s["kind"] == "op") >= 30 and sum(1 for s in sc if s["kind"] == "chemo") >= 13
     assert all(s["key"] and s["ko"] and s["dept"] for s in sc)
+
+
+def test_table_import_parse_map_and_generate():
+    save_settings({"tts_engine": "silent"})
+    csv_bytes = "환자명,나이,성별,식이,기록일시,수술\n박철수,58,M,일반식,2026-10-20 10:30,Lapa chole\n이영희,71,F,죽,2026-10-21,THA\n".encode("utf-8")
+    t = client.post("/api/import/parse", files={"file": ("list.csv", csv_bytes, "text/csv")}).json()
+    assert t["columns"] == ["환자명", "나이", "성별", "식이", "기록일시", "수술"] and t["count"] == 2 and t["distinct"]["성별"] == ["F", "M"]
+    targets = client.get("/api/import/targets/s4").json()
+    assert any(x["key"] == "form.diet_edu" and x["options"] for x in targets) and any(x["key"] == "patient.name" for x in targets)
+    mapping = {"columns": {"patient.name": "환자명", "patient.age": "나이", "patient.sex": "성별", "patient.surgery": "수술", "datetime": "기록일시", "form.diet_edu": "식이"},
+               "values": {"form.diet_edu": {"일반식": "gd", "죽": "sd_small"}}, "fixed": {"patient.department": "외과"}}
+    assert client.put("/api/import/mappings/s4", json=mapping).json()["columns"]["patient.name"] == "환자명"
+    assert client.get("/api/import/mappings/s4").json()["values"]["form.diet_edu"]["죽"] == "sd_small"
+    built = client.post("/api/import/specs", json={"template": "s4", "rows": t["rows"], "mapping": mapping}).json()
+    s0, s1 = built["specs"]
+    assert s0["patient"] == {**s0["patient"], "name": "박철수", "age": 58, "sex": "남", "surgery": "Lapa chole", "department": "외과"}
+    assert s0["form"]["diet_edu"] == "gd" and s1["form"]["diet_edu"] == "sd_small" and s0["datetime"] == "2026-10-20T10:30"
+    gen = client.post("/api/import/generate", json={"template": "s4", "rows": t["rows"], "mapping": mapping, "voice_ids": [], "noise": {"enabled": False}, "folder_name": "import_test"}).json()
+    j = _wait(gen["id"])
+    assert j["status"] == "done" and j["kind"] == "import" and len(j["items"]) == 2, j
+    meta = client.get("/api/output/meta", params={"rel": j["items"][0]["files"]["wav"].split("output/")[-1] if "output/" in j["items"][0]["files"]["wav"] else "import_test/" + j["items"][0]["files"]["wav"].rsplit("/", 1)[-1]}).json()
+    assert meta["patient"]["name"] == "박철수" and meta["template"] == "s4"
