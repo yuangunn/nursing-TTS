@@ -22,24 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Release notes
-        run: |
-          cat > notes.md <<'MD'
-          ## 간호기록 음성 녹음 생성기 — beta
-
-          ### 설치 (macOS)
-          1. Apple Silicon은 `-arm64.dmg`, Intel Mac은 `-x64.dmg`를 받아 앱을 Applications로 끌어다 놓습니다.
-          2. 서명되지 않은 베타 빌드라 첫 실행 시 차단됩니다. **Finder에서 앱을 우클릭 → 열기**를 하거나 터미널에서
-             `xattr -dr com.apple.quarantine /Applications/NursingTTS.app` 을 실행한 뒤 여세요.
-          3. Python 3.10 이상이 필요합니다 (`brew install python`). 앱을 처음 켜면 **처음 설정 마법사**가 환경 점검 → 백엔드 설치(진행률·예상 시간 표시) → 음성 엔진 → 첫 목소리 등록을 안내합니다. 기본 설치는 보통 2~4분 걸립니다.
-          4. 목소리 복제 엔진(Qwen3-TTS, 약 6.5 GB)은 마법사나 설정 탭에서 체크해 설치합니다. 엔진 없이도 시스템 음성으로 전체 흐름을 바로 확인할 수 있습니다.
-
-          ### 설치 (Windows)
-          `-win-x64.exe` 설치 파일 실행 → 처음 설정 마법사를 따라가면 됩니다. Python 3.10 이상(python.org, "Add to PATH" 체크) 필요.
-
-          ### 알려진 제한
-          - 코드 서명/공증 없음 (베타)
-          - 목소리 복제 품질은 선택한 모델과 GPU에 따라 다릅니다
-          MD
+        run: cp docs/RELEASE_NOTES.md notes.md
       - name: Create release if missing
         env:
           GH_TOKEN: ${{ github.token }}
