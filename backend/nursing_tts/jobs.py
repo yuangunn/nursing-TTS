@@ -292,6 +292,7 @@ def generate_one(spec: dict[str, Any], settings: dict[str, Any], custom_noises: 
         "datetime": when.isoformat(timespec="minutes"),
         "patient": patient.__dict__,
         "voice_id": voice_id,
+        "ref_sample": Path(ref[0]).stem if ref else "",   # which reference clip was cloned; lets a deleted clip's recordings be found later
         "engine": engine.key,
         "clones_voice": engine.clones_voice,
         "style": style,

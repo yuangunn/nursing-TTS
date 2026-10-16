@@ -228,6 +228,7 @@ export interface RecordingItem {
   record_kind?: string;
   patient?: string;
   voice_id?: string;
+  ref_sample?: string;
   voice_name?: string;
   engine?: string;
   duration?: number;
