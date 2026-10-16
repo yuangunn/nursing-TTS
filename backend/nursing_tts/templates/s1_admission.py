@@ -187,7 +187,8 @@ TEMPLATE = RecordTemplate(
                 opt("rash", "발진", "피부 발진 있습니다.", "발진 있으시고,"),
             ], default="intact"),
             num("braden", "Braden 점수", min=6, max=23, default=21,
-                phrases=["Braden {v}점입니다.", "Braden {v}점이고,", "욕창 위험도 Braden {v}점으로,", "브레이든 {v}점이구요,"]),
+                phrases=["Braden {v}점입니다.", "Braden {v}점이고,", "욕창 위험도 Braden {v}점으로,", "브레이든 {v}점이구요,"],
+                hint="6~23점. 9 이하 최고위험, 10~12 고위험, 13~14 중등도, 15~18 저위험, 19 이상 위험 없음"),
             txt("devices", "삽입 장치", placeholder="예: PICC, 장루",
                 phrases=["{v} 가지고 계십니다.", "삽입 장치는 {v} 있으시고,", "몸에 달고 계신 장치 있으실까요? {v} 가지고 계시고,"]),
         ]),
@@ -203,11 +204,13 @@ TEMPLATE = RecordTemplate(
                default=["none"]),
         ]),
         Section("risk", "위험 사정", fields=[
-            num("morse", "Morse 낙상 점수", min=0, max=125, step=5, default=25,
-                phrases=["Morse {v}점입니다.", "낙상 Morse {v}점이고,", "모스 {v}점으로,", "낙상 점수 {v}점이구요,"]),
+            num("jhfrat", "존스홉킨스 낙상 점수 (JHFRAT)", min=0, max=35, default=4,
+                phrases=["존스홉킨스 낙상 평가 {v}점입니다.", "낙상 위험 평가 존스홉킨스 {v}점이고,", "JHFRAT {v}점으로,", "낙상 점수 {v}점이구요,"],
+                hint="0~5 저위험, 6~13 중위험, 14 이상 고위험 (가상 환자 생성 시 나이·보행·의식·배뇨·약물·장치로 계산)"),
             sel("fall", "낙상 위험", [
-                opt("low", "저위험", "낙상 저위험입니다.", "낙상 저위험이고,", "낙상 저위험이구요,"),
-                opt("high", "고위험", "낙상 고위험으로 낙상 예방 교육하고 팔찌 적용했습니다.", "낙상 고위험군이라 예방 교육했고,"),
+                opt("low", "저위험 (0~5점)", "낙상 저위험입니다.", "낙상 저위험이고,", "낙상 저위험이구요,"),
+                opt("moderate", "중위험 (6~13점)", "낙상 중위험으로 낙상 예방 교육하였습니다.", "낙상 중위험이라 예방 교육했고,", "낙상 중위험이구요,"),
+                opt("high", "고위험 (14점 이상)", "낙상 고위험으로 낙상 예방 교육하고 팔찌 적용했습니다.", "낙상 고위험군이라 예방 교육했고,"),
             ], default="low"),
             sel("isolation", "격리", ISOLATION, default="none"),
             sel("selfharm", "자해/우울 위험", [

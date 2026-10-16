@@ -75,3 +75,32 @@ def test_young_non_ortho_patients_walk_independently():
         n += 1
         dep += f.get("mobility") != "independent" or f.get("adl") != "independent"
     assert n > 50 and dep / n < 0.25, (dep, n)
+
+
+def test_fall_and_pressure_scores_match_their_risk_bands():
+    import random
+    from nursing_tts.fake import braden_risk, fall_level, random_form, random_patient
+    from nursing_tts.generator import build_script
+    from nursing_tts.fake import random_datetime
+    rng = random.Random(4)
+    levels = set()
+    for _ in range(200):
+        p = random_patient(rng, "s1")
+        f = random_form("s1", rng, p)
+        assert f["fall"] == fall_level(f["jhfrat"]), (f["jhfrat"], f["fall"])
+        levels.add(f["fall"])
+        if f.get("skin") == "pressure":
+            assert f["braden"] <= 14
+        if "p_braden" in f:
+            assert f["p_braden_risk"] == braden_risk(f["p_braden"])
+        s = build_script("s1", f, p, random_datetime(rng), style="formal", seed=1)
+        assert "Morse" not in s.spoken_text and "모스" not in s.spoken_text
+    assert {"low", "moderate", "high"} <= levels
+    for t in ("s5", "s3_1", "s6"):
+        for _ in range(60):
+            p = random_patient(rng, t)
+            f = random_form(t, rng, p)
+            if "p_jhfrat" in f:
+                assert f["p_jhfrat"] >= 14
+            if "p_braden" in f:
+                assert f["p_braden_risk"] == braden_risk(f["p_braden"])

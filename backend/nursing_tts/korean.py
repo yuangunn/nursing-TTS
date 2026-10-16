@@ -217,7 +217,7 @@ ABBREVIATIONS: dict[str, list[str]] = {
     "gas out": ["가스 아웃"], "gas": ["가스"], "out": ["아웃"], "self": ["셀프"], "self voiding": ["셀프 보이딩"],
     "voiding": ["보이딩"], "mental": ["멘탈"], "alert": ["얼러트"], "drowsy": ["드라우지"], "stupor": ["스투퍼"],
     "confuse": ["컨퓨즈"], "delirium": ["딜리리움"], "DNR": ["디엔알"], "full code": ["풀 코드"],
-    "Full code": ["풀 코드"], "code": ["코드"], "Braden": ["브레이든"], "Morse": ["모스"], "GCS": ["지씨에스"],
+    "Full code": ["풀 코드"], "code": ["코드"], "Braden": ["브레이든"], "Morse": ["모스"], "JHFRAT": ["존스홉킨스 낙상 평가", "제이에이치프랫"], "Johns Hopkins": ["존스홉킨스"], "GCS": ["지씨에스"],
     "SBAR": ["에스바"], "ADL": ["에이디엘"], "ROM": ["롬"], "DVT": ["디브이티"], "IPC": ["아이피씨"],
     "EDR": ["이디알"], "EMR": ["이엠알"], "OCS": ["오씨에스"], "sliding": ["슬라이딩"], "scale": ["스케일"],
     "dumping": ["덤핑"], "chemo": ["케모", "항암"], "regimen": ["레지멘"], "FOLFOX": ["폴폭스"], "XELOX": ["젤록스"],
