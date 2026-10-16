@@ -168,6 +168,7 @@ export interface TemplateSchema {
   description: string;
   sections: SectionSchema[];
 }
+export interface Scenario { key: string; ko: string; abbr: string; dept: string; kind: string }
 export interface Patient {
   name: string;
   age: number | null;
@@ -357,8 +358,8 @@ export const DEFAULT_PATIENT: Patient = {
   name: "홍길동",
   age: 64,
   sex: "남",
-  diagnosis: "위암",
-  surgery: "Laparoscopic total gastrectomy",
+  diagnosis: "담낭염",
+  surgery: "Lapa chole",
   professor: "김민수",
   department: "외과",
   pod: 2,
@@ -374,25 +375,6 @@ export const DEFAULT_NOISE: NoiseSettings = {
   reverb: false,
 };
 
-export const SURGERIES = [
-  "Laparoscopic total gastrectomy",
-  "Laparoscopic subtotal gastrectomy",
-  "Laparoscopic distal gastrectomy",
-  "Laparoscopic right hemicolectomy",
-  "Laparoscopic anterior resection",
-  "Laparoscopic low anterior resection",
-  "Laparoscopic cholecystectomy",
-  "Laparoscopic appendectomy",
-  "Open hemicolectomy",
-  "Lobectomy",
-  "Mastectomy",
-  "Total knee replacement arthroplasty",
-  "Total hip replacement arthroplasty",
-  "Hysterectomy",
-  "PPPD",
-  "Hepatectomy",
-  "Thyroidectomy",
-];
 
 export function nowLocalIso(): string {
   const d = new Date();

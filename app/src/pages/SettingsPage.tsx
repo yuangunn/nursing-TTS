@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { del, EngineInfo, get, put, Settings } from "../lib/api";
+import Term from "../components/Term";
 import SignalSelect from "../components/SignalSelect";
 import InstallProgress from "../components/InstallProgress";
 
@@ -135,7 +136,7 @@ export default function SettingsPage() {
         </div>
 
         <div className="panel">
-          <h2>LLM 다듬기 (BYOK) <span className="hint">선택 사항 · 규칙 기반 생성 후 자연스럽게 재작성</span></h2>
+          <h2><Term k="LLM 다듬기" /> (<Term k="BYOK" />) <span className="hint">선택 사항 · 규칙 기반 생성 후 자연스럽게 재작성</span></h2>
           <div className="row">
             <div>
               <label>제공자</label>
@@ -170,24 +171,24 @@ export default function SettingsPage() {
         </div>
 
         <div className="panel">
-          <h2>ASR 검증 (품질 게이트) <span className="hint">생성 직후 Whisper로 되읽어 CER이 높으면 표시</span></h2>
+          <h2><Term k="ASR" /> 검증 (품질 게이트) <span className="hint">생성 직후 <Term k="Whisper" />로 되읽어 <Term k="CER" />이 높으면 표시</span></h2>
           <div className="muted" style={{ marginBottom: 6 }}>설치: <span className="kbd">pip install faster-whisper</span> (백엔드 venv). 합성이 대본과 다르게 나온 클립을 자동으로 걸러 학습 데이터 오염을 막습니다. 결과물 탭에서 개별 재검증도 가능합니다.</div>
           <div className="row">
             <div className="narrow">
               <label style={{ color: "inherit", fontSize: 13 }}><input type="checkbox" checked={s.asr_verify} onChange={(e) => save({ asr_verify: e.target.checked })} /> 생성 시 자동 검증</label>
             </div>
             <div>
-              <label>Whisper 모델</label>
+              <label><Term k="Whisper" /> 모델</label>
               <select value={s.asr_model} onChange={(e) => save({ asr_model: e.target.value })}>
                 {["tiny", "base", "small", "medium", "large-v3"].map((m) => <option key={m} value={m}>{m}</option>)}
               </select>
             </div>
             <div className="narrow">
-              <label>CER 기준</label>
+              <label><Term k="CER" /> 기준</label>
               <input type="number" step={0.05} min={0.05} max={1} value={s.cer_threshold} onChange={(e) => save({ cer_threshold: Number(e.target.value) })} />
             </div>
             <div>
-              <label>문장 재합성 CER 기준 (0~1)</label>
+              <label>문장 재합성 <Term k="CER" /> 기준 (0~1)</label>
               <input type="number" step={0.05} min={0} max={1} value={s.chunk_cer_threshold ?? 0.3} title="합성 직후 문장마다 Whisper로 되읽어 이 값보다 CER이 높으면 그 문장만 새 시드로 다시 만듭니다" onChange={(e) => save({ chunk_cer_threshold: Number(e.target.value) })} />
             </div>
             <div>
@@ -198,7 +199,7 @@ export default function SettingsPage() {
         </div>
 
         <div className="panel">
-          <h2>시그널 기본 형식</h2>
+          <h2><Term k="시그널" /> 기본 형식</h2>
           <SignalSelect value={s.signal_format || "strict"} onChange={(v) => save({ signal_format: v || "strict" })} allowDefault={false} aliases={s.signal_aliases} onAliases={(v) => save({ signal_aliases: v })} />
           <div className="muted" style={{ marginTop: 6 }}>필수 형식은 「연도년 월월 일일 시간시 분분 환자명 님 기록종류 기록입니다」입니다. 다른 형식은 말투 관리 탭의 "시그널 형식"에서 추가할 수 있고, 파서가 날짜·시각·환자명·기록종류를 잡아내는지 예시 보기로 확인됩니다.</div>
         </div>
@@ -219,11 +220,11 @@ export default function SettingsPage() {
               <input type="number" min={0} max={100} value={s.noise_default_level} onChange={(e) => save({ noise_default_level: Number(e.target.value) })} />
             </div>
             <div>
-              <label>음성 음량 정규화 (RMS dBFS)</label>
+              <label>음성 음량 정규화 (<Term k="RMS" /> <Term k="dBFS" />)</label>
               <input type="number" step={1} min={-35} max={-10} value={s.loudness_dbfs} onChange={(e) => save({ loudness_dbfs: Number(e.target.value) })} />
             </div>
             <div>
-              <label>바닥 소음 (dBFS, 소음 꺼도 깔림)</label>
+              <label>바닥 소음 (<Term k="dBFS" />, 소음 꺼도 깔림)</label>
               <input type="number" step={1} min={-80} max={0} value={s.floor_dbfs ?? -56} title="말 사이 공백이 완전 무음이 되지 않게 깔리는 룸톤. 실제 녹음은 −52~−58. 0이면 없음" onChange={(e) => save({ floor_dbfs: Number(e.target.value) })} />
             </div>
             <div>
@@ -231,14 +232,14 @@ export default function SettingsPage() {
               <input type="number" step={0.01} min={0} max={0.3} value={s.room_wet ?? 0.06} title="모든 녹음에 아주 약하게 적용되는 병실 울림. 소리 옵션의 '병실 울림'을 켜면 그쪽이 우선" onChange={(e) => save({ room_wet: Number(e.target.value) })} />
             </div>
             <div>
-              <label>기본 구어 흐트러짐 (0~3)</label>
+              <label>기본 구어 <Term k="흐트러짐" /> (0~3)</label>
               <input type="number" min={0} max={3} value={s.default_disfluency} onChange={(e) => save({ default_disfluency: Number(e.target.value) })} />
             </div>
           </div>
         </div>
 
         <div className="panel">
-          <h2>회진 대화 소음 <span className="hint">등록 목소리로 읽은 뒤 역할마다 음높이(반음)와 말속도(1 = 그 목소리 본래 속도)를 바꿉니다</span></h2>
+          <h2>회진 대화 소음 <span className="hint">등록 목소리로 읽은 뒤 역할마다 음높이(<Term k="반음" />)와 말속도(1 = 그 목소리 본래 속도)를 바꿉니다</span></h2>
           <div className="row">
             {(["doctor", "patient", "nurse"] as const).map((role) => (
               <div key={role}>

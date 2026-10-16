@@ -392,3 +392,9 @@ def test_script_review_flags_roundtrip():
     assert client.patch(f"/api/script-review/{f['id']}", json={"note": "고침"}).json()["note"] == "고침"
     assert client.delete(f"/api/script-review/{f['id']}").json()["removed"] == 1
     assert client.get("/api/script-review").json()["items"] == []
+
+
+def test_scenarios_endpoint_lists_ops_and_regimens():
+    sc = client.get("/api/scenarios").json()
+    assert sum(1 for s in sc if s["kind"] == "op") >= 30 and sum(1 for s in sc if s["kind"] == "chemo") >= 13
+    assert all(s["key"] and s["ko"] and s["dept"] for s in sc)

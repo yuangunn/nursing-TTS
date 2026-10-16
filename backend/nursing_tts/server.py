@@ -40,8 +40,8 @@ class PatientModel(BaseModel):
     name: str = "홍길동"
     age: int | None = 64
     sex: str = "남"
-    diagnosis: str = "위암"
-    surgery: str = "Laparoscopic total gastrectomy"
+    diagnosis: str = "담낭염"
+    surgery: str = "Lapa chole"
     professor: str = "김민수"
     department: str = "외과"
     pod: int | None = 2
@@ -491,6 +491,13 @@ def noises_import_folder(body: dict[str, Any]):
 @app.get("/api/templates")
 def templates():
     return list_templates()
+
+
+@app.get("/api/scenarios")
+def scenarios():
+    """Ward surgeries and chemo regimens from the knowledge base (for the patient panel's pick lists)."""
+    from .clinical import SCENARIOS
+    return [{"key": s.key, "ko": s.ko, "abbr": s.abbr, "dept": s.dept, "kind": s.kind} for s in SCENARIOS]
 
 
 @app.get("/api/templates/{key}/defaults")

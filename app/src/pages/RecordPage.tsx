@@ -8,6 +8,7 @@ import SignalSelect from "../components/SignalSelect";
 import Visualizer from "../components/Visualizer";
 import { useEnergy } from "../lib/energy";
 import VoiceDemo from "../components/VoiceDemo";
+import Term from "../components/Term";
 import { setHandoff, takeHandoff, ScriptHandoff } from "../lib/scriptStore";
 import { apiUrl, AugmentSettings, DEFAULT_AUGMENT, DEFAULT_NOISE, DEFAULT_PATIENT, get, Job, NoiseSettings, nowLocalIso, Patient, post, put, Settings, TemplateSchema, Voice } from "../lib/api";
 import { AppStatus } from "../lib/onboarding";
@@ -265,7 +266,7 @@ export default function RecordPage({ status, onTab }: Props) {
         </div>
 
         <details className="adv">
-          <summary><span className="step-badge">6</span><span className="lbl">소리 옵션</span> <span className="hint">병동 소음 · 녹음 장비 다양화 · 구어 흐트러짐 (기본값으로 두어도 됩니다){noise.enabled ? " · 소음 켜짐" : ""}{augment.enabled ? " · 증강 켜짐" : ""}</span></summary>
+          <summary><span className="step-badge">6</span><span className="lbl">소리 옵션</span> <span className="hint">병동 소음 · 녹음 장비 다양화 · 구어 <Term k="흐트러짐" /> (기본값으로 두어도 됩니다){noise.enabled ? " · 소음 켜짐" : ""}{augment.enabled ? " · 증강 켜짐" : ""}</span></summary>
           <div className="inner">
             <NoisePanel
               value={noise}
@@ -305,12 +306,12 @@ export default function RecordPage({ status, onTab }: Props) {
               <div style={{ marginTop: 4 }}><VoiceDemo voiceId={voiceId} disabled={!voiceId} initialPitch={voices.find((v) => v.id === voiceId)?.pitch ?? 0} initialTempo={voices.find((v) => v.id === voiceId)?.tempo ?? 1} /></div>
             </div>
             <div className="narrow">
-              <label>변형 수</label>
+              <label><Term k="변형 수" /></label>
               <input type="number" min={1} max={20} value={variants} onChange={(e) => setVariants(Math.max(1, Math.min(20, Number(e.target.value))))} style={{ width: 70 }} title="같은 체크 상태로 말투·소음이 다른 녹음을 여러 개 생성" />
             </div>
             <div className="narrow">
               <label>
-                <input type="checkbox" checked={llm} disabled={!settings || settings.llm_provider === "none" || edited !== null} onChange={(e) => setLlm(e.target.checked)} /> 생성 시 LLM 다듬기
+                <input type="checkbox" checked={llm} disabled={!settings || settings.llm_provider === "none" || edited !== null} onChange={(e) => setLlm(e.target.checked)} /> 생성 시 <Term k="LLM 다듬기" />
               </label>
             </div>
             <div className="narrow">
