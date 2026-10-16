@@ -108,8 +108,8 @@ jobs:
         shell: bash
         run: |
           ../scripts/build-offline-bundle.sh --qwen --out offline-build
-          mv offline-build/nursing-tts-offline-* offline-build/offline
-          rm -f offline-build/offline/*.zip
+          rm -f offline-build/*.zip                       # only the folder goes into the installer
+          mv offline-build/nursing-tts-offline-*/ offline-build/offline
       - name: Python bundle (PowerShell)
         if: matrix.shell == 'pwsh'
         shell: pwsh
