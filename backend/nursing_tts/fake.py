@@ -197,16 +197,41 @@ def random_vitals(rng: random.Random, profile: str | None = None, with_spo2: boo
 
 def _random_number(f: Field, rng: random.Random) -> float | int:
     key = f.key
-    ranges = {"nrs": (0, 7), "braden": (14, 23), "morse": (0, 65), "height": (148, 182), "weight": (42, 95),
+    ranges = {"nrs": (0, 7), "braden": (13, 23), "p_braden": (13, 23), "jhfrat": (2, 16), "p_jhfrat": (14, 22), "height": (148, 182), "weight": (42, 95),
               "bmi": (17.5, 31.0), "drain_amount": (5, 120), "bt_peak": (37.3, 38.9), "bt_now": (36.4, 37.6),
               "sbp": (80, 100), "dbp": (45, 62), "hr": (100, 125)}
     lo, hi = ranges.get(key, (f.min or 0, f.max or 10))
     if f.step and f.step < 1 or isinstance(lo, float):
         return round(rng.uniform(float(lo), float(hi)), 1)
-    v = rng.randint(int(lo), int(hi))
-    if key == "morse":
-        v = (v // 5) * 5
-    return v
+    return rng.randint(int(lo), int(hi))
+
+
+def jhfrat_score(form: dict[str, Any], patient: Patient | None) -> int:
+    """Johns Hopkins Fall Risk Assessment Tool score from the facts already in the admission form
+    (the ward's tool, user 2026-10-16): age, elimination, high-risk drugs, equipment, mobility, cognition."""
+    age = (patient.age if patient else None) or 50
+    s = 3 if age >= 80 else 2 if age >= 70 else 1 if age >= 60 else 0
+    urin = form.get("voiding")
+    s += 4 if urin == "both" else 2 if urin in ("frequency", "incontinence", "urgency") else 0
+    drugs = sum([any(h in (form.get("history") or []) for h in ("htn", "heart")), form.get("sleep") == "hypnotic",
+                 "dm" in (form.get("history") or []) and False])
+    s += 5 if drugs >= 2 else 3 if drugs == 1 else 0
+    devices = str(form.get("devices") or "")
+    s += min(3, len([d for d in re.split(r"[,·/]", devices) if d.strip()])) if devices else 0
+    mobility = form.get("mobility")
+    s += {"device": 2, "assist": 4, "wheelchair": 2}.get(mobility or form.get("adl") or "", 0)
+    s += {"drowsy": 1, "confuse": 3}.get(form.get("consciousness") or "", 0)
+    if any(x in (form.get("sense") or []) for x in ("vision", "hearing")):
+        s += 2
+    return max(0, min(35, s))
+
+
+def fall_level(score: int) -> str:
+    return "low" if score <= 5 else "moderate" if score <= 13 else "high"
+
+
+def braden_risk(score: int) -> str:
+    return "최고위험" if score <= 9 else "고위험" if score <= 12 else "중등도 위험" if score <= 14 else "저위험" if score <= 18 else "위험 없음"
 
 
 def _consistency(form: dict[str, Any], template_key: str, t, rng: random.Random, patient: Patient | None, sc) -> None:
@@ -234,6 +259,32 @@ def _consistency(form: dict[str, Any], template_key: str, t, rng: random.Random,
         for key in ("mobility", "adl"):   # a 30-year-old myoma patient does not arrive in a wheelchair
             if key in form and rng.random() < 0.9:
                 form[key] = "independent"
+    # fall risk: Johns Hopkins score from the form, level from the score (scenario may force high/low)
+    forced = set(sc.form.get("fall") or []) if sc is not None and "fall" in sc.form else set()
+    if template_key == "s1" and "jhfrat" in form and "fall" in form:
+        score = jhfrat_score(form, patient)
+        if forced == {"high"}:
+            score = max(score, 14 + rng.randint(0, 4))
+        elif forced == {"low"}:
+            score = min(score, 5)
+        form["jhfrat"], form["fall"] = score, fall_level(score)
+    elif "fall" in form and "moderate" in opts.get("fall", set()) and not forced and patient is not None:
+        age = patient.age or 50
+        form["fall"] = rng.choice(["high", "moderate"]) if age >= 80 else rng.choice(["moderate", "low", "low"]) if age >= 65 else "low"
+    if "p_jhfrat" in form:
+        form["p_jhfrat"] = max(int(form["p_jhfrat"]), 14)          # the high-risk protocol re-assesses as still high
+    # pressure injury: Braden score ↔ risk band, and the admission skin finding
+    if template_key == "s1" and "skin" in form:
+        young_mobile = patient is not None and (patient.age or 0) < 65 and form.get("mobility") == "independent"
+        if rng.random() < (0.95 if young_mobile else 0.8):
+            form["skin"] = "intact"        # a pressure injury on admission is rare, and rarer in a walking 40-year-old
+    if "p_braden" in form:
+        form["p_braden_risk"] = braden_risk(int(form["p_braden"]))
+    if template_key == "s1" and "braden" in form:
+        if form.get("skin") == "pressure":
+            form["braden"] = min(int(form["braden"]), 14)
+        elif patient is not None and (patient.age or 0) < 65 and form.get("mobility") == "independent":
+            form["braden"] = max(int(form["braden"]), 19)
     if form.get("consciousness") == "alert" and "orientation" in form and rng.random() < 0.9:
         form["orientation"] = "yes"   # an alert patient is almost always oriented
     if form.get("weight_screen") == "neg":
