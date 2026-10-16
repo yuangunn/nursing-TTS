@@ -3,6 +3,8 @@ import { apiUrl, del, EnrollScript, get, patch, post, postBlob, Voice } from "..
 import { Recorder, startRecording } from "../lib/wav";
 import Visualizer from "../components/Visualizer";
 import VoiceDemo from "../components/VoiceDemo";
+
+type SortKey = "name" | "sex" | "created" | "preset" | "note";
 import { useEnergy } from "../lib/energy";
 
 export default function VoicesPage() {
@@ -18,6 +20,9 @@ export default function VoicesPage() {
   const [elapsed, setElapsed] = useState(0);
   const [busy, setBusy] = useState("");
   const [showClips, setShowClips] = useState(false);
+  const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "name", dir: "asc" });
+  const [editId, setEditId] = useState("");
+  const [editName, setEditName] = useState("");
   const [err, setErr] = useState("");
   const [testUrl, setTestUrl] = useState("");
   const [testNote, setTestNote] = useState("");
@@ -40,6 +45,22 @@ export default function VoicesPage() {
   }, []);
 
   const voice = voices.find((v) => v.id === sel);
+  const presetText = (v: Voice) => (v.pitch || (v.tempo && v.tempo !== 1)) ? `${v.pitch ? `${v.pitch > 0 ? "+" : ""}${v.pitch}반음` : ""}${v.pitch && v.tempo !== 1 ? " · " : ""}${v.tempo && v.tempo !== 1 ? `${v.tempo.toFixed(2)}×` : ""}` : "—";
+  const sortedVoices = [...voices].sort((a, b) => {
+    const dir = sort.dir === "asc" ? 1 : -1;
+    const val = (v: Voice) => sort.key === "created" ? v.created : sort.key === "preset" ? presetText(v) : sort.key === "sex" ? (v.sex || "") : sort.key === "note" ? (v.note || "") : v.name;
+    const x = val(a), y = val(b);
+    return (typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), "ko")) * dir;
+  });
+  const patchVoice = async (id: string, body: Partial<Voice>) => {
+    await fetch(apiUrl(`/api/voices/${id}`), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    await load();
+  };
+  const rename = async (id: string) => {
+    const name = editName.trim();
+    setEditId("");
+    if (name && name !== voices.find((v) => v.id === id)?.name) await patchVoice(id, { name });
+  };
   const script = scripts.find((s) => s.id === scriptId);
   const transcript = scriptId === "__custom" ? customText : script?.text || "";
   const doneScripts = new Set(voice?.samples.map((s) => s.script_id));
@@ -174,18 +195,38 @@ export default function VoicesPage() {
         )}
         <div className="panel">
           <h2>등록된 목소리</h2>
-          <ul className="list">
-            {voices.map((v) => (
-              <li key={v.id} className={v.id === sel ? "active" : ""} onClick={() => setSel(v.id)} style={{ cursor: "pointer" }}>
-                <div className="grow">
-                  <b>{v.name}</b> <span className="muted">{v.note}</span>
-                  <div className="muted">참조 클립 {v.samples.length}개 · {v.samples.reduce((a, s) => a + s.duration, 0).toFixed(0)}초</div>
-                </div>
-                <button className="small danger" onClick={(e) => { e.stopPropagation(); removeVoice(v.id); }}>삭제</button>
-              </li>
-            ))}
-            {!voices.length && <li className="muted">아직 등록된 목소리가 없습니다.</li>}
-          </ul>
+          <table className="items" style={{ width: "100%" }}>
+            <thead><tr>
+              {([["name", "이름"], ["sex", "성별"], ["created", "등록일"], ["preset", "프리셋"], ["note", "메모"]] as [SortKey, string][]).map(([k, label]) => (
+                <th key={k} onClick={() => setSort(sort.key === k ? { key: k, dir: sort.dir === "asc" ? "desc" : "asc" } : { key: k, dir: "asc" })} style={{ cursor: "pointer" }} title="클릭해서 정렬">
+                  {label}{sort.key === k ? (sort.dir === "asc" ? " ▲" : " ▼") : ""}
+                </th>
+              ))}
+              <th />
+            </tr></thead>
+            <tbody>
+              {sortedVoices.map((v) => (
+                <tr key={v.id} onClick={() => setSel(v.id)} style={{ cursor: "pointer", background: v.id === sel ? "rgba(56,189,248,0.12)" : undefined }}>
+                  <td onDoubleClick={(e) => { e.stopPropagation(); setEditId(v.id); setEditName(v.name); }} title="더블클릭 또는 ✎로 이름 수정">
+                    {editId === v.id ? (
+                      <input autoFocus type="text" value={editName} onChange={(e) => setEditName(e.target.value)} onClick={(e) => e.stopPropagation()}
+                        onBlur={() => rename(v.id)} onKeyDown={(e) => { if (e.key === "Enter") rename(v.id); if (e.key === "Escape") setEditId(""); }} style={{ width: "100%" }} />
+                    ) : (<><b>{v.name}</b> <button className="link" onClick={(e) => { e.stopPropagation(); setEditId(v.id); setEditName(v.name); }} title="이름 수정">✎</button></>)}
+                  </td>
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <select value={v.sex || ""} onChange={(e) => patchVoice(v.id, { sex: e.target.value })} style={{ width: 64 }}>
+                      <option value="">—</option><option value="여">여</option><option value="남">남</option>
+                    </select>
+                  </td>
+                  <td className="muted">{v.created ? new Date(v.created * 1000).toLocaleDateString() : "-"}</td>
+                  <td className="muted">{presetText(v)}</td>
+                  <td className="muted" title={v.note} style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v.note}</td>
+                  <td><button className="small danger" onClick={(e) => { e.stopPropagation(); removeVoice(v.id); }}>삭제</button></td>
+                </tr>
+              ))}
+              {!voices.length && <tr><td colSpan={6} className="muted">아직 등록된 목소리가 없습니다.</td></tr>}
+            </tbody>
+          </table>
           <div className="row" style={{ marginTop: 10 }}>
             <div>
               <label>새 목소리 이름 (예: 간호사 A)</label>
@@ -264,8 +305,9 @@ export default function VoicesPage() {
             </div>
 
             <div className="panel">
-              <h2>이 목소리의 예시 <span className="hint">고정 문장을 이 목소리로 읽은 생성본 · 원음은 재생하지 않습니다</span></h2>
-              <VoiceDemo voiceId={voice.id} disabled={!voice.samples.length} />
+              <h2>이 목소리의 예시 <span className="hint">고정 문장을 이 목소리로 읽은 생성본 · 원음은 재생하지 않습니다 · 음높이·속도를 바꿔 "프리셋 저장"하면 녹음 생성에도 적용</span></h2>
+              <VoiceDemo voiceId={voice.id} disabled={!voice.samples.length} initialPitch={voice.pitch ?? 0} initialTempo={voice.tempo ?? 1}
+                onSave={(pitch, tempo) => patchVoice(voice.id, { pitch, tempo })} />
               <div className="row" style={{ marginTop: 10 }}>
                 <div className="narrow"><button onClick={testVoice} disabled={!voice.samples.length || !!busy}>🔊 다른 문장으로 합성 테스트</button></div>
                 <div className="muted">{testNote}</div>
@@ -276,9 +318,9 @@ export default function VoicesPage() {
             <div className="panel">
               <h2>
                 <button className="link" onClick={() => setShowClips(!showClips)} style={{ font: "inherit", padding: 0 }}>
-                  {showClips ? "▾" : "▸"} 참조 클립 {voice.samples.length}개 · {voice.samples.reduce((a, s) => a + s.duration, 0).toFixed(0)}초
+                  {showClips ? "▾" : "▸"} 고급: 참조 클립 관리
                 </button>
-                <span className="hint">복제에 쓰는 원음과 전사. 전사를 고치거나 잘못 잘린 클립을 지울 때만 펼치세요 ★ = 기본 참조</span>
+                <span className="hint">복제 엔진이 합성마다 쓰는 원음과 전사. 전사를 고치거나 잘못 잘린 클립을 지울 때만 ★ = 기본 참조</span>
               </h2>
               {showClips && <ul className="list">
                 {voice.samples.map((s) => (

@@ -34,6 +34,8 @@ class Voice:
     created: float = 0.0
     samples: list[VoiceSample] = field(default_factory=list)
     primary_sample: str = ""
+    pitch: float = 0.0     # preset: semitones applied to everything synthesised with this voice (and the demo)
+    tempo: float = 1.0     # preset: speaking-rate factor (>1 faster)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -111,6 +113,10 @@ def update_voice(voice_id: str, **fields: Any) -> Voice:
     for k in ("name", "note", "sex", "primary_sample"):
         if k in fields and fields[k] is not None:
             setattr(v, k, fields[k])
+    if fields.get("pitch") is not None:
+        v.pitch = max(-12.0, min(12.0, float(fields["pitch"])))
+    if fields.get("tempo") is not None:
+        v.tempo = max(0.5, min(2.0, float(fields["tempo"])))
     if fields.get("primary_sample"):
         invalidate_demo(voice_id)
     _save(v)

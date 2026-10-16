@@ -293,7 +293,7 @@ export default function RecordPage({ status, onTab }: Props) {
                   <option key={v.id} value={v.id} disabled={!v.samples.length}>{v.name} ({v.samples.length}개 샘플)</option>
                 ))}
               </select>
-              <div style={{ marginTop: 4 }}><VoiceDemo voiceId={voiceId} disabled={!voiceId} /></div>
+              <div style={{ marginTop: 4 }}><VoiceDemo voiceId={voiceId} disabled={!voiceId} initialPitch={voices.find((v) => v.id === voiceId)?.pitch ?? 0} initialTempo={voices.find((v) => v.id === voiceId)?.tempo ?? 1} /></div>
             </div>
             <div className="narrow">
               <label>변형 수</label>

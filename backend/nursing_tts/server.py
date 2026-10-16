@@ -725,12 +725,15 @@ def voices_sample_audio(voice_id: str, sample_id: str):
 
 
 @app.get("/api/voices/{voice_id}/demo")
-def voices_demo(voice_id: str, pitch: float = 0.0, tempo: float = 1.0):
+def voices_demo(voice_id: str, pitch: float | None = None, tempo: float | None = None):
     """A synthesised demo of one fixed sentence: the bundled clip if the app ships one for this voice, else a
     per-voice cache, else synthesised now. The source recordings themselves are not played back when choosing
     a voice. ``pitch`` (semitones) and ``tempo`` (rate) let the user hear the voice shifted."""
-    if not voices_mod.get_voice(voice_id):
+    voice = voices_mod.get_voice(voice_id)
+    if not voice:
         raise HTTPException(404, "목소리가 없습니다.")
+    pitch = voice.pitch if pitch is None else pitch      # no query → the voice's saved preset
+    tempo = voice.tempo if tempo is None else tempo
     path = voices_mod.bundled_demo(voice_id) or voices_mod.demo_path(voice_id)
     if not path.exists():
         from .korean import to_tts_text

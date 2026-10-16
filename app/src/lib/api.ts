@@ -272,6 +272,8 @@ export interface Voice {
   created: number;
   samples: VoiceSample[];
   primary_sample: string;
+  pitch?: number;
+  tempo?: number;
 }
 export interface JobItem {
   index: number;
