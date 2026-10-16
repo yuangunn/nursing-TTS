@@ -71,6 +71,7 @@ def test_voice_flow_and_generate(tmp_path):
     meta = client.get("/api/output/meta", params={"rel": "20261018_1110_김영희.wav"}).json()
     assert meta["spoken_text"].startswith("2026년 10월 18일 오전 11시 10분 김영희 님 인계 기록입니다.")
     assert meta["noise"]["events"]
+    assert meta["ref_sample"] == r.json()["sample"]["id"]   # the reference clip is recorded per recording
     # second recording with the same name gets a suffix
     gen2 = client.post("/api/generate", json={
         "template": "s5", "form": {}, "patient": {"name": "김영희"}, "datetime": "2026-10-18T11:10", "voice_id": v["id"],

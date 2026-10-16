@@ -34,7 +34,7 @@ def list_recordings(limit: int = 2000) -> list[dict[str, Any]]:
                 meta = {}
             item.update({
                 "template": meta.get("template"), "record_kind": meta.get("record_kind"),
-                "patient": (meta.get("patient") or {}).get("name"), "voice_id": meta.get("voice_id"),
+                "patient": (meta.get("patient") or {}).get("name"), "voice_id": meta.get("voice_id"), "ref_sample": meta.get("ref_sample"),
                 "voice_name": meta.get("voice_name"), "engine": meta.get("engine"),
                 "duration": meta.get("duration_sec"), "noise": (meta.get("noise") or {}).get("enabled"),
                 "noise_level": (meta.get("noise") or {}).get("level"), "noise_types": (meta.get("noise") or {}).get("types") or [],
