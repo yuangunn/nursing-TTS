@@ -99,8 +99,7 @@ TEMPLATE = RecordTemplate(
         ]),
         Section("lab", "검사 결과", hint="Lab, 영상, 배양 특이 수치 및 noti 여부", fields=[
             txt("lab", "Lab", placeholder="예: WBC 11.2, CRP 8.5 어제보다 약간 상승",
-                phrases=["금일 랩에서 {v}하여 담당의 noti 했으며 내일 아침 랩 F/U 하기로 했습니다.", "오늘 랩 {v}, noti 했고 내일 F/U 예정이고,",
-                         "랩은 {v} 소견이고 noti 한 상태이구요,"], default="WBC 11.2, CRP 8.5로 어제보다 약간 상승"),
+                phrases=["금일 랩 {v}입니다.", "오늘 랩은 {v}이고,", "랩은 {v} 소견이구요,"], default="WBC 11.2, CRP 8.5로 어제보다 약간 상승"),
             txt("glucose", "혈당", placeholder="예: 식전 150~180, 슬라이딩 스케일",
                 phrases=["혈당은 {v} 적용 중입니다.", "혈당 {v}이고,", "BST {v}이구요,"], default="식전 150~180으로 슬라이딩 스케일"),
             txt("imaging", "영상/배양", placeholder="예: chest PA 특이 소견 없음",

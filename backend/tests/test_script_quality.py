@@ -142,3 +142,63 @@ def test_admission_forms_are_coherent_and_formal_scripts_have_no_questions():
         p = random_patient(rng, "s1"); f = random_form("s1", rng, p)
         allergic += f.get("allergy") != ["none"]; iso += f.get("isolation") != "none"; sense += f.get("sense") != ["none"]
     assert allergic < 60 and iso < 25 and sense < 80, (allergic, iso, sense)   # rare things stay rare
+
+
+def test_other_templates_are_coherent():
+    """2026-10-17: every template was audited by reading 10+ generated scripts; the contradictions found then
+    (POD vs 시점, order vs drug given, 금식 vs 물 시작, PCA 제거 vs 재사정, 존스홉킨스 for a walking 34-year-old …)
+    must not come back.  Only the progress record (S6) carries the charting checklist."""
+    import random
+    from nursing_tts.fake import audit, random_datetime, random_form, random_patient
+    from nursing_tts.generator import build_script
+    rng = random.Random(31)
+    for t in ("s2", "s3_1", "s3_2", "s4", "s5", "s6"):
+        for i in range(60):
+            p = random_patient(rng, t)
+            f = random_form(t, rng, p)
+            assert audit(f, p, t) == [], (t, audit(f, p, t))
+            assert t == "s6" or not any(k.startswith("p_") for k in f), t
+            text = build_script(t, f, p, random_datetime(rng), style="formal", seed=i).spoken_text.replace("\n", " ")
+            assert "?" not in text and "FLACC" not in text and "하퇴 절단술" not in text, text
+            m = re.search(r"(\S{2,}) \1\b", text)
+            assert not m or m.group(1) in ("하루", "두", "번", "자주", "조금"), (t, m.group(0))
+            if t == "s2":
+                assert f["op_date"].startswith(f"내일 {p.op_date}"), f["op_date"]
+                assert "복부 JP" not in text and "항경련제" not in text and "prep_detail" not in f
+            if t == "s3_1":
+                assert {"day0": 0, "pod1": 1, "pod2": 2}[f["timing"]] == p.pod
+                assert (f["o2"] == "none") == (f["vitals"]["o2"] == "room air")
+                if f["consciousness"] == "drowsy":
+                    assert not f.get("responds") and not f.get("pca_edu")
+                if f["timing"] != "day0":
+                    assert "arrival_time" not in f and f["breathing"] == "inspirometer"
+            if t == "s3_2":
+                ev, v = f["event"], f["vitals"]
+                assert f["noti_content"].startswith(f"BT {v['bt']}, BP {v['sbp']}/{v['dbp']}, HR {v['hr']}")
+                if ev == "발열":
+                    assert v["bt"] >= 37.8
+                if ev == "통증":
+                    assert f["nrs"] >= 6 and "pain_med" not in f
+                if ev not in ("출혈", "배액 이상"):
+                    assert f["recheck"] == "na"
+                if f.get("med_given", "").endswith("PO"):
+                    assert "PO" in f["orders"] or "주스" in f["med_given"], (f["orders"], f["med_given"])
+            if t == "s4":
+                assert f["er_edu"] == ("chemo" if p.kind == "chemo" else "op")
+                assert "referral" not in f or "stoma" not in f["referral"] or f.get("device") != "stoma"
+            if t == "s5":
+                if f.get("diet") == "npo":
+                    assert f.get("gas_out") is False
+                if f.get("diet") in ("sd", "gd", "soft", "dm"):
+                    assert "gas_out" not in f
+                if p.kind != "chemo" and f.get("glucose"):
+                    assert "dm" in f["history"]
+                if p.kind != "chemo" and (p.pod or 0) >= 4:
+                    assert f.get("pain_mgmt") not in ("pca", "pca_prn")
+            if t == "s6":
+                if f["reassess"] != "stable":
+                    assert f["nrs4"] < f["nrs1"]
+                if f["reassess"] == "after_pca":
+                    assert f["pca_remove"] == "removed"
+                if f["meal1"] == "npo":
+                    assert f["meal2"] == "npo"
