@@ -88,7 +88,9 @@ export default function RecordPage({ status, onTab }: Props) {
 
   const [demoBusy, setDemoBusy] = useState("");
   const [demoError, setDemoError] = useState("");
-  const playDemo = (id: string) => playVoiceDemo(id, setDemoBusy, setDemoError);
+  const [demoPitch, setDemoPitch] = useState(0);
+  const [demoTempo, setDemoTempo] = useState(1);
+  const playDemo = (id: string) => playVoiceDemo(id, setDemoBusy, setDemoError, { pitch: demoPitch, tempo: demoTempo });
   const refreshVoices = () => get<Voice[]>("/api/voices").then((vs) => { setVoices(vs); const first = vs.find((v) => v.samples.length); if (first) setVoiceId((cur) => cur || first.id); }).catch(() => undefined);
   const useSystemVoice = async () => {
     try { setSettings(await put<Settings>("/api/settings", { tts_engine: "system" })); } catch (e) { setErr(String(e)); }
@@ -296,11 +298,20 @@ export default function RecordPage({ status, onTab }: Props) {
                   <option key={v.id} value={v.id} disabled={!v.samples.length}>{v.name} ({v.samples.length}개 샘플)</option>
                 ))}
               </select>
-              <div style={{ marginTop: 4 }}>
-                <button type="button" onClick={() => playDemo(voiceId)} disabled={!voiceId || demoBusy === voiceId} title="이 목소리로 고정 문장을 한 번 합성해 들려줍니다 (원음은 재생하지 않음)">
+              <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <button type="button" onClick={() => playDemo(voiceId)} disabled={!voiceId || demoBusy === voiceId} title="이 목소리로 고정 문장을 읽은 샘플을 들려줍니다 (원음은 재생하지 않음)">
                   {demoBusy === voiceId ? "⏳ 샘플 만드는 중…" : "🔊 샘플 듣기"}
                 </button>
-                {demoError && <span className="muted" style={{ marginLeft: 6 }}>{demoError}</span>}
+                <label className="muted" style={{ display: "inline-flex", alignItems: "center", gap: 4 }} title="샘플 재생 음높이 (반음)">
+                  음높이 <input type="range" min={-6} max={6} step={1} value={demoPitch} onChange={(e) => setDemoPitch(Number(e.target.value))} style={{ width: 90 }} />
+                  <span style={{ minWidth: 28 }}>{demoPitch > 0 ? `+${demoPitch}` : demoPitch}</span>
+                </label>
+                <label className="muted" style={{ display: "inline-flex", alignItems: "center", gap: 4 }} title="샘플 재생 속도 (배)">
+                  속도 <input type="range" min={0.8} max={1.3} step={0.05} value={demoTempo} onChange={(e) => setDemoTempo(Number(e.target.value))} style={{ width: 90 }} />
+                  <span style={{ minWidth: 34 }}>{demoTempo.toFixed(2)}×</span>
+                </label>
+                {(demoPitch !== 0 || demoTempo !== 1) && <button type="button" className="link" onClick={() => { setDemoPitch(0); setDemoTempo(1); }}>원래대로</button>}
+                {demoError && <span className="muted">{demoError}</span>}
               </div>
             </div>
             <div className="narrow">

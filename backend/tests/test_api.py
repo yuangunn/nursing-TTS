@@ -347,6 +347,26 @@ def test_voice_demo_is_synthesised_and_cached():
     client.delete(f"/api/voices/{v['id']}")
 
 
+def test_voice_demo_prefers_bundled_clip_and_applies_pitch_tempo(tmp_path, monkeypatch):
+    import io
+    import numpy as np
+    import soundfile as sf
+    from nursing_tts import voices as voices_mod
+    monkeypatch.setattr(voices_mod, "ASSET_DEMOS", tmp_path)
+    v = client.post("/api/voices", json={"name": "번들 테스트"}).json()
+    sr = 24000
+    t = np.arange(sr * 2) / sr
+    sf.write(tmp_path / f"{v['id']}.flac", (0.3 * np.sin(2 * np.pi * 220 * t)).astype("float32"), sr, format="FLAC")
+    plain = client.get(f"/api/voices/{v['id']}/demo")
+    assert plain.status_code == 200 and not voices_mod.demo_path(v["id"]).exists()   # bundled → nothing synthesised
+    a0, _ = sf.read(io.BytesIO(plain.content))
+    fast = client.get(f"/api/voices/{v['id']}/demo", params={"tempo": 1.25})
+    a1, _ = sf.read(io.BytesIO(fast.content))
+    assert abs(len(a0) - sr * 2) < sr * 0.05 and len(a1) < len(a0) * 0.9, (len(a0), len(a1))
+    assert client.get(f"/api/voices/{v['id']}/demo", params={"pitch": 3}).status_code == 200
+    client.delete(f"/api/voices/{v['id']}")
+
+
 def test_formal_vitals_do_not_use_temperature_slang():
     import random
     from nursing_tts.generator import realize_vitals
