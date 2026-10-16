@@ -21,9 +21,12 @@ export default function NoisePanel({ value, onChange, extra, voiceId }: Props) {
       /* backend down */
     }
   };
-  useEffect(() => {
+  useEffect(() => {   // retry while the list is empty (the backend may still be starting)
     load();
-  }, []);
+    if (catalog.length) return;
+    const id = window.setInterval(load, 3000);
+    return () => window.clearInterval(id);
+  }, [catalog.length]);
 
   const toggle = (k: string) => {
     const all = catalog.map((n) => n.key);

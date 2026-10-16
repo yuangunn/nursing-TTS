@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Scene from "./components/Scene";
 import Sidebar, { Tab } from "./components/Sidebar";
 import SetupWizard from "./components/SetupWizard";
@@ -37,6 +37,14 @@ export default function App() {
   const [version, setVersion] = useState("");
   const [energy, setEnergy] = useState(0);
   const [status, refresh] = useAppStatus();
+  // A page that mounted while the backend was unreachable fetched nothing (noise list, voices, templates …).
+  // Remount it once the backend answers; pages mounted with the backend up keep their state.
+  const [epoch, setEpoch] = useState(0);
+  const staleRef = useRef(false);
+  useEffect(() => { staleRef.current = !status.checked || !status.backendOk; }, [tab]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (status.backendOk && staleRef.current) { staleRef.current = false; setEpoch((e) => e + 1); }
+  }, [status.backendOk]);
 
   useEffect(() => {
     (async () => {
@@ -102,7 +110,7 @@ export default function App() {
               </div>
             )}
             {tab === "record" && !backendDown && <GettingStarted status={status} onTab={setTab} onWizard={() => setWizard(true)} />}
-            <div key={tab} className="fade-in">
+            <div key={`${tab}:${epoch}`} className="fade-in">
               {tab === "record" && <RecordPage status={status} onTab={setTab} />}
               {tab === "review" && <ScriptReviewPage onTab={setTab} />}
               {tab === "batch" && <BatchPage />}
