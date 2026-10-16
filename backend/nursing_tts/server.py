@@ -724,6 +724,28 @@ def voices_sample_audio(voice_id: str, sample_id: str):
     return FileResponse(str(p), media_type="audio/wav")
 
 
+@app.get("/api/voices/{voice_id}/demo")
+def voices_demo(voice_id: str):
+    """A synthesised demo of one fixed sentence (cached per voice). The source recordings themselves are
+    not played back when choosing a voice."""
+    if not voices_mod.get_voice(voice_id):
+        raise HTTPException(404, "목소리가 없습니다.")
+    path = voices_mod.demo_path(voice_id)
+    if not path.exists():
+        from .korean import to_tts_text
+        from .tts.registry import get_engine
+        engine = get_engine(load_settings())
+        ref = voices_mod.pick_reference(voice_id, prefer_primary=True)
+        if engine.clones_voice and ref is None:
+            raise HTTPException(400, "이 목소리에 등록된 샘플이 없습니다.")
+        try:
+            audio, sr = engine.synthesize(to_tts_text(voices_mod.DEMO_TEXT, random.Random(1)), ref, seed=1)
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(500, f"합성 실패 ({engine.label}): {e}")
+        sf.write(path, np.clip(audio, -1, 1), sr, format="WAV", subtype="PCM_16")
+    return Response(content=path.read_bytes(), media_type="audio/wav", headers={"Cache-Control": "no-store"})
+
+
 @app.post("/api/voices/{voice_id}/test")
 def voices_test(voice_id: str, body: dict[str, Any]):
     """Quick cloning test: synthesise one sentence with this voice."""

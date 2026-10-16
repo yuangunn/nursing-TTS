@@ -7,6 +7,7 @@ import PatientPanel from "../components/PatientPanel";
 import SignalSelect from "../components/SignalSelect";
 import Visualizer from "../components/Visualizer";
 import { useEnergy } from "../lib/energy";
+import { playVoiceDemo } from "../lib/voiceDemo";
 import { apiUrl, AugmentSettings, DEFAULT_AUGMENT, DEFAULT_NOISE, DEFAULT_PATIENT, get, Job, NoiseSettings, nowLocalIso, Patient, post, put, Settings, TemplateSchema, Voice } from "../lib/api";
 import { AppStatus } from "../lib/onboarding";
 import { Tab } from "../components/Sidebar";
@@ -85,6 +86,9 @@ export default function RecordPage({ status, onTab }: Props) {
     }).catch(() => undefined);
   }, [tkey]);
 
+  const [demoBusy, setDemoBusy] = useState("");
+  const [demoError, setDemoError] = useState("");
+  const playDemo = (id: string) => playVoiceDemo(id, setDemoBusy, setDemoError);
   const refreshVoices = () => get<Voice[]>("/api/voices").then((vs) => { setVoices(vs); const first = vs.find((v) => v.samples.length); if (first) setVoiceId((cur) => cur || first.id); }).catch(() => undefined);
   const useSystemVoice = async () => {
     try { setSettings(await put<Settings>("/api/settings", { tts_engine: "system" })); } catch (e) { setErr(String(e)); }
@@ -292,6 +296,12 @@ export default function RecordPage({ status, onTab }: Props) {
                   <option key={v.id} value={v.id} disabled={!v.samples.length}>{v.name} ({v.samples.length}개 샘플)</option>
                 ))}
               </select>
+              <div style={{ marginTop: 4 }}>
+                <button type="button" onClick={() => playDemo(voiceId)} disabled={!voiceId || demoBusy === voiceId} title="이 목소리로 고정 문장을 한 번 합성해 들려줍니다 (원음은 재생하지 않음)">
+                  {demoBusy === voiceId ? "⏳ 샘플 만드는 중…" : "🔊 샘플 듣기"}
+                </button>
+                {demoError && <span className="muted" style={{ marginLeft: 6 }}>{demoError}</span>}
+              </div>
             </div>
             <div className="narrow">
               <label>변형 수</label>

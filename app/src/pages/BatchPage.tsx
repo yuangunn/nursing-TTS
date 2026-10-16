@@ -3,6 +3,7 @@ import JobProgress from "../components/JobProgress";
 import AugmentPanel from "../components/AugmentPanel";
 import NoisePanel from "../components/NoisePanel";
 import SignalSelect from "../components/SignalSelect";
+import { playVoiceDemo } from "../lib/voiceDemo";
 import { AugmentSettings, DEFAULT_AUGMENT, DEFAULT_NOISE, get, Job, NoiseSettings, post, Settings, TemplateSchema, Voice } from "../lib/api";
 
 export default function BatchPage() {
@@ -12,6 +13,8 @@ export default function BatchPage() {
   const [count, setCount] = useState(20);
   const [sel, setSel] = useState<string[]>(["s1", "s2", "s3_1", "s3_2", "s4", "s5"]);
   const [voiceIds, setVoiceIds] = useState<string[]>([]);
+  const [demoBusy, setDemoBusy] = useState("");
+  const [demoError, setDemoError] = useState("");
   const [noise, setNoise] = useState<NoiseSettings>({ ...DEFAULT_NOISE, enabled: true });
   const [noiseProb, setNoiseProb] = useState(0.5);
   const [style, setStyle] = useState("");
@@ -102,9 +105,13 @@ export default function BatchPage() {
             <label>목소리 (여러 개 선택 시 무작위 배정)</label>
             <div className="checks">
               {voices.filter((v) => v.samples.length).map((v) => (
-                <label key={v.id}><input type="checkbox" checked={voiceIds.includes(v.id)} onChange={() => toggle(voiceIds, v.id, setVoiceIds)} /> {v.name}</label>
+                <label key={v.id}><input type="checkbox" checked={voiceIds.includes(v.id)} onChange={() => toggle(voiceIds, v.id, setVoiceIds)} /> {v.name}
+                  <button type="button" className="link" title="이 목소리로 고정 문장을 한 번 합성해 들려줍니다" style={{ marginLeft: 4 }} disabled={demoBusy === v.id}
+                    onClick={(e) => { e.preventDefault(); playVoiceDemo(v.id, setDemoBusy, setDemoError); }}>{demoBusy === v.id ? "⏳" : "🔊"}</button>
+                </label>
               ))}
               {!voices.filter((v) => v.samples.length).length && <span className="muted">샘플이 있는 목소리가 없습니다.</span>}
+              {demoError && <span className="muted">{demoError}</span>}
             </div>
           </div>
           <div className="checks">

@@ -333,3 +333,23 @@ def test_export_splits_long_recordings_at_segments():
     r = subprocess.run([_sys.executable, str(_P(__file__).resolve().parents[2] / "scripts" / "check_export.py"), rep["folder"]],
                        capture_output=True, text=True)
     assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_voice_demo_is_synthesised_and_cached():
+    from nursing_tts import voices as voices_mod
+    v = client.post("/api/voices", json={"name": "데모 테스트"}).json()
+    r = client.get(f"/api/voices/{v['id']}/demo")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("audio/wav"), r.text
+    assert voices_mod.demo_path(v["id"]).exists()
+    assert client.get("/api/voices/없는목소리/demo").status_code == 404
+    voices_mod.invalidate_demo(v["id"])
+    assert not voices_mod.demo_path(v["id"]).exists()
+    client.delete(f"/api/voices/{v['id']}")
+
+
+def test_formal_vitals_do_not_use_temperature_slang():
+    import random
+    from nursing_tts.generator import realize_vitals
+    for i in range(60):
+        txt = realize_vitals({"sbp": 120, "dbp": 80, "hr": 72, "rr": 18, "bt": 38.3, "spo2": 97}, random.Random(i), verb_style="formal")
+        assert "8도" not in txt and "38.3" in txt, txt
