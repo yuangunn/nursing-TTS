@@ -15,11 +15,20 @@ export interface NursingBridge {
   cancelSetup(): Promise<boolean>;
   checkEnvironment(): Promise<EnvInfo>;
   openExternal(url: string): Promise<void>;
+  checkUpdate(force?: boolean): Promise<UpdateInfo>;
+  getUpdateSettings(): Promise<UpdateSettings>;
+  setUpdateSettings(patch: Partial<Pick<UpdateSettings, "skipVersion" | "token" | "feedUrl">>): Promise<UpdateSettings>;
+  onUpdateAvailable(cb: (info: UpdateInfo) => void): () => void;
   onSetupProgress(cb: (p: SetupProgress) => void): () => void;
   onBackendReady(cb: (ok: boolean) => void): void;
   onBackendLog(cb: (line: string) => void): void;
 }
 
+export interface UpdateInfo {
+  current: string; latest: string; url: string; notes: string; published: string;
+  newer: boolean; skipped: boolean; error?: string; checkedAt: number;
+}
+export interface UpdateSettings { skipVersion: string; token: string; feedUrl: string; lastCheck: number; lastResult?: UpdateInfo }
 export interface PythonInfo { found: boolean; version: string; path: string; ok: boolean }
 export interface EnvInfo {
   platform: string;

@@ -4,6 +4,7 @@ import * as fs from "fs";
 import * as http from "http";
 import * as net from "net";
 import * as path from "path";
+import { checkForUpdate, loadSettings as loadUpdateSettings, saveSettings as saveUpdateSettings, UpdateInfo } from "./update";
 
 let BACKEND_PORT = Number(process.env.NURSING_TTS_PORT || 8765);
 let BACKEND_URL = `http://127.0.0.1:${BACKEND_PORT}`;
@@ -387,6 +388,28 @@ ipcMain.handle("cancel-setup", () => {
 ipcMain.handle("check-environment", () => checkEnvironment());
 ipcMain.handle("open-external", (_e, url: string) => shell.openExternal(url));
 ipcMain.handle("app-version", () => app.getVersion());
+
+// --- update check (startup + every 6 h); the renderer shows a banner with "이 버전 알림 받지 않기"
+async function runUpdateCheck(force = false): Promise<UpdateInfo> {
+  const s = loadUpdateSettings(app.getPath("userData"));
+  const info = await checkForUpdate(app.getVersion(), s);
+  saveUpdateSettings(app.getPath("userData"), { ...s, lastCheck: info.checkedAt, lastResult: info });
+  if (info.newer && (force || !info.skipped)) mainWindow?.webContents.send("update-available", info);
+  return info;
+}
+ipcMain.handle("check-update", (_e, force?: boolean) => runUpdateCheck(!!force));
+ipcMain.handle("get-update-settings", () => {
+  const s = loadUpdateSettings(app.getPath("userData"));
+  return { ...s, token: s.token ? "set" : "" };   // never hand the token back to the renderer
+});
+ipcMain.handle("set-update-settings", (_e, patch: { skipVersion?: string; token?: string; feedUrl?: string }) => {
+  const s = loadUpdateSettings(app.getPath("userData"));
+  if (patch.skipVersion !== undefined) s.skipVersion = patch.skipVersion;
+  if (patch.token !== undefined) s.token = patch.token;
+  if (patch.feedUrl !== undefined) s.feedUrl = patch.feedUrl;
+  saveUpdateSettings(app.getPath("userData"), s);
+  return { ...s, token: s.token ? "set" : "" };
+});
 ipcMain.handle("restart-backend", async () => {
   backend?.kill();
   backend = null;
@@ -399,6 +422,8 @@ app.whenReady().then(async () => {
   createWindow();
   await startBackend();
   mainWindow?.webContents.send("backend-ready", await ping(BACKEND_URL));
+  setTimeout(() => { runUpdateCheck().catch(() => undefined); }, 4000);
+  setInterval(() => { runUpdateCheck().catch(() => undefined); }, 6 * 60 * 60 * 1000);
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });

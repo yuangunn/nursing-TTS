@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { del, EngineInfo, get, put, Settings } from "../lib/api";
+import { del, EngineInfo, get, put, Settings, UpdateInfo, UpdateSettings } from "../lib/api";
 import Term from "../components/Term";
 import SignalSelect from "../components/SignalSelect";
 import InstallProgress from "../components/InstallProgress";
@@ -264,6 +264,52 @@ export default function SettingsPage() {
         </div>
 
         <BackendHelp dir={backendDir} log={log} />
+        <UpdatePanel />
+      </div>
+    </div>
+  );
+}
+
+function UpdatePanel() {
+  const [us, setUs] = useState<UpdateSettings | null>(null);
+  const [info, setInfo] = useState<UpdateInfo | null>(null);
+  const [token, setToken] = useState("");
+  const [busy, setBusy] = useState(false);
+  const load = () => window.nursing?.getUpdateSettings().then((s) => { setUs(s); if (s.lastResult) setInfo(s.lastResult); }).catch(() => undefined);
+  useEffect(() => { load(); }, []);
+  if (!window.nursing) return null;
+  const check = async () => { setBusy(true); try { setInfo(await window.nursing!.checkUpdate(true)); await load(); } finally { setBusy(false); } };
+  return (
+    <div className="panel">
+      <h2>업데이트 확인 <span className="hint">앱을 켤 때와 6시간마다 새 버전이 있는지 확인합니다</span>
+        <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}><button className="small" onClick={check} disabled={busy}>{busy ? "확인 중…" : "지금 확인"}</button></span>
+      </h2>
+      <div className="muted">
+        {info ? (info.error ? <span className="badge warn">{info.error}</span>
+          : info.newer ? <>새 버전 <b>v{info.latest}</b> 있음 (지금 v{info.current}) <button className="link" onClick={() => window.nursing?.openExternal(info.url)}>다운로드 페이지</button>{info.skipped && " · 이 버전은 알림 안 받음"}</>
+          : <>최신 버전입니다 (v{info.current}{info.latest && info.latest !== info.current ? ` · 공개된 최신 v${info.latest}` : ""})</>)
+          : "아직 확인하지 않았습니다"}
+        {us?.lastCheck ? <> · 마지막 확인 {new Date(us.lastCheck).toLocaleString()}</> : null}
+      </div>
+      {us?.skipVersion && (
+        <div className="row" style={{ marginTop: 6, alignItems: "center" }}>
+          <div className="muted">알림 받지 않는 버전: v{us.skipVersion}</div>
+          <div className="narrow"><button className="small" onClick={async () => { await window.nursing?.setUpdateSettings({ skipVersion: "" }); load(); }}>알림 다시 받기</button></div>
+        </div>
+      )}
+      <div className="row" style={{ marginTop: 8 }}>
+        <div>
+          <label>GitHub 토큰 {us?.token && <span className="badge ok">저장됨</span>} <span className="hint">비공개 저장소의 릴리스를 읽으려면 필요 (repo 읽기 권한)</span></label>
+          <input type="password" value={token} placeholder={us?.token ? "(저장된 토큰 유지 — 바꾸려면 입력)" : "ghp_…"} onChange={(e) => setToken(e.target.value)} />
+        </div>
+        <div className="narrow" style={{ alignSelf: "end" }}><button onClick={async () => { if (token) { await window.nursing?.setUpdateSettings({ token }); setToken(""); load(); } }}>토큰 저장</button></div>
+        <div className="narrow" style={{ alignSelf: "end" }}><button className="danger" onClick={async () => { await window.nursing?.setUpdateSettings({ token: "" }); load(); }}>토큰 삭제</button></div>
+      </div>
+      <div className="row" style={{ marginTop: 6 }}>
+        <div>
+          <label>릴리스 목록 주소</label>
+          <input type="text" value={us?.feedUrl || ""} onChange={(e) => setUs(us ? { ...us, feedUrl: e.target.value } : us)} onBlur={async () => { if (us) { await window.nursing?.setUpdateSettings({ feedUrl: us.feedUrl }); } }} />
+        </div>
       </div>
     </div>
   );
