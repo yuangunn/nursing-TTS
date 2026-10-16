@@ -8,6 +8,7 @@ import SignalSelect from "../components/SignalSelect";
 import Visualizer from "../components/Visualizer";
 import { useEnergy } from "../lib/energy";
 import VoiceDemo from "../components/VoiceDemo";
+import { setHandoff, takeHandoff, ScriptHandoff } from "../lib/scriptStore";
 import { apiUrl, AugmentSettings, DEFAULT_AUGMENT, DEFAULT_NOISE, DEFAULT_PATIENT, get, Job, NoiseSettings, nowLocalIso, Patient, post, put, Settings, TemplateSchema, Voice } from "../lib/api";
 import { AppStatus } from "../lib/onboarding";
 import { Tab } from "../components/Sidebar";
@@ -53,8 +54,8 @@ export default function RecordPage({ status, onTab }: Props) {
   const [err, setErr] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [settings, setSettings] = useState<Settings | null>(null);
-  const [showTts, setShowTts] = useState(false);
   const debounce = useRef<number | null>(null);
+  const handoff = useRef<ScriptHandoff | null>(takeHandoff());   // from the review page: "이 대본으로 녹음 만들기"
   const setEnergy = useEnergy();
 
   const template = useMemo(() => templates.find((t) => t.key === tkey), [templates, tkey]);
@@ -70,8 +71,13 @@ export default function RecordPage({ status, onTab }: Props) {
         if (first) setVoiceId((cur) => cur || first.id);
         const s = await get<Settings>("/api/settings");
         setSettings(s);
-        setStyle(s.default_style || "formal");
+        setStyle(handoff.current?.style || s.default_style || "formal");
         setNoise((n) => ({ ...n, level: s.noise_default_level ?? n.level }));
+        if (handoff.current) {
+          setTkey(handoff.current.template);
+          setPatient(handoff.current.patient);
+          setWhen(handoff.current.datetime);
+        }
       } catch (e) {
         setErr("백엔드에 연결할 수 없습니다. 설정 탭에서 상태를 확인하세요.");
       }
@@ -81,6 +87,14 @@ export default function RecordPage({ status, onTab }: Props) {
   useEffect(() => {
     if (!tkey) return;
     get<Record<string, unknown>>(`/api/templates/${tkey}/defaults`).then((d) => {
+      const h = handoff.current;
+      if (h && h.template === tkey) {   // keep the reviewed script: same form, seed and edits
+        handoff.current = null;
+        setForm(h.form);
+        setSeed(h.seed);
+        setEdited(h.text_override ?? null);
+        return;
+      }
       setForm(d);
       setEdited(null);
     }).catch(() => undefined);
@@ -223,26 +237,21 @@ export default function RecordPage({ status, onTab }: Props) {
       <div>
         <div className="panel">
           <h2>
-            <span className="step-badge">5</span> 대본 확인
+            <span className="step-badge">5</span> 대본 미리보기
             <span className="hint">왼쪽 선택에 따라 자동으로 바뀝니다 · 직접 고쳐도 됩니다</span>
             <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
-              <button className="small" onClick={() => doPreview({ newSeed: true })}>🔀 다른 말투로</button>
-              <button className="small" disabled={!settings || settings.llm_provider === "none"} title={settings?.llm_provider === "none" ? "설정에서 LLM API 키를 등록하세요" : ""} onClick={() => doPreview({ llm: true })}>✨ LLM으로 다듬기</button>
-              <button className="small" onClick={() => setShowTts((v) => !v)}>{showTts ? "정답 텍스트" : "TTS 발음 텍스트"}</button>
+              <button className="small" title="말투 바꾸기, LLM 다듬기, 발음 텍스트, 문장 표시는 대본 검토 단계에서"
+                onClick={() => { setHandoff({ template: tkey, form, patient, datetime: when, style, seed, text_override: edited }); onTab?.("review"); }}>🔍 대본 검토에서 열기</button>
             </span>
           </h2>
           {preview ? (
-            showTts ? (
-              <div className="preview"><span className="signal">{preview.tts_text.split("\n")[0]}</span>{"\n" + preview.tts_text.split("\n").slice(1).join("\n")}</div>
-            ) : (
-              <textarea
-                className="preview"
-                rows={14}
-                value={edited ?? preview.spoken_text}
-                onChange={(e) => setEdited(e.target.value)}
-                spellCheck={false}
-              />
-            )
+            <textarea
+              className="preview"
+              rows={10}
+              value={edited ?? preview.spoken_text}
+              onChange={(e) => setEdited(e.target.value)}
+              spellCheck={false}
+            />
           ) : (
             <div className="preview muted">대본이 여기에 표시됩니다…</div>
           )}

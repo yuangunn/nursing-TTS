@@ -1,6 +1,6 @@
 import { AppStatus } from "../lib/onboarding";
 
-export type Tab = "record" | "batch" | "voices" | "results" | "phrases" | "settings";
+export type Tab = "record" | "review" | "batch" | "voices" | "results" | "phrases" | "settings";
 
 interface Props {
   tab: Tab;
@@ -14,8 +14,9 @@ export default function Sidebar({ tab, onTab, status, version }: Props) {
   const flow: { key: Tab; n: number; label: string; sub: string; badge?: string; warn?: boolean }[] = [
     { key: "voices", n: 1, label: "목소리 등록", sub: "간호사 음성 샘플", badge: status.voices ? `${status.voices}개` : undefined, warn: status.checked && status.backendOk && !status.voices },
     { key: "record", n: 2, label: "녹음 만들기", sub: "환자 상태 체크 → 녹음" },
-    { key: "batch", n: 3, label: "대량 생성", sub: "가상 환자 N명 자동" },
-    { key: "results", n: 4, label: "결과물 · 검수", sub: "듣고 승인, 데이터셋 내보내기", badge: status.recordings ? `${status.recordings}` : undefined },
+    { key: "review", n: 3, label: "대본 검토", sub: "대본 읽고 어색한 문장 표시" },
+    { key: "batch", n: 4, label: "대량 생성", sub: "가상 환자 N명 자동" },
+    { key: "results", n: 5, label: "결과물 · 검수", sub: "듣고 승인, 데이터셋 내보내기", badge: status.recordings ? `${status.recordings}` : undefined },
   ];
   const more: { key: Tab; label: string; icon: string }[] = [
     { key: "phrases", label: "말투 관리", icon: "❝" },

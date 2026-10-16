@@ -7,6 +7,7 @@ import InstallProgress from "./components/InstallProgress";
 import { initApi } from "./lib/api";
 import { isOnboarded, useAppStatus } from "./lib/onboarding";
 import RecordPage from "./pages/RecordPage";
+import ScriptReviewPage from "./pages/ScriptReviewPage";
 import VoicesPage from "./pages/VoicesPage";
 import BatchPage from "./pages/BatchPage";
 import SettingsPage from "./pages/SettingsPage";
@@ -21,6 +22,7 @@ const TITLES: Record<Tab, { t: string; d: string }> = {
   results: { t: "4 · 결과물 · 검수", d: "생성된 녹음을 듣고 승인/반려한 뒤 학습용 데이터셋으로 내보냅니다." },
   phrases: { t: "말투 관리", d: "요소별 말투 변형을 보고 고치거나 추가합니다." },
   settings: { t: "설정", d: "음성 엔진, 저장 위치, 백엔드 설치 상태." },
+  review: { t: "3 · 대본 검토", d: "무작위 대본을 여러 개 읽고 병동에서 쓰지 않는 문장을 표시합니다. 표시한 문장은 말투·문구 풀 수정에 씁니다." },
 };
 
 export default function App() {
@@ -89,6 +91,7 @@ export default function App() {
             {tab === "record" && !backendDown && <GettingStarted status={status} onTab={setTab} onWizard={() => setWizard(true)} />}
             <div key={tab} className="fade-in">
               {tab === "record" && <RecordPage status={status} onTab={setTab} />}
+              {tab === "review" && <ScriptReviewPage onTab={setTab} />}
               {tab === "batch" && <BatchPage />}
               {tab === "voices" && <VoicesPage />}
               {tab === "results" && <ResultsPage />}
