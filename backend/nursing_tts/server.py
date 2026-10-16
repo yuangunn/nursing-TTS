@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel
 
-from . import __version__, dataset, jobs, llm, noise_library, phrase_store, script_review, signal as signal_mod, verify as verify_mod, voices as voices_mod
+from . import __version__, dataset, importer, jobs, llm, noise_library, phrase_store, script_review, signal as signal_mod, verify as verify_mod, voices as voices_mod
 from .templates.extra_phrases import VITALS_FORMS
 from .audio.augment import preset_catalogue
 from .audio import noise as noise_mod
@@ -529,6 +529,51 @@ def preview(req: PreviewRequest):
             "sentences": script.sentences, "llm_polished": polished,
             "signal_format": script.structured.get("signal_format"), "signal_parse": script.structured.get("signal_parse"),
             "filename": f"{when.strftime('%Y%m%d_%H%M')}_{jobs.safe_filename(req.patient.name)}"}
+
+
+@app.post("/api/import/parse")
+async def import_parse(file: UploadFile = File(...)):
+    """CSV/XLSX -> columns, rows, distinct values (the app maps columns and values to template fields)."""
+    data = await file.read()
+    try:
+        return importer.parse_table(data, file.filename or "table.csv")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/import/targets/{template}")
+def import_targets(template: str):
+    if template not in TEMPLATES:
+        raise HTTPException(404, "unknown template")
+    return importer.targets_for(template)
+
+
+@app.get("/api/import/mappings/{template}")
+def import_mapping_get(template: str):
+    return importer.load_mappings().get(template) or {"columns": {}, "values": {}, "fixed": {}}
+
+
+@app.put("/api/import/mappings/{template}")
+def import_mapping_put(template: str, body: dict[str, Any]):
+    return importer.save_mapping(template, body)
+
+
+@app.post("/api/import/specs")
+def import_specs(body: dict[str, Any]):
+    if body.get("template") not in TEMPLATES:
+        raise HTTPException(404, "unknown template")
+    return importer.build_specs(body["template"], body.get("rows") or [], body.get("mapping") or {}, body.get("limit"))
+
+
+@app.post("/api/import/generate")
+def import_generate(body: dict[str, Any]):
+    if body.get("template") not in TEMPLATES:
+        raise HTTPException(404, "unknown template")
+    built = importer.build_specs(body["template"], body.get("rows") or [], body.get("mapping") or {}, body.get("limit"))
+    if not built["specs"]:
+        raise HTTPException(400, "생성할 행이 없습니다.")
+    job = jobs.start_specs(built["specs"], body, noise_library.custom_clips())
+    return {**job.to_dict(), "warnings": built["warnings"], "warning_count": built["warning_count"]}
 
 
 @app.get("/api/script-review")

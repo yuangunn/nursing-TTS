@@ -168,6 +168,9 @@ export interface TemplateSchema {
   description: string;
   sections: SectionSchema[];
 }
+export interface ImportTable { columns: string[]; rows: Record<string, string>[]; count: number; distinct: Record<string, string[]> }
+export interface ImportTarget { key: string; label: string; kind: string; options: { value: string; label: string }[] }
+export interface ImportMapping { columns: Record<string, string>; values: Record<string, Record<string, string>>; fixed: Record<string, string> }
 export interface Scenario { key: string; ko: string; abbr: string; dept: string; kind: string }
 export interface Patient {
   name: string;
