@@ -3,7 +3,7 @@
 
 지원 데이터: Zeroth-Korean (CC BY 4.0, Lucas Jo · Wonkyum Lee, OpenSLR 40). Hugging Face 미러
 `kresnik/zeroth_korean`의 datasets-server rows API에서 화자별로 6~12초짜리 낭독 문장 2~3개를 받아
-앱 백엔드 API로 "공개 화자 Zeroth-<id>" 목소리를 만든다. 성별은 음성 기본주파수(F0)로 추정해
+앱 백엔드 API로 "기본 음성 여N/남N" 목소리를 만든다(메모에 Zeroth 화자 id와 출처). 성별은 음성 기본주파수(F0)로 추정해
 라벨만 붙인다(목소리 등록 화면에서 고칠 수 있음). 출처 표기는 목소리 메모와 내보내기 README에 남는다.
 
   backend/.venv/bin/python scripts/import_public_voices.py --count 20            # 화자 20명
@@ -19,6 +19,7 @@ import argparse
 import io
 import json
 import random
+import re
 import sys
 import time
 import urllib.error
@@ -117,13 +118,18 @@ def main() -> None:
             print(f"  {spk}: 예) {rs[0]['text'][:40]}", flush=True)
         return
 
-    existing = {v["name"] for v in json.loads(_get(f"{a.api}/api/voices"))}
+    voices_now = json.loads(_get(f"{a.api}/api/voices"))
+    imported = {m.group(1) for v in voices_now for m in [re.search(r"화자 (\d+)", v.get("note") or "")] if m}
+    numbers = {"여": 0, "남": 0}   # "기본 음성 여3" -> next free number per sex
+    for v in voices_now:
+        m = re.match(r"기본 음성 (여|남)(\d+)$", v["name"])
+        if m:
+            numbers[m.group(1)] = max(numbers[m.group(1)], int(m.group(2)))
     made = 0
     for spk, rs in speaker_batches(delay=a.delay):
         if made >= a.count:
             break
-        name = f"공개 화자 Zeroth-{spk}"
-        if name in existing:
+        if spk in imported:
             continue
         # pick candidates with longer sentences first (≈ longer audio), download and keep 5~13 s clips
         cands = sorted(rs, key=lambda r: -len(r["text"]))[:8]
@@ -148,7 +154,9 @@ def main() -> None:
         sex = "여" if f0 >= 160 else "남"
         if a.sex != "any" and sex != a.sex:
             continue
-        body = json.dumps({"name": name, "sex": sex, "note": f"{ATTRIBUTION} · 화자 {spk} · F0 추정 {f0:.0f} Hz"}).encode()
+        numbers[sex] += 1
+        name = f"기본 음성 {sex}{numbers[sex]}"   # product-style name; the source stays in the note (user, 2026-10-16)
+        body = json.dumps({"name": name, "sex": sex, "note": f"Zeroth-Korean 화자 {spk} · {ATTRIBUTION} · F0 추정 {f0:.0f} Hz"}).encode()
         req = urllib.request.Request(f"{a.api}/api/voices", data=body, headers={"content-type": "application/json"})
         vid = json.load(urllib.request.urlopen(req))["id"]
         for audio, sr, text, dur in clips:

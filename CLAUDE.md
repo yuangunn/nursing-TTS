@@ -28,7 +28,7 @@
 ### 앱 핵심 개념
 - `electron/main.ts`: 백엔드 Python 탐색(`userData/venv` → `backend/.venv`), 설치기(`setupBackend`: venv 생성 → pip → requirements → (Qwen: torch → requirements-qwen → 모델 다운로드) → 시작, `setup-progress` 이벤트로 단계/퍼센트/ETA 전송, 3.10 미만 venv 재생성, pip 되감기 감지 중단), `check-environment`.
 - `src/App.tsx`: 처음 설정 마법사(`SetupWizard`) → 작업 순서 사이드바(`Sidebar`: 1 목소리 → 2 녹음 → 3 대량 → 4 결과물) + 시작 가이드(`GettingStarted`). 온보딩 완료 여부는 `localStorage`(`lib/onboarding.ts`).
-- 페이지: `RecordPage`(1~7 단계), `VoicesPage`, `BatchPage`, `ResultsPage`, `PhrasesPage`, `SettingsPage`. 백엔드 호출은 `lib/api.ts` 하나로. 목소리 선택의 "샘플 듣기"는 `lib/voiceDemo.ts` → `GET /api/voices/{id}/demo?pitch=&tempo=`(번들 `backend/nursing_tts/assets/voice_demos/{id}.flac` → 캐시 → 합성 순, 음높이·속도는 librosa로 즉석 변조). 번들 데모는 `scripts/build_voice_demos.py`로 만든다. 원음 샘플은 목소리 관리 화면에서만 재생한다.
+- 페이지: `RecordPage`(1~7 단계), `VoicesPage`, `BatchPage`, `ResultsPage`, `PhrasesPage`, `SettingsPage`. 백엔드 호출은 `lib/api.ts` 하나로. 목소리 선택의 "샘플 듣기"는 `lib/voiceDemo.ts` → `GET /api/voices/{id}/demo?pitch=&tempo=`(번들 `backend/nursing_tts/assets/voice_demos/{id}.flac` → 캐시 → 합성 순, 음높이·속도는 librosa로 즉석 변조). 번들 데모는 `scripts/build_voice_demos.py`로 만든다. 목소리 관리 화면도 기본은 생성 예시(`components/VoiceDemo.tsx`)만 보여 주고 원음 참조 클립 목록은 접혀 있다(전사 수정·클립 삭제 때만 펼침; 복제 엔진이 참조 음성을 매번 쓰므로 원음 파일 자체는 지울 수 없다). 공개 화자 이름은 "기본 음성 여1/남1…"(출처는 메모에).
 
 ## 실행
 

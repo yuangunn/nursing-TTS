@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { apiUrl, del, EnrollScript, get, patch, post, postBlob, Voice } from "../lib/api";
 import { Recorder, startRecording } from "../lib/wav";
 import Visualizer from "../components/Visualizer";
+import VoiceDemo from "../components/VoiceDemo";
 import { useEnergy } from "../lib/energy";
 
 export default function VoicesPage() {
@@ -16,6 +17,7 @@ export default function VoicesPage() {
   const [level, setLevel] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [busy, setBusy] = useState("");
+  const [showClips, setShowClips] = useState(false);
   const [err, setErr] = useState("");
   const [testUrl, setTestUrl] = useState("");
   const [testNote, setTestNote] = useState("");
@@ -177,7 +179,7 @@ export default function VoicesPage() {
               <li key={v.id} className={v.id === sel ? "active" : ""} onClick={() => setSel(v.id)} style={{ cursor: "pointer" }}>
                 <div className="grow">
                   <b>{v.name}</b> <span className="muted">{v.note}</span>
-                  <div className="muted">샘플 {v.samples.length}개 · 총 {v.samples.reduce((a, s) => a + s.duration, 0).toFixed(1)}초</div>
+                  <div className="muted">참조 클립 {v.samples.length}개 · {v.samples.reduce((a, s) => a + s.duration, 0).toFixed(0)}초</div>
                 </div>
                 <button className="small danger" onClick={(e) => { e.stopPropagation(); removeVoice(v.id); }}>삭제</button>
               </li>
@@ -262,8 +264,23 @@ export default function VoicesPage() {
             </div>
 
             <div className="panel">
-              <h2>샘플 목록 <span className="hint">★ = 기본 참조 음성 (테스트에 사용)</span></h2>
-              <ul className="list">
+              <h2>이 목소리의 예시 <span className="hint">고정 문장을 이 목소리로 읽은 생성본 · 원음은 재생하지 않습니다</span></h2>
+              <VoiceDemo voiceId={voice.id} disabled={!voice.samples.length} />
+              <div className="row" style={{ marginTop: 10 }}>
+                <div className="narrow"><button onClick={testVoice} disabled={!voice.samples.length || !!busy}>🔊 다른 문장으로 합성 테스트</button></div>
+                <div className="muted">{testNote}</div>
+              </div>
+              {testUrl && <div style={{ marginTop: 10 }}><Visualizer autoPlay src={testUrl} onEnergy={setEnergy} height={120} /></div>}
+            </div>
+
+            <div className="panel">
+              <h2>
+                <button className="link" onClick={() => setShowClips(!showClips)} style={{ font: "inherit", padding: 0 }}>
+                  {showClips ? "▾" : "▸"} 참조 클립 {voice.samples.length}개 · {voice.samples.reduce((a, s) => a + s.duration, 0).toFixed(0)}초
+                </button>
+                <span className="hint">복제에 쓰는 원음과 전사. 전사를 고치거나 잘못 잘린 클립을 지울 때만 펼치세요 ★ = 기본 참조</span>
+              </h2>
+              {showClips && <ul className="list">
                 {voice.samples.map((s) => (
                   <li key={s.id}>
                     <button className="small" title="기본으로" onClick={() => setPrimary(s.id)}>{voice.primary_sample === s.id ? "★" : "☆"}</button>
@@ -277,12 +294,8 @@ export default function VoicesPage() {
                   </li>
                 ))}
                 {!voice.samples.length && <li className="muted">샘플이 없습니다. 위에서 대본을 읽어 녹음하세요.</li>}
-              </ul>
-              <div className="row" style={{ marginTop: 10 }}>
-                <div className="narrow"><button onClick={testVoice} disabled={!voice.samples.length || !!busy}>🔊 이 목소리로 합성 테스트</button></div>
-                <div className="muted">{testNote}</div>
-              </div>
-              {testUrl && <div style={{ marginTop: 10 }}><Visualizer autoPlay src={testUrl} onEnergy={setEnergy} height={120} /></div>}
+              </ul>}
+              {!showClips && !voice.samples.length && <div className="muted">아직 참조 클립이 없습니다. 위에서 대본을 읽어 녹음하거나 긴 녹음에서 추출하세요.</div>}
             </div>
           </>
         ) : (
