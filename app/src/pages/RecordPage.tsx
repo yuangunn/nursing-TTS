@@ -33,6 +33,7 @@ export default function RecordPage({ status, onTab }: Props) {
   const [variants, setVariants] = useState(1);
   const [voices, setVoices] = useState<Voice[]>([]);
   const [voiceId, setVoiceId] = useState("");
+  const [patientVoice, setPatientVoice] = useState("auto");   // dialogue scripts: who reads the patient's lines
   const [jobId, setJobId] = useState<string | null>(null);
   const [result, setResult] = useState<Job | null>(null);
   const [err, setErr] = useState("");
@@ -70,14 +71,14 @@ export default function RecordPage({ status, onTab }: Props) {
     const specs: Record<string, unknown>[] = [];
     for (const b of selected) {
       for (let i = 0; i < Math.max(1, variants); i++) {
-        specs.push({ template: b.template, form: b.form, patient: b.patient, datetime: b.datetime, style: style || b.style,
+        specs.push({ template: b.template, form: b.form, patient: b.patient, datetime: b.datetime, style: style || b.style, dialogue: !!b.dialogue,
           seed: i === 0 ? b.seed : null, text_override: i === 0 ? (b.text_override ?? undefined) : undefined });   // variant 2+ : new wording, same facts
       }
     }
     if (!specs.length) return;
     try {
       const job = await post<Job>("/api/generate/specs", {
-        specs, voice_id: voiceId, noise, rounds_voice: rounds, augment, disfluency: disfluency === "random" ? "random" : disfluency,
+        specs, voice_id: voiceId, patient_voice_id: patientVoice, noise, rounds_voice: rounds, augment, disfluency: disfluency === "random" ? "random" : disfluency,
         llm_polish: llm, signal_format: "strict",
       });
       setJobId(job.id);
@@ -108,7 +109,7 @@ export default function RecordPage({ status, onTab }: Props) {
                 {basket.map((b) => (
                   <tr key={b.id} onClick={() => setCur(b.id)} style={{ cursor: "pointer", background: cur === b.id ? "rgba(56,189,248,0.12)" : undefined }}>
                     <td><input type="checkbox" checked={checked.has(b.id)} onChange={() => toggle(b.id)} onClick={(e) => e.stopPropagation()} /></td>
-                    <td>{b.record_kind}</td><td>{b.patient.name}</td><td className="muted">{STYLES[b.style] || b.style}</td>
+                    <td>{b.record_kind}{b.dialogue ? " 💬" : ""}</td><td>{b.patient.name}</td><td className="muted">{STYLES[b.style] || b.style}</td>
                     <td className="muted">{b.spoken_text.length}자{b.text_override != null ? " ✎" : ""}</td>
                     <td>{b.issues.length ? <span className="badge bad" title={b.issues.join("\n")}>{b.issues.length}</span> : ""}</td>
                     <td><button className="small danger" onClick={(e) => { e.stopPropagation(); remove(b.id); }}>빼기</button></td>
@@ -184,6 +185,16 @@ export default function RecordPage({ status, onTab }: Props) {
               </select>
               <div style={{ marginTop: 4 }}><VoiceDemo voiceId={voiceId} disabled={!voiceId} initialPitch={voices.find((v) => v.id === voiceId)?.pitch ?? 0} initialTempo={voices.find((v) => v.id === voiceId)?.tempo ?? 1} /></div>
             </div>
+            {basket.some((b) => b.dialogue && checked.has(b.id)) && (
+              <div>
+                <label>환자 목소리 (💬 대화형 대본)</label>
+                <select value={patientVoice} onChange={(e) => setPatientVoice(e.target.value)} title="환자 대답 줄을 읽을 목소리. 자동 = 환자 성별과 같은 등록 목소리(기본 음성 포함), 없으면 간호사 목소리를 낮춰서">
+                  <option value="auto">자동 (환자 성별에 맞는 등록 목소리)</option>
+                  <option value="same">간호사 목소리 변조 (남 −5·여 −2반음, 80세↑ 느리게)</option>
+                  {voices.filter((v) => v.samples.length && v.id !== voiceId).map((v) => <option key={v.id} value={v.id}>{v.name}{v.sex ? ` (${v.sex})` : ""}</option>)}
+                </select>
+              </div>
+            )}
             <div className="narrow">
               <label>말투</label>
               <select value={style} onChange={(e) => setStyle(e.target.value)} title="비우면 대본을 담을 때의 말투 그대로">

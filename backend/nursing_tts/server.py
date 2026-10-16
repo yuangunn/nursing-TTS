@@ -73,6 +73,7 @@ class PreviewRequest(BaseModel):
     llm_polish: bool = False
     signal_format: str | None = None   # strict | <key> | random | literal template; None -> settings default
     signal_aliases: bool | None = None
+    dialogue: bool = False             # S1 only: patient answers as separate turns (2026-10-17)
 
 
 class AugmentModel(BaseModel):
@@ -94,6 +95,7 @@ class GenerateRequest(PreviewRequest):
     disfluency: int = 0
     rounds_voice: bool = False
     text_override: str | None = None   # user-edited spoken text (ground truth)
+    patient_voice_id: str = ""         # dialogue: "" / "auto" = registered voice of the patient's sex, "same" = nurse voice shifted, or a voice id
 
 
 class BatchRequest(BaseModel):
@@ -111,6 +113,9 @@ class BatchRequest(BaseModel):
     rounds_voice: bool = False
     folder_name: str = ""
     seed: int | None = None
+    dialogue_s1: bool = False          # 간호정보조사 items as nurse/patient dialogue
+    dialogue_prob: float = 1.0
+    patient_voice_id: str = "auto"
 
 
 class SettingsModel(BaseModel):
@@ -516,10 +521,11 @@ def preview(req: PreviewRequest):
     st = load_settings()
     script = build_script(req.template, req.form, Patient(**req.patient.model_dump()), when, style=req.style, seed=req.seed,
                           signal_format=req.signal_format or st.get("signal_format", "strict"),
-                          signal_aliases=bool(st.get("signal_aliases", False) if req.signal_aliases is None else req.signal_aliases))
+                          signal_aliases=bool(st.get("signal_aliases", False) if req.signal_aliases is None else req.signal_aliases),
+                          dialogue=req.dialogue)
     spoken = script.spoken_text
     polished = False
-    if req.llm_polish:
+    if req.llm_polish and not script.turns:
         try:
             new = llm.polish(spoken, load_settings())
             polished = new != spoken
@@ -529,6 +535,7 @@ def preview(req: PreviewRequest):
     from .fake import audit
     return {"spoken_text": spoken, "tts_text": script.tts_text, "signal": script.signal, "seed": script.seed,
             "sentences": script.sentences, "llm_polished": polished, "issues": audit(req.form, Patient(**req.patient.model_dump()), req.template),
+            "turns": script.turns,
             "signal_format": script.structured.get("signal_format"), "signal_parse": script.structured.get("signal_parse"),
             "filename": f"{when.strftime('%Y%m%d_%H%M')}_{jobs.safe_filename(req.patient.name)}"}
 
@@ -654,6 +661,8 @@ def generate_specs(body: dict[str, Any]):
         raise HTTPException(400, "녹음할 대본이 없습니다.")
     opts = {**body, "keep_seed": True, "no_folder": not body.get("folder_name"), "voice_ids": [v for v in (body.get("voice_ids") or [body.get("voice_id")]) if v],
             "noise_prob": 1.0 if (body.get("noise") or {}).get("enabled") else 0.0}
+    for sp in specs:
+        sp.setdefault("patient_voice_id", body.get("patient_voice_id") or "auto")
     job = jobs.start_specs(specs, opts, noise_library.custom_clips())
     return job.to_dict()
 

@@ -24,8 +24,58 @@ from .config import load_settings, output_dir
 from .fake import random_datetime, random_form, random_patient
 from .generator import Patient, build_script
 from .templates import get_template
-from .tts.base import synthesize_script
+from .tts.base import natural_pause, synthesize_script
 from .tts.registry import get_engine
+
+
+def _patient_voice(spec: dict[str, Any], patient: Patient, voice_id: str, rng: random.Random):
+    """Who speaks the patient's lines: an explicit registered voice, "auto" = a registered voice of the patient's sex
+    (the public 기본 음성 ones qualify), or the nurse's own voice shifted down (men −5, women −2 semitones; 80+ slower)."""
+    choice = spec.get("patient_voice_id") or "auto"
+    male = patient.sex.startswith("남")
+    old = (patient.age or 0) >= 80
+    v = voices_mod.get_voice(choice) if choice not in ("auto", "same") else None
+    if v is None and choice == "auto":
+        cands = [c for c in voices_mod.list_voices() if c.id != voice_id and c.samples and c.sex and c.sex[0] == patient.sex[:1]]
+        v = rng.choice(cands) if cands else None
+    if v is not None and v.samples:
+        return voices_mod.pick_reference(v.id, rng=rng), (0.0, 0.88 if old else 1.0), v.name
+    shift = (-5.0 if male else -2.0) - (1.0 if old else 0.0)
+    return None, (shift, 0.85 if old else 0.95), ""
+
+
+def _synthesize_turns(engine, spoken_lines: list[str], tts_lines: list[str], speakers: list[str], refs: dict[str, Any],
+                      shift: dict[str, tuple[float, float]], seed: int, rng: random.Random, progress=None, **kw):
+    """Runs of consecutive same-speaker lines are synthesized with that speaker's reference voice and joined with a
+    short turn gap; segments carry the speaker."""
+    runs: list[tuple[str, list[int]]] = []
+    for i, sp in enumerate(speakers):
+        if runs and runs[-1][0] == sp:
+            runs[-1][1].append(i)
+        else:
+            runs.append((sp, [i]))
+    pieces: list[np.ndarray] = []
+    segments: list[dict] = []
+    pos, sr = 0, 24000
+    for r, (sp, idxs) in enumerate(runs):
+        a, sr, segs = synthesize_script(engine, [spoken_lines[i] for i in idxs], [tts_lines[i] for i in idxs], refs.get(sp),
+                                        seed + 101 * r, progress=None, **kw)
+        ps, pt = shift.get(sp, (0.0, 1.0))
+        if ps:
+            a = pitch_shift(a, sr, ps)
+        if pt != 1.0:
+            a = time_stretch(a, pt)
+            segs = [{**s, "start": s["start"] / pt, "end": s["end"] / pt} for s in segs]
+        if r > 0:
+            gap = int(natural_pause(rng, 0.9) * sr)
+            pieces.append(np.zeros(gap, dtype=np.float32))
+            pos += gap
+        pieces.append(a)
+        segments += [{**s, "start": round(s["start"] + pos / sr, 3), "end": round(s["end"] + pos / sr, 3), "speaker": sp} for s in segs]
+        pos += len(a)
+        if progress:
+            progress(idxs[-1] + 1, len(speakers))
+    return np.concatenate(pieces) if pieces else np.zeros(sr // 2, dtype=np.float32), sr, segments
 
 ROUNDS_LINES = [
     "네, 어제보다 많이 좋아지셨네요. 오늘 가스 나오면 물부터 드셔 보시고요, 내일 아침에 한 번 더 볼게요.",
@@ -164,15 +214,23 @@ def generate_one(spec: dict[str, Any], settings: dict[str, Any], custom_noises: 
     when = _parse_dt(spec.get("datetime"))
     style = spec.get("style") or settings.get("default_style", "formal")
     sig_fmt = spec.get("signal_format") or settings.get("signal_format", "strict")
+    dialogue = bool(spec.get("dialogue")) and template_key == "s1"
     script = build_script(template_key, spec.get("form") or {}, patient, when, style=style, seed=seed,
-                          signal_format=sig_fmt, signal_aliases=bool(spec.get("signal_aliases", settings.get("signal_aliases", False))))
+                          signal_format=sig_fmt, signal_aliases=bool(spec.get("signal_aliases", settings.get("signal_aliases", False))),
+                          dialogue=dialogue)
+    speakers = [t["speaker"] for t in script.turns] if dialogue else []
 
     spoken = script.spoken_text
     polished = False
     override = (spec.get("text_override") or "").strip()
     if override:
         from .korean import to_tts_text
-        lines = [l for l in override.splitlines() if l.strip()]
+        from .dialogue import strip_prefix
+        raw_lines = [l for l in override.splitlines() if l.strip()]
+        parsed = [strip_prefix(l) for l in raw_lines]            # "환자: …" lines keep their speaker through hand edits
+        lines = [t for _, t in parsed]
+        speakers = [sp for sp, _ in parsed] if dialogue else []
+        script.turns = [{"speaker": sp, "text": t} for sp, t in parsed] if dialogue else []
         script.spoken_text = "\n".join(lines)
         script.signal = lines[0] if lines else script.signal
         sig_tts = script.tts_text.splitlines()[0] if lines and lines[0] == script.sentences[0] else to_tts_text(lines[0], random.Random(seed + 5))
@@ -184,7 +242,7 @@ def generate_one(spec: dict[str, Any], settings: dict[str, Any], custom_noises: 
         script.structured["signal_format"] = _ps.format if _ps.ok else "custom"
         if not _ps.ok:
             script.structured["signal_warning"] = f"시그널 인식 실패 (누락: {', '.join(_ps.missing or [])})"
-    elif spec.get("llm_polish"):
+    elif spec.get("llm_polish") and not dialogue:   # the LLM would merge the two speakers' lines
         new = llm.polish(spoken, settings)
         if new != spoken:
             spoken = new
@@ -222,9 +280,17 @@ def generate_one(spec: dict[str, Any], settings: dict[str, Any], custom_noises: 
     chunk_verify = None
     if settings.get("asr_verify") and engine.clones_voice and verify_mod.available()[0]:
         chunk_verify = lambda sp, tt, a, sr_: verify_mod.chunk_cer(sp, tt, a, sr_, settings)  # noqa: E731
-    audio, sr, segments = synthesize_script(engine, spoken_lines, paragraphs, ref, seed, progress=progress,
-                                            verify=chunk_verify, cer_threshold=float(settings.get("chunk_cer_threshold", 0.3)),
-                                            retries=int(settings.get("chunk_retries", 2)))
+    patient_ref, patient_shift, patient_voice_name = None, (0.0, 1.0), ""
+    if dialogue and len(speakers) == len(paragraphs) and "patient" in speakers:
+        patient_ref, patient_shift, patient_voice_name = _patient_voice(spec, patient, voice_id, rng)
+        audio, sr, segments = _synthesize_turns(engine, spoken_lines, paragraphs, speakers, {"nurse": ref, "patient": patient_ref or ref},
+                                                {"patient": patient_shift if patient_ref is None else (0.0, patient_shift[1])}, seed, rng,
+                                                progress=progress, verify=chunk_verify, cer_threshold=float(settings.get("chunk_cer_threshold", 0.3)),
+                                                retries=int(settings.get("chunk_retries", 2)))
+    else:
+        audio, sr, segments = synthesize_script(engine, spoken_lines, paragraphs, ref, seed, progress=progress,
+                                                verify=chunk_verify, cer_threshold=float(settings.get("chunk_cer_threshold", 0.3)),
+                                                retries=int(settings.get("chunk_retries", 2)))
     timing: dict[str, Any] = {"synth_s": round(time.perf_counter() - t0, 1)}
     checked = [sg for sg in segments if "cer" in sg]
     chunk_summary = {"checked": len(checked), "retried": sum(1 for sg in checked if sg.get("retries")),
@@ -311,6 +377,11 @@ def generate_one(spec: dict[str, Any], settings: dict[str, Any], custom_noises: 
         "verbatim_text": verbatim_text,
         "segments": segments,  # sentence chunks with exact times (+ per-chunk Whisper CER when verification is on)
         "chunk_verify": chunk_summary,
+        "dialogue": dialogue,
+        "turns": script.turns,           # speaker per line (간호사/환자) for the labelled transcript
+        "patient_voice_id": (spec.get("patient_voice_id") or "auto") if dialogue else "",
+        "patient_voice_name": patient_voice_name,
+        "patient_shift": {"pitch": patient_shift[0] if patient_ref is None else 0.0, "tempo": patient_shift[1]} if dialogue else None,
 
         "voice_name": voice_obj.name if voice_obj else "",
         "voice_sex": voice_obj.sex if voice_obj else "",
@@ -445,6 +516,8 @@ def start_batch(opts: dict[str, Any], custom_noises: list[NoiseClip]) -> Job:
         specs.append({
             "template": t, "form": form, "patient": patient.__dict__, "datetime": when.isoformat(timespec="minutes"),
             "style": style, "seed": rng.randrange(1 << 30), "voice_id": rng.choice(voice_ids), "noise": n,
+            "dialogue": bool(opts.get("dialogue_s1")) and t == "s1" and rng.random() < float(opts.get("dialogue_prob", 1.0)),
+            "patient_voice_id": opts.get("patient_voice_id") or "auto",
             "llm_polish": bool(opts.get("llm_polish")), "rounds_voice": bool(opts.get("rounds_voice")) and rng.random() < 0.4,
             "folder": str(folder), "disfluency": dis_level, "augment": opts.get("augment") or {},
             "signal_format": opts.get("signal_format") or "random", "signal_aliases": opts.get("signal_aliases"),

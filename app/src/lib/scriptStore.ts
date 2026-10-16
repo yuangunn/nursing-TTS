@@ -10,6 +10,8 @@ export interface ScriptHandoff {
   style: string;
   seed: number | null;
   text_override?: string | null;
+  dialogue?: boolean;                       // S1 간호정보조사: patient answers as separate turns
+  turns?: { speaker: string; text: string }[];
 }
 
 /** 대본 바구니 (2026-10-17 split): 대본 생성 fills it, 녹음 만들기 reads it. Kept in localStorage so it survives

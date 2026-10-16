@@ -575,9 +575,9 @@ def _derive_s1(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
         if nrs == 0:
             form.pop("pain_char", None)
             form.pop("pain_site", None)
-        elif "pain_site" in form:
+        else:
             site = next((s for w, s in _SITE_BY_WORD if w in cc), None)
-            form["pain_site"] = site or ("복부" if chemo else form.get("pain_site", "수술 부위"))
+            form["pain_site"] = site or ("복부" if chemo else "수술 예정 부위")   # the admission pain has a place
     if "emotion" in form:
         form["emotion"] = ["anxiety"] if rng.random() < (0.3 if not chemo else 0.15) else ["none"]
     if "symptom_screen" in form:
@@ -602,6 +602,8 @@ def _derive_s1(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
         form["consciousness"] = "confuse" if (age >= 75 and any(w in cc for w in ("낙상", "골절", "미끄러")) and rng.random() < 0.15) else "alert"
     if "isolation" in form:
         form["isolation"] = "contact" if rng.random() < 0.05 else "none"
+    if "devices" in form and not chemo and not any(w in cc for w in ("장루", "회장루")):
+        form.pop("devices")                  # a THA patient does not come in with a stoma or a PICC
     if "allergy" in form:
         form["allergy"] = ["none"] if rng.random() < 0.8 else [rng.choices(["food", "penicillin", "antibiotic", "nsaid", "contrast", "other"], weights=[4, 3, 2, 2, 1, 1])[0]]
     if "sense" in form:
