@@ -364,6 +364,11 @@ def test_voice_demo_prefers_bundled_clip_and_applies_pitch_tempo(tmp_path, monke
     a1, _ = sf.read(io.BytesIO(fast.content))
     assert abs(len(a0) - sr * 2) < sr * 0.05 and len(a1) < len(a0) * 0.9, (len(a0), len(a1))
     assert client.get(f"/api/voices/{v['id']}/demo", params={"pitch": 3}).status_code == 200
+    # saved preset: the demo without query params uses it
+    pv = client.patch(f"/api/voices/{v['id']}", json={"pitch": -2, "tempo": 1.25}).json()
+    assert pv["pitch"] == -2 and pv["tempo"] == 1.25
+    a2, _ = sf.read(io.BytesIO(client.get(f"/api/voices/{v['id']}/demo").content))
+    assert len(a2) < len(a0) * 0.9
     client.delete(f"/api/voices/{v['id']}")
 
 

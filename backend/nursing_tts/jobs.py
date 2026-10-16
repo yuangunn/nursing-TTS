@@ -17,6 +17,7 @@ import numpy as np
 
 from . import disfluency, llm, verify as verify_mod, voices as voices_mod
 from .audio.augment import AugmentConfig, augment
+from .rounds import pitch_shift, time_stretch
 from .audio.io import normalize_peak, resample, rms, write_wav
 from .audio.mixer import NoiseClip, NoiseConfig, mix
 from .config import load_settings, output_dir
@@ -230,6 +231,13 @@ def generate_one(spec: dict[str, Any], settings: dict[str, Any], custom_noises: 
                      "max_cer": max((sg["cer"] for sg in checked), default=None)} if checked else None
     audio = _loudness(normalize_peak(audio, 0.9), float(settings.get("loudness_dbfs", -20.0)))
 
+    # --- voice preset (saved on the voice: pitch in semitones, tempo factor) makes one speaker several
+    preset = {"pitch": float(getattr(voice_obj, "pitch", 0.0) or 0.0), "tempo": float(getattr(voice_obj, "tempo", 1.0) or 1.0)}
+    if preset["pitch"]:
+        audio = pitch_shift(audio, sr, preset["pitch"])
+    if preset["tempo"] != 1.0:
+        audio = time_stretch(audio, preset["tempo"])
+
     # --- channel / speed augmentation on the speech layer
     aug_cfg = _augment_cfg(spec.get("augment"))
     audio, aug_info = augment(audio, sr, aug_cfg, np.random.default_rng(seed + 17))
@@ -257,7 +265,7 @@ def generate_one(spec: dict[str, Any], settings: dict[str, Any], custom_noises: 
     mixed, events = mix(audio, sr, cfg, custom=custom_noises, extra_voices=extra_voices)
     timing["mix_s"] = round(time.perf_counter() - t1, 1)
     # segment times in the final file: speed perturbation stretches by 1/speed, the mixer pads the head
-    scale = 1.0 / float(aug_info.get("speed") or 1.0)
+    scale = 1.0 / (float(aug_info.get("speed") or 1.0) * preset["tempo"])
     segments = [{**s, "start": round(s["start"] * scale + cfg.head_pad, 3), "end": round(s["end"] * scale + cfg.head_pad, 3)}
                 for s in segments]
 
@@ -295,6 +303,7 @@ def generate_one(spec: dict[str, Any], settings: dict[str, Any], custom_noises: 
         "structured": script.structured,
         "noise": {"enabled": cfg.enabled, "level": cfg.level, "types": cfg.types, "events": events},
         "augment": aug_info,
+        "voice_preset": preset,
         "disfluency_level": level,
         "disfluency_edits": disfluency_edits,
         "verbatim_text": verbatim_text,
