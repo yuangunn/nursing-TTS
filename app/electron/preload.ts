@@ -16,6 +16,14 @@ contextBridge.exposeInMainWorld("nursing", {
   cancelSetup: (): Promise<boolean> => ipcRenderer.invoke("cancel-setup"),
   checkEnvironment: (): Promise<unknown> => ipcRenderer.invoke("check-environment"),
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke("open-external", url),
+  checkUpdate: (force?: boolean): Promise<unknown> => ipcRenderer.invoke("check-update", force),
+  getUpdateSettings: (): Promise<unknown> => ipcRenderer.invoke("get-update-settings"),
+  setUpdateSettings: (patch: unknown): Promise<unknown> => ipcRenderer.invoke("set-update-settings", patch),
+  onUpdateAvailable: (cb: (info: unknown) => void) => {
+    const handler = (_e: unknown, info: unknown) => cb(info);
+    ipcRenderer.on("update-available", handler);
+    return () => ipcRenderer.removeListener("update-available", handler);
+  },
   onSetupProgress: (cb: (p: unknown) => void) => {
     const handler = (_e: unknown, p: unknown) => cb(p);
     ipcRenderer.on("setup-progress", handler);

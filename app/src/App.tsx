@@ -4,7 +4,7 @@ import Sidebar, { Tab } from "./components/Sidebar";
 import SetupWizard from "./components/SetupWizard";
 import GettingStarted from "./components/GettingStarted";
 import InstallProgress from "./components/InstallProgress";
-import { initApi } from "./lib/api";
+import { initApi, UpdateInfo } from "./lib/api";
 import { isOnboarded, useAppStatus } from "./lib/onboarding";
 import RecordPage from "./pages/RecordPage";
 import ScriptReviewPage from "./pages/ScriptReviewPage";
@@ -29,6 +29,9 @@ const TITLES: Record<Tab, { t: string; d: string }> = {
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("record");
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  useEffect(() => window.nursing?.onUpdateAvailable((info) => setUpdate(info)), []);
+  const skipUpdate = async () => { if (update) await window.nursing?.setUpdateSettings({ skipVersion: update.latest }); setUpdate(null); };
   const [ready, setReady] = useState(false);
   const [wizard, setWizard] = useState(false);
   const [version, setVersion] = useState("");
@@ -75,6 +78,14 @@ export default function App() {
             <button className="ghost small" onClick={() => setWizard(true)} title="처음 설정 마법사를 다시 엽니다">? 도움말 · 처음 설정</button>
           </div>
           <div className="content">
+            {update && (
+              <div className="callout" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <div><b>새 버전 v{update.latest}</b>이 있습니다 (지금 v{update.current}). {update.published ? `${new Date(update.published).toLocaleDateString()} 공개` : ""}</div>
+                <div className="narrow"><button className="primary small" onClick={() => window.nursing?.openExternal(update.url)}>다운로드 페이지 열기</button></div>
+                <div className="narrow"><button className="small" onClick={skipUpdate} title="이 버전은 다시 알리지 않습니다 (설정에서 되돌릴 수 있음)">이 버전 알림 받지 않기</button></div>
+                <div className="narrow"><button className="ghost small" onClick={() => setUpdate(null)}>나중에</button></div>
+              </div>
+            )}
             {backendDown && tab !== "settings" && (
               <div className="callout bad backend-down">
                 <div>
