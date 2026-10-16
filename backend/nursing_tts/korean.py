@@ -297,6 +297,8 @@ _SURGERY_READINGS: list[tuple[tuple[str, ...], list[str]]] = [
     (("BKA",), ["비케이에이", "하퇴 절단술", "무릎 아래 절단"]),
     (("Rotator cuff repair", "rotator cuff repair"), ["로테이터 커프 리페어", "회전근개 봉합술", "어깨 회전근개 봉합", "로테이터 커프 수술"]),
     (("Breast reconstruction", "breast recon"), ["브레스트 리컨스트럭션", "브레스트 리컨", "유방 재건술", "유방 재건"]),
+    (("Hemorrhoidectomy", "hemorrhoidectomy"), ["헤모로이덱토미", "치핵 절제술", "치질 수술", "헤모 수술"]),
+    (("hemorrhoid",), ["헤모로이드", "치핵"]),
     (("drain",), ["드레인"]), (("drainage",), ["드레니지"]), (("forearm",), ["포암"]), (("hand",), ["핸드"]),
 ]
 for _names, _readings in _SURGERY_READINGS:

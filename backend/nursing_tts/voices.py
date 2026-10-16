@@ -62,6 +62,19 @@ def _save(v: Voice) -> None:
     (p / "voice.json").write_text(json.dumps(v.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+DEMO_TEXT = "안녕하세요, 이 목소리의 샘플입니다. 환자분 활력징후 혈압 120에 80, 맥박 72, 체온 36.7도 측정되었습니다."
+
+
+def demo_path(voice_id: str) -> Path:
+    """Synthesised demo clip (a fixed sentence) so the source recordings are never played back when
+    choosing a voice (user, 2026-10-16). Removed whenever the samples change."""
+    return _voice_path(voice_id) / "demo.wav"
+
+
+def invalidate_demo(voice_id: str) -> None:
+    demo_path(voice_id).unlink(missing_ok=True)
+
+
 def list_voices() -> list[Voice]:
     out = []
     for d in sorted(voices_dir().iterdir()):
@@ -89,6 +102,8 @@ def update_voice(voice_id: str, **fields: Any) -> Voice:
     for k in ("name", "note", "sex", "primary_sample"):
         if k in fields and fields[k] is not None:
             setattr(v, k, fields[k])
+    if fields.get("primary_sample"):
+        invalidate_demo(voice_id)
     _save(v)
     return v
 
@@ -125,6 +140,7 @@ def add_sample(voice_id: str, src_path: Path, transcript: str, script_id: str = 
     v.samples.append(s)
     if not v.primary_sample:
         v.primary_sample = sid
+    invalidate_demo(voice_id)
     _save(v)
     return s
 
@@ -142,6 +158,7 @@ def add_sample_array(voice_id: str, audio: np.ndarray, sr: int, transcript: str,
     v.samples.append(s)
     if not v.primary_sample:
         v.primary_sample = sid
+    invalidate_demo(voice_id)
     _save(v)
     return s
 
@@ -161,6 +178,7 @@ def delete_sample(voice_id: str, sample_id: str) -> Voice:
     v.samples = keep
     if v.primary_sample == sample_id:
         v.primary_sample = keep[0].id if keep else ""
+    invalidate_demo(voice_id)
     _save(v)
     return v
 

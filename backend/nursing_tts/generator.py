@@ -171,7 +171,8 @@ def realize_vitals(value: dict[str, Any], rng: random.Random, verb_style: str = 
     if v.get("rr"):
         parts.append(rng.choice(_vf("rr")).format(**v))
     if v.get("bt"):
-        parts.append(rng.choice(_vf("bt")).format(**v))
+        bt_forms = [f for f in _vf("bt") if verb_style != "formal" or "bt_casual" not in f]   # "열 7도 4" is ward slang, not 격식체
+        parts.append(rng.choice(bt_forms or _vf("bt")).format(**v))
     if v.get("spo2"):
         base = rng.choice(_vf("spo2")).format(**v)
         o2 = str(v.get("o2") or "")

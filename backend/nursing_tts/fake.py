@@ -340,6 +340,7 @@ _EXCLUSIVE = (
     ("당뇨", "말초동맥", "외상"),
     ("후두암|후두 종괴|두경부암", "성대 마비", "삽관|인공호흡기"),
     ("사타구니|서혜부", "배꼽", "흉터|반흔"),
+    ("내치핵", "외치핵|혈전성"),
     ("선행", "보조"),
     ("발진", "갑상선|호르몬", "저림|신경병증", "설사|탈수", "오심|구토", "발열|호중구", "혈압", "단백뇨"),
 )
@@ -392,7 +393,8 @@ def random_form(template_key: str, rng: random.Random, patient: Patient | None =
     for _, f in t.iter_fields():
         if f.kind == "select":
             none_opt = next((o.value for o in f.options if o.value in ("none", "na", "no")), None)
-            if none_opt is not None and rng.random() < 0.75:
+            none_p = 0.9 if (patient is not None and (patient.age or 0) < 65) else 0.75
+            if none_opt is not None and rng.random() < none_p:
                 form[f.key] = none_opt   # DNR, isolation, delirium, pressure injury ... are the exception, not the rule
             elif f.default is not None and rng.random() < 0.3:
                 form[f.key] = f.default
