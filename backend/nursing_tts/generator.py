@@ -413,6 +413,10 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
         if intro:
             paragraphs.append(intro)
             speakers.append("nurse")
+    if dialogue:                                            # "어떻게 오셨어요?" → patient's story → nurse's chart-language summary
+        for sp, text in dialogue_mod.opening(form, patient, rng):
+            paragraphs.append(text)
+            speakers.append(sp)
 
     structured: dict[str, Any] = {}
     for section in template.sections:
@@ -423,7 +427,9 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
         if dialogue:
             narrated = []
             for f, v in spoken_fields:
-                if f.key in dialogue_mod.SKIP_IN_DIALOGUE:
+                if f.key in dialogue_mod.SKIP_IN_DIALOGUE or f.key in dialogue_mod.COVERED_BY_OPENING:
+                    if f.key in dialogue_mod.COVERED_BY_OPENING:
+                        structured.setdefault(section.key, {})[f.key] = v
                     continue
                 pair = dialogue_mod.qa(f.key, form, patient, rng, asked)
                 if pair is None:
@@ -431,9 +437,12 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
                     continue
                 turns_here += [("nurse", pair[0]), ("patient", pair[1])]
                 structured.setdefault(section.key, {})[f.key] = v
-                a = dialogue_mod.ack(rng)
-                if a:
-                    turns_here.append(("nurse", a))
+                if pair[2]:
+                    turns_here.append(("nurse", pair[2]))
+                else:
+                    a = dialogue_mod.ack(rng)
+                    if a:
+                        turns_here.append(("nurse", a))
             spoken_fields = narrated
         # Force the last fragment of a section to close its sentence.
         for idx, (f, v) in enumerate(spoken_fields):
