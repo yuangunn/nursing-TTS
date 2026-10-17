@@ -184,7 +184,9 @@ def test_other_templates_are_coherent():
                 if f.get("med_given", "").endswith("PO"):
                     assert "PO" in f["orders"] or "주스" in f["med_given"], (f["orders"], f["med_given"])
             if t == "s4":
-                assert f["er_edu"] == ("chemo" if p.kind == "chemo" else "op")
+                assert f.get("report_edu", "chemo" if p.kind == "chemo" else "op") == ("chemo" if p.kind == "chemo" else "op")
+                for generic, note in (("wound", "wound_note"), ("diet_edu", "diet_note"), ("activity", "activity_note"), ("device", "device_note")):
+                    assert not (f.get(generic) and f.get(note)), (generic, f.get(generic), f.get(note))   # 범주당 한 번
                 assert "referral" not in f or "stoma" not in f["referral"] or f.get("device") != "stoma"
             if t == "s5":
                 if f.get("diet") == "npo":

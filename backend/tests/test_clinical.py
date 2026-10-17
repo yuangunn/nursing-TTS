@@ -36,6 +36,8 @@ def test_scenarios_reference_real_template_fields_and_options():
                 bad = [v for v in vals if v not in valid]
                 assert not bad, f"{sc.key}: {raw_key} has unknown option(s) {bad} (valid: {sorted(valid)})"
         for raw_key in sc.pools:
+            if raw_key == "s4.leaflet":          # spread over the category *_note fields by fake._spread_leaflet
+                continue
             tpl, key = raw_key.split(".", 1) if "." in raw_key else (None, raw_key)
             targets = [all_fields[tpl]] if tpl else list(all_fields.values())
             assert any(key in t and t[key].kind == "text" for t in targets), f"{sc.key}: pool {raw_key} is not a text field"
@@ -159,8 +161,9 @@ def test_discharge_record_is_same_day_with_ward_leaflet_education():
             p = random_patient(rng, "s4", scenario=key)
             f = random_form("s4", rng, p)
             assert "내일" not in f["discharge_date"] and "모레" not in f["discharge_date"], f["discharge_date"]
-            assert "{" not in f["special_edu"]
-            seen += f["special_edu"]
+            notes = " ".join(str(f.get(k, "")) for k in ("wound_note", "device_note", "diet_note", "activity_note", "report_note", "opd_note", "precautions"))
+            assert "{" not in notes and notes
+            seen += notes
             s = build_script("s4", f, p, random_datetime(rng), style="mixed", seed=1)
             assert "퇴원 당일 재교육" not in s.spoken_text and "내일 오전 퇴원" not in s.spoken_text
             assert "예정 예정" not in s.spoken_text and "주치의" not in s.spoken_text and "피부반응검사" not in s.spoken_text, s.spoken_text
