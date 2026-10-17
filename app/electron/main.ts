@@ -489,7 +489,9 @@ function createWindow() {
     height: 900,
     minWidth: 1000,
     minHeight: 700,
-    title: "간호기록 음성 녹음 생성기",
+    title: "소리차트 — 간호기록 음성 녹음 생성기",
+    // packaged builds get the icon from the bundle/exe; in dev the file lives next to the sources (app/build)
+    ...(app.isPackaged ? {} : { icon: path.join(__dirname, "..", "build", "icon-win.png") }),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -573,6 +575,10 @@ ipcMain.handle("restart-backend", async () => {
 });
 
 app.whenReady().then(async () => {
+  if (process.platform === "darwin") {
+    app.setAboutPanelOptions({ applicationName: "소리차트", applicationVersion: app.getVersion() });
+    if (!app.isPackaged) app.dock?.setIcon(path.join(__dirname, "..", "build", "icon.png"));
+  }
   await choosePort(); // before the window exists so get-backend-url is final
   createWindow();
   await startBackend();

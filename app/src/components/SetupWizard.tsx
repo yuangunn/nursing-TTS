@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import logo from "../../build/icon-win.png";
 import { EngineInfo, EnrollScript, EnvInfo, get, post, put, Settings, Voice } from "../lib/api";
 import { AppStatus, setOnboarded } from "../lib/onboarding";
 import { Recorder, startRecording } from "../lib/wav";
@@ -42,7 +43,7 @@ export default function SetupWizard({ status, refresh, onFinish }: Props) {
     <div className="wizard">
       <div className="wizard-card">
         <div className="wizard-side">
-          <div className="brand"><div className="logo" /><div><h1>간호기록 음성 녹음 생성기</h1><small>처음 설정</small></div></div>
+          <div className="brand"><img className="logo" src={logo} alt="" /><div><h1>소리차트</h1><small>간호기록 음성 녹음 생성기 · 처음 설정</small></div></div>
           <ol className="wizard-steps">
             {STEPS.map((s, i) => (
               <li key={s} className={i === step ? "cur" : i < step ? "done" : ""}><span>{i < step ? "✓" : i + 1}</span>{s}</li>

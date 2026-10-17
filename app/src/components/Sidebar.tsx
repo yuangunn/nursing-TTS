@@ -1,4 +1,5 @@
 import { AppStatus } from "../lib/onboarding";
+import logo from "../../build/icon-win.png";
 
 export type Tab = "record" | "review" | "batch" | "voices" | "results" | "phrases" | "settings" | "import";
 
@@ -26,10 +27,10 @@ export default function Sidebar({ tab, onTab, status, version }: Props) {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <div className="logo" />
+        <img className="logo" src={logo} alt="" />
         <div>
-          <h1>간호기록 음성 녹음 생성기</h1>
-          <small>beta {version}</small>
+          <h1>소리차트</h1>
+          <small>간호기록 음성 녹음 생성기 · beta {version}</small>
         </div>
       </div>
 
