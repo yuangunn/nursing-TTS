@@ -23,7 +23,7 @@ def test_seed_copies_public_voices_and_noises_once(tmp_path):
     shutil.rmtree(tmp_path / "voices" / seed["voices"][0])
     lib = lib[1:]
     (tmp_path / "noises" / "library.json").write_text(json.dumps(lib), encoding="utf-8")
-    assert ensure_seed_data(tmp_path) == {"voices": 0, "noises": 0}
+    assert ensure_seed_data(tmp_path) == {"voices": 0, "noises": 0, "removed": 0}
     assert not (tmp_path / "voices" / seed["voices"][0]).exists()
     assert len(json.loads((tmp_path / "noises" / "library.json").read_text())) == len(seed["noises"]) - 1
 
