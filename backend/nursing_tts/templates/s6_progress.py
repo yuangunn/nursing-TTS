@@ -75,7 +75,7 @@ TEMPLATE = RecordTemplate(
         ]),
         Section("d_reassess", "재사정 (13:30) — 이벤트", fields=[
             _T("t4", "오후 1시 30분"),
-            num("nrs4", "NRS", min=0, max=10, default=1, phrases=["통증 {v}점 정도.", "통증 {v}점으로 사정됨.", "NRS {v}점."]),   # 항암 환자에게 "수술 부위" 금지
+            num("nrs4", "NRS", min=0, max=10, default=1, phrases=["통증 {v}점 정도.", "재사정 시 통증 {v}점.", "NRS {v}점."]),   # 항암 환자에게 "수술 부위" 금지
             sel("reassess", "재사정 내용", [
                 opt("after_pca", "PCA 제거 후 통증 사정", "PCA 제거 후에도 통증 조절 잘 됨, 추가 중재 원하지 않음.", "PCA 제거 후 추가 중재 원치 않음."),   # 점수 문장 뒤라 "통증 사정함" 반복 안 함
                 opt("after_prn", "PRN 후 재사정", "PRN 투여 후 통증 호전됨.", "진통제 투여 후 통증 감소함."),
@@ -121,7 +121,7 @@ TEMPLATE = RecordTemplate(
                 opt("awake_pain", "통증으로 못 잠", "통증으로 잠들지 못한다고 함.", "통증 호소하며 깨어 있음."),
                 opt("hypnotic", "수면제 투여", "처방된 수면제 투여 후 수면 유도함.", "수면제 투여함. 이후 잠듦."),
             ], default="asleep"),
-            num("nrs_n", "NRS", min=0, max=10, default=1, phrases=["통증 {v}점.", "NRS {v}점으로 사정됨.", "통증 {v}점 정도로 조절됨."]),
+            num("nrs_n", "NRS", min=0, max=10, default=1, phrases=["밤 통증 {v}점.", "NRS {v}점 확인됨.", "통증 {v}점 정도로 조절됨."]),   # not the 07:00 wording again
             boolean("night_line", "라인·수액 확인", phrases=["수액 주입 속도 확인하고 라인 개방성 확인함.", "라인 역류 확인되고 수액 잘 들어감.", "IV 삽입 부위 이상 없음."], default=True),
         ]),
     ],
