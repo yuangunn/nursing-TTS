@@ -454,7 +454,7 @@ SCENARIOS: list[Scenario] = [
         ("방광경에서 방광 종괴 확인되어 경요도 절제 예정", "CT 및 방광경상 방광 종양으로 TURB 예정", "비근침윤성 방광암 추적 중 재발하여 재절제 예정"),
         base=NO_ABDOMEN, age=(50, 88), sex="남", los=(2, 4),
         form={"s6.wound": None, "attachments": [["foley", "iv"]], "s3_1.drain": ["none"], "foley": ["keep", "keep", "removed"], "prep": [["shave"], ["antibiotic"]], "s4.wound": None,
-              "wound_edu": False, "s3_1.dressing": None, "device": ["foley", "none"], "further": ["pending_path", "none"], "pain_mgmt": ["po", "po", "none"],
+              "s3_1.dressing": None, "device": ["foley", "none"], "further": ["pending_path", "none"], "pain_mgmt": ["po", "po", "none"],
               "s3_2.event": ["출혈", "발열", "통증"], "urine": ["foley", "cloudy"], "s5.voiding": ["foley", "foley_removed", "retention"]},
         pools={"pain_desc": ("아랫배 소변줄 자극으로 당기는 느낌", "요도 쪽 따끔거리는 느낌", "방광 쥐어짜는 느낌"), "s6.wound": ("요도 소변줄 삽입 부위",),
                "duration": ("1시간", "30분~1시간"), "drain": ("배액관 없음",),

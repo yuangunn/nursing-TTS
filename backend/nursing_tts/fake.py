@@ -843,11 +843,57 @@ def _derive_s3_1(form: dict[str, Any], patient: Patient, sc, rng: random.Random)
             form["special_edu"] = rng.choice(alt)
         else:
             form.pop("special_edu", None)
+    # --- 범주 재편 (user 2026-10-17): the surgery-specific item goes to its category; observation and management stay apart
+    sp = str(form.get("special_edu") or "")
+    if sp and re.search(r"소변줄|소변백|방광|자가배뇨", sp):
+        form["foley_note"], sp = sp, ""
+    elif sp and re.search(r"배액|JP|Hemovac|헤모박|음압|우윳빛", sp):
+        form["drain_note"], sp = sp, ""
+    elif sp and re.search(r"알리도록|알리시|즉시 알|호출벨", sp):
+        form["report_note"], sp = sp, ""
+    if sp:
+        form["special_edu"] = sp
+    else:
+        form.pop("special_edu", None)
+    has_drain = form.get("drain") not in (None, "", "none")
+    form["drain_edu"] = has_drain and rng.random() < 0.9
+    if form.get("drain_note") and re.search(r"당겨|양 (늘|증가)|색 짙", form["drain_note"]):
+        form["drain_edu"] = False                               # the surgery-specific line already says it
+    if not has_drain:
+        form.pop("drain_note", None)
+    form["foley_edu"] = form.get("foley") == "keep" and rng.random() < 0.9
+    if form.get("foley_note") and re.search(r"당겨|소변백|제거 예정|관리", form["foley_note"]):
+        form["foley_edu"] = False
+    if form.get("foley") != "keep":
+        form.pop("foley_note", None)
+    # 약물 투여: what actually went in after the operation
+    meds = []
+    if rng.random() < 0.85:
+        meds.append(rng.choice(["예방적 항생제 세파졸린 1g IV", "세파졸린 1g IV", "세프트리악손 2g IV"]))
+    if form.get("nausea") in ("nausea", "vomit"):
+        meds.append(rng.choice(["온단세트론 4mg IV", "메토클로프라미드 10mg IV"]))
+    if patient.department == "정형외과" and not _upper_limb(patient.diagnosis):
+        meds.append("에녹사파린 40mg 피하 주사")
+    if meds:
+        form["meds_given"] = ", ".join(meds)
+    else:
+        form.pop("meds_given", None)
+    # 수술 후 처치: by the kind of operation
+    key = sc.key if sc is not None else ""
+    if key in ("TKA", "THA", "ORIF", "Meniscectomy", "Meniscal repair"):
+        care = ["ipc", "icebag"] if key in ("TKA", "THA") else ["icebag"]
+    elif key in ("TSA", "Rotator cuff repair", "ESS"):
+        care = ["icebag"]
+    elif key == "BKA":
+        care = ["elevation", "compression"]
+    elif patient.department == "유방외과" or "mastectomy" in key.lower() or "Breast" in key:
+        care = ["compression"]
+    else:
+        care = ["warming"] if rng.random() < 0.3 else []
+    form["postop_care"] = care
     abdominal_open = sc is not None and sc.form.get("abdomen", 1) is not None and sc.los[1] >= 4
     if day0 and abdominal_open and form.get("diet_status") in ("sow", "ld", "gd"):
         form["diet_status"] = "npo"       # nobody drinks on the evening of a colon/uterus operation
-    if "dressing" not in form:
-        form["wound_edu"] = False         # ESS: no dressing to watch
     if day0 and form.get("ambulation_plan") == "walk_today":
         form["ambulation_plan"] = rng.choice(["evening_sit", "bedrest"])
     if day0 and sc is not None and sc.key in ("BKA", "ORIF") and not _upper_limb(patient.diagnosis):
@@ -867,7 +913,6 @@ def _derive_s3_1(form: dict[str, Any], patient: Patient, sc, rng: random.Random)
     form["fall_edu"] = rng.random() < 0.6
     if "dressing" in form:
         form["dressing"] = rng.choices(["clean", "oozing", "bleeding"], weights=[85, 12, 3])[0]
-    form["wound_edu"] = rng.random() < 0.7
     form["report_edu"] = rng.random() < 0.8
     form["understanding"] = "caregiver" if form["consciousness"] == "drowsy" else rng.choices(["both", "patient", "re_edu"], weights=[70, 25, 5])[0]
     if "drain_amount" in form:

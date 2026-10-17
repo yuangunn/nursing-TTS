@@ -182,7 +182,7 @@ def test_other_templates_are_coherent():
                 if ev not in ("출혈", "배액 이상"):
                     assert f["recheck"] == "na"
                 if f.get("med_given", "").endswith("PO"):
-                    assert "PO" in f["orders"] or "주스" in f["med_given"], (f["orders"], f["med_given"])
+                    assert "PO" in f["orders"] or "경구" in f["orders"] or "주스" in f["med_given"], (f["orders"], f["med_given"])
             if t == "s4":
                 assert f.get("report_edu", "chemo" if p.kind == "chemo" else "op") == ("chemo" if p.kind == "chemo" else "op")
                 for generic, note in (("wound", "wound_note"), ("diet_edu", "diet_note"), ("activity", "activity_note"), ("device", "device_note")):
@@ -256,3 +256,28 @@ def test_progress_record_is_a_timeline_and_postop_record_is_day_zero():
         assert p.pod == 0 and f["timing"] == "day0" and f.get("arrival_time")
         s = build_script("s3_1", f, p, random_datetime(rng), style="formal", seed=8000 + i)
         assert "POD 1" not in s.spoken_text and "POD 2" not in s.spoken_text and "병실 도착" in s.spoken_text
+
+
+def test_postop_record_keeps_observation_and_management_apart():
+    """user 2026-10-17 (범주별로 나누고 겹치는 부분은 없애라): the post-op record states each category once — drain/foley
+    observation in 'lines', their management education only when the device is there (and not when the surgery-specific
+    line already says it), medications in their own category, post-op care by the kind of operation, no twin warnings."""
+    rng = random.Random(55)
+    care_seen = set()
+    for i in range(120):
+        p = random_patient(rng, "s3_1")
+        f = random_form("s3_1", rng, p)
+        has_drain = f.get("drain") not in (None, "", "none")
+        assert not (f.get("drain_edu") and not has_drain) and not (f.get("drain_note") and not has_drain)
+        assert not (f.get("foley_edu") and f.get("foley") != "keep") and not (f.get("foley_note") and f.get("foley") != "keep")
+        assert not (f.get("drain_edu") and f.get("drain_note") and re.search(r"당겨|색 짙", f["drain_note"]))
+        assert not (f.get("foley_edu") and f.get("foley_note") and re.search(r"당겨|소변백|제거 예정|관리", f["foley_note"]))
+        assert "wound_edu" not in f
+        if p.department == "정형외과" and p.surgery in ("TKA", "THA"):
+            assert "ipc" in f["postop_care"] and "icebag" in f["postop_care"]
+        care_seen |= set(f.get("postop_care") or [])
+        s = build_script("s3_1", f, p, random_datetime(rng), style="formal", seed=9000 + i).spoken_text
+        assert s.count("드레싱 젖거나") <= 1 and s.count("항구토제") <= 1 and s.count("당겨지지 않") <= 1, s
+        if f.get("meds_given"):
+            assert "투여" in s
+    assert {"ipc", "icebag", "compression"} <= care_seen, care_seen
