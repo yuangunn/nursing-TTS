@@ -64,6 +64,7 @@ npx electron-builder --mac --publish never  # 로컬 패키징 (release/ 에 dmg
 - 시스템 TTS(macOS `say`)는 복제가 아니므로 흐름 확인용.
 
 ## 환경 메모
+- `tests/conftest.py`는 세션마다 임시 데이터 폴더(`nursing-tts-test-*`)를 만들고 **세션 끝에 지운다**(2026-10-17 이전엔 안 지워서 실행마다 ~125 MB, 123개 11 GB가 OS 임시 폴더에 쌓였었음). 테스트 출력(무음 엔진 wav)이 그 안에 들어간다.
 - `pkill -f`로 프로세스를 죽일 때 자기 셸까지 죽는 경우가 있다 → `pgrep -f "[n]ursing_tts"` 처럼 대괄호 트릭을 쓴다.
 - 백엔드 기본 포트 8765 (`NURSING_TTS_PORT`로 변경). 앱은 이미 떠 있는 **우리** 백엔드(`/api/health`가 `{"ok":true}`)만 재사용하고, 다른 프로그램이 8765를 쓰고 있으면 8766~으로 옮긴다. 렌더러는 `get-backend-url`로 실제 포트를 받는다.
 - 앱 데이터 폴더(`userData/venv`)에 예전 빌드가 만든 Python 3.9 venv가 남아 있을 수 있다. `findPython`은 `pyvenv.cfg`로 3.10 미만을 걸러 "설치 안 됨"으로 취급한다 (마법사가 다시 만든다).
