@@ -15,7 +15,7 @@ def test_signal_line_format():
 
 
 def test_every_template_has_required_kind():
-    kinds = {"간호정보조사", "퇴원간호", "수술전설명", "수술후설명", "인계"}
+    kinds = {"간호정보조사", "퇴원간호", "수술전설명", "수술후설명", "인계", "경과기록"}
     for key, t in TEMPLATES.items():
         assert t.signal_kind in kinds, key
         s = build_script(key, default_form(key), Patient(op_date="10월 14일"), WHEN, seed=3)

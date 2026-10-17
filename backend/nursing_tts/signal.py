@@ -17,7 +17,7 @@ from typing import Any
 
 from . import korean
 
-KINDS = ["간호정보조사", "퇴원간호", "수술전설명", "수술후설명", "인계"]
+KINDS = ["간호정보조사", "퇴원간호", "수술전설명", "수술후설명", "인계", "경과기록"]
 
 # Spoken aliases a nurse may use for each record kind (parser accepts all; generator
 # uses them only when the "aliases" option is on).
@@ -25,8 +25,9 @@ KIND_ALIASES: dict[str, list[str]] = {
     "간호정보조사": ["간호정보조사", "간호정보조사지", "간호 정보 조사", "입원 간호정보조사", "간호정보 조사"],
     "퇴원간호": ["퇴원간호", "퇴원 간호", "퇴원간호기록", "퇴원 간호기록", "퇴원 교육", "퇴원교육", "퇴원간호기록지"],
     "수술전설명": ["수술전설명", "수술 전 설명", "수술전 설명", "수술 전 교육", "수술전 교육", "수술전 간호기록", "수술 전 간호기록", "시술전설명", "시술 전 설명"],
-    "수술후설명": ["수술후설명", "수술 후 설명", "수술후 설명", "수술 후 교육", "수술후 교육", "수술후 간호기록", "수술 후 간호기록", "시술후설명", "시술 후 설명", "경과기록"],
+    "수술후설명": ["수술후설명", "수술 후 설명", "수술후 설명", "수술 후 교육", "수술후 교육", "수술후 간호기록", "수술 후 간호기록", "시술후설명", "시술 후 설명"],
     "인계": ["인계", "인수인계", "인계기록", "인수인계 기록", "근무 인계"],
+    "경과기록": ["경과기록", "경과 기록", "시간별 경과기록", "간호 경과기록"],   # S6 (2026-10-17): not a 수술후설명
 }
 
 # Written templates.  Placeholders: {date} {time} {name} {kind}
@@ -75,6 +76,8 @@ def render(when: datetime, name: str, kind: str, fmt: str = "strict", rng: rando
         f = next((f for f in FORMATS if f["key"] == fmt), FORMATS[0])
         written_t = f["written"]
     kind_text = _kind_text(kind, rng, use_aliases)
+    if kind_text.endswith("기록") and "{kind} 기록" in written_t:
+        kind_text = kind_text[:-2].strip()            # "경과기록 기록입니다" → "경과 기록입니다"
     date_w = korean.written_date(when.year, when.month, when.day)
     time_w = korean.written_time(when.hour, when.minute)
     date_t = korean.read_date(when.year, when.month, when.day)

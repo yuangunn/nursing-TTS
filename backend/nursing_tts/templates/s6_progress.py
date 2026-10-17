@@ -1,17 +1,21 @@
-"""S6. 경과기록: 그날 있었던 간호기록을 시간대별로 (기록체). 수술 당일 도착 직후는 S3-1 수술 후 기록 (user 2026-10-17)."""
+"""S6. 경과기록 — 세 듀티(Day 07:00 · Evening 15:00 · Night 23:00)의 정규 첫 라운딩 사정을 모두 차팅하고, 그 사이는 식이 확인 같은
+이벤트 차팅 (user 2026-10-17). 수술 환자가 아닌 입원 환자도 쓴다. 정규 차팅 체크리스트(프로토콜)는 Day 아침 식사 뒤 시각 순서로 끼어든다.
+수술 당일 병실 도착 직후는 S3-1 수술 후 기록."""
 from .base import Field, RecordTemplate, Section, opt, sel, multi, num, txt, boolean
 from .common import VITALS_FIELD
 
+_T = lambda key, default: txt(key, "시각", placeholder=f"예: {default}", phrases=["{v} 환자명 {name}.", "{v}, 환자명 {name}.", "{v} {name} 님."], default=default)
+
 TEMPLATE = RecordTemplate(
     key="s6",
-    title="S6. 시간별 경과기록 (기록체)",
-    signal_kind="수술후설명",
-    description="그날 있었던 간호기록을 시각 순서로 차팅하듯 구술합니다(아침 라운딩부터 저녁 활력징후, 프로토콜 체크까지). '~함/~됨' 기록체가 기본이며, 시각마다 '환자명 ○○○'을 다시 말합니다. 수술 당일 병실 도착 직후는 S3-1.",
+    title="S6. 경과기록 (기록체, 하루 세 듀티)",
+    signal_kind="경과기록",
+    description="하루 동안의 간호기록을 시각 순서로 차팅하듯 구술합니다. Day(07:00)·Evening(15:00)·Night(23:00) 정규 첫 라운딩에서 사정한 내용을 모두 말하고, 그 사이는 식사 확인·PCA·재사정·저녁 이벤트 같은 이벤트 차팅입니다. '~함/~됨' 기록체가 기본이며, 시각마다 '환자명 ○○○'을 다시 말합니다. 수술 당일 병실 도착 직후는 S3-1.",
     intros=["지금 경과기록 하겠습니다.", "{name} 님 오늘 경과기록 하겠습니다.", "{name} 님 경과기록 시작합니다.", "환자명 {name}, 경과기록 하겠습니다."],
-    closings=["이상 {name} 님 경과기록 마치겠습니다.", "여기까지 {name} 님 경과기록입니다.", "이상입니다.", "간호정보조사는 다음 녹음 파일에 하겠습니다."],
+    closings=["이상 경과기록 마치겠습니다.", "이상 경과기록 마치겠습니다.", "이상 {name} 님 경과기록 마치겠습니다.", "여기까지 {name} 님 경과기록입니다."],
     sections=[
-        Section("e1", "1차 기록 (근무 시작)", hint="밤 동안 수면, 통증, 낙상 예방, 수액·라인, 상처, V/S", fields=[
-            txt("t1", "시각", placeholder="예: 오전 7시", phrases=["{v} 환자명 {name}.", "{v}, 환자명 {name}.", "{v} {name} 님."], default="오전 7시"),
+        Section("d_round", "Day 라운딩 (07:00) — 정규 사정", hint="밤 동안 수면, 통증, 낙상 예방, 수액·라인, 상처, V/S", fields=[
+            _T("t1", "오전 7시"),
             sel("night", "밤 동안", [
                 opt("slept", "잘 잤음", "환자 밤 동안 특이사항 없이 잘 잤다고 함.", "밤새 특이사항 없이 수면 취함.", "밤 동안 잘 주무셨다고 함."),
                 opt("pain_wake", "통증으로 깸", "밤 동안 통증으로 두세 번 깼다고 함.", "통증 때문에 수면 불량했다고 함."),
@@ -37,8 +41,8 @@ TEMPLATE = RecordTemplate(
                          "{v} 상처 발적, 삼출물 없음."], default="복부 단일공 수술 부위"),
             VITALS_FIELD,
         ]),
-        Section("e2", "2차 기록 (아침 식사)", fields=[
-            txt("t2", "시각", placeholder="예: 오전 8시", phrases=["{v} 환자명 {name}.", "{v}, 환자명 {name}."], default="오전 8시"),
+        Section("d_morning", "아침 식사 (08:00) — 이벤트", fields=[
+            _T("t2", "오전 8시"),
             sel("meal1", "식사", [
                 opt("all", "전량 섭취", "일반식 상식 전량 섭취함.", "아침 식사 전량 드심.", "식사 전량 섭취함."),
                 opt("half", "절반", "일반식 절반 정도 섭취함.", "아침 반 정도 드심."),
@@ -46,8 +50,8 @@ TEMPLATE = RecordTemplate(
                 opt("npo", "금식", "금식 유지 중.", "NPO 유지함."),
             ], default="all"),
         ]),
-        Section("e3", "3차 기록 (점심/중재)", fields=[
-            txt("t3", "시각", placeholder="예: 오후 1시", phrases=["{v} 환자명 {name}.", "{v}, 환자명 {name}."], default="오후 1시"),
+        Section("d_noon", "점심·중재 (12:30) — 이벤트", fields=[
+            _T("t3", "오후 12시 30분"),
             sel("meal2", "점심", [
                 opt("all", "전량 섭취", "일반식 상식 점심 전량 섭취함.", "점심 전량 드심."),
                 opt("half", "절반", "점심 절반 정도 섭취함."),
@@ -61,8 +65,8 @@ TEMPLATE = RecordTemplate(
             ], default="removed", skip_values=("na",)),
             num("bt3", "체온", min=35, max=42, step=0.1, default=37.0, phrases=["체온 {v}도 측정됨.", "BT {v}도."]),
         ]),
-        Section("e4", "4차 기록 (재사정)", fields=[
-            txt("t4", "시각", placeholder="예: 오후 1시 30분", phrases=["{v} 환자명 {name}.", "{v}, 환자명 {name}."], default="오후 1시 30분"),
+        Section("d_reassess", "재사정 (13:30) — 이벤트", fields=[
+            _T("t4", "오후 1시 30분"),
             num("nrs4", "NRS", min=0, max=10, default=1, phrases=["수술 부위 통증 {v}점 정도.", "통증 {v}점으로 사정됨.", "NRS {v}점."]),
             sel("reassess", "재사정 내용", [
                 opt("after_pca", "PCA 제거 후 통증 사정", "PCA 제거 후 통증 사정함. 추가적인 중재 원하지 않음.", "PCA 제거 후 통증 재사정함, 추가 중재 원치 않음."),
@@ -70,8 +74,9 @@ TEMPLATE = RecordTemplate(
                 opt("stable", "안정", "특이사항 없이 안정적임.", "변화 없이 안정됨."),
             ], default="after_pca"),
         ]),
-        Section("e5", "5차 기록 (오후 활동·배액)", fields=[
-            txt("t5", "시각", placeholder="예: 오후 3시", phrases=["{v} 환자명 {name}.", "{v}, 환자명 {name}."], default="오후 3시"),
+        Section("e_round", "Evening 라운딩 (15:00) — 정규 사정", hint="V/S, 활동, 배액/배뇨", fields=[
+            _T("t5", "오후 3시"),
+            Field(key="vitals_evening", label="오후 활력징후", kind="vitals", default={"sbp": 118, "dbp": 76, "hr": 78, "rr": 18, "bt": 36.7, "spo2": "", "o2": ""}),
             sel("afternoon_activity", "활동", [
                 opt("sit", "침상 옆 앉기", "침상 옆에 앉기 시행함, 어지럼 없음.", "침상 옆 앉기 10분 시행함. 어지럼 호소 없음."),
                 opt("walk_assist", "보호자 동반 보행", "보호자 동반하여 복도 보행 1회 시행함.", "보호자 부축 하에 병동 한 바퀴 보행함. 어지럼 없음."),
@@ -79,17 +84,36 @@ TEMPLATE = RecordTemplate(
                 opt("bedrest", "침상 안정", "침상 안정 유지 중. 체위 변경 시행함.", "침상 안정 유지하며 2시간마다 체위 변경함."),
                 opt("chemo_infusion", "항암제 주입 중", "항암제 주입 중이며 오심, 발진 등 특이 반응 없음.", "항암제 주입 중, 주입 부위 통증·발적 없음. 부작용 관찰 중."),
             ], default="walk_assist"),
-            txt("drain_note", "배액/배뇨", placeholder="예: JP 배액 serosanguineous 30cc 비움", phrases=["{v}.", "{v}."]),
+            txt("drain_note", "배액/배뇨", placeholder="예: JP 배액 serosanguineous하게 30cc 비움", phrases=["{v}.", "{v}."]),
         ]),
-        Section("e6", "6차 기록 (저녁 활력징후·특이사항)", fields=[
-            txt("t6", "시각", placeholder="예: 오후 5시", phrases=["{v} 환자명 {name}.", "{v}, 환자명 {name}."], default="오후 5시"),
-            Field(key="vitals_evening", label="저녁 활력징후", kind="vitals", default={"sbp": 118, "dbp": 76, "hr": 78, "rr": 18, "bt": 36.7, "spo2": "", "o2": ""}),
+        Section("e_dinner", "저녁 식사 (18:00) — 이벤트", fields=[
+            _T("t6", "오후 6시"),
+            sel("meal3", "저녁", [
+                opt("all", "전량 섭취", "저녁 식사 전량 섭취함.", "저녁 전량 드심."),
+                opt("half", "절반", "저녁 절반 정도 섭취함.", "저녁 반 정도 드심."),
+                opt("npo", "금식", "금식 유지 중."),
+            ], default="all"),
+        ]),
+        Section("e_event", "저녁 이벤트 (20:00)", fields=[
+            _T("t7", "오후 8시"),
             sel("evening_note", "특이사항", [
                 opt("stable", "특이사항 없음", "특이사항 없이 안정적임.", "별다른 호소 없이 안정적으로 지내심."),
                 opt("visit", "보호자 면회", "보호자 면회 중이며 환자 안정적임.", "보호자 면회 중. 특이 호소 없음."),
                 opt("edu", "내일 일정 설명", "내일 검사 및 처치 일정 설명함.", "다음 날 일정 설명하고 질문에 답함."),
                 opt("pain_prn", "통증 PRN", "통증 호소하여 PRN 진통제 투여함. 30분 후 재사정 예정.", "통증 4점 호소하여 PRN 투여함."),
             ], default="stable"),
+        ]),
+        Section("n_round", "Night 라운딩 (23:00) — 정규 사정", hint="V/S, 수면 상태, 통증, 라인", fields=[
+            _T("t8", "오후 11시"),
+            Field(key="vitals_night", label="밤 활력징후", kind="vitals", default={"sbp": 115, "dbp": 72, "hr": 70, "rr": 16, "bt": 36.6, "spo2": "", "o2": ""}),
+            sel("night_onset", "수면 상태", [
+                opt("asleep", "수면 중", "수면 중임. 호흡 규칙적임.", "잠들어 있음, 특이 호소 없음."),
+                opt("resting", "안정", "침상에서 안정 취하고 있음.", "누워서 안정 중, 불편감 호소 없음."),
+                opt("awake_pain", "통증으로 못 잠", "통증으로 잠들지 못한다고 함.", "수술 부위 통증 호소하며 깨어 있음."),
+                opt("hypnotic", "수면제 투여", "처방된 수면제 투여 후 수면 유도함.", "수면제 투여함. 이후 잠듦."),
+            ], default="asleep"),
+            num("nrs_n", "NRS", min=0, max=10, default=1, phrases=["통증 {v}점.", "NRS {v}점으로 사정됨.", "통증 {v}점 정도로 조절됨."]),
+            boolean("night_line", "라인·수액 확인", phrases=["수액 주입 속도 확인하고 라인 개방성 확인함.", "라인 역류 확인되고 수액 잘 들어감.", "IV 삽입 부위 이상 없음."], default=True),
         ]),
     ],
 )

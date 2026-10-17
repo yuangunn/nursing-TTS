@@ -15,7 +15,7 @@ TEMPLATE = RecordTemplate(
             "진단명 {dx}, {treatment_abbr} {stage} 되시는 환자분입니다. 퇴원 간호기록 시작합니다.",
             "{dx}(으)로 {treatment} 시행하신 {name}님 {stage}, 퇴원 교육 기록입니다.",
             "{treatment_abbr} {stage} {name}님 퇴원 간호기록 시작합니다."],
-    closings=["여기까지 {name} 님 퇴원 교육 마치겠습니다.", "이상 퇴원 간호기록 마치겠습니다.", "이상 퇴원 교육 기록 마칩니다.", "퇴원 간호기록 이상입니다."],
+    closings=["이상 퇴원 간호기록 마치겠습니다.", "여기까지 {name} 님 퇴원 교육 마치겠습니다.", "이상 퇴원 간호기록 마치겠습니다.", "이상 퇴원 교육 기록 마칩니다.", "퇴원 간호기록 이상입니다."],
     sections=[
         Section("info", "퇴원 정보·환자 확인", hint="퇴원 시각, 입원 경과, 입원 팔찌·정맥주사 제거 부위 확인", fields=[
             txt("discharge_date", "퇴원 시각", placeholder="예: 오후 3시 보호자 내원 후",

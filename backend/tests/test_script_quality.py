@@ -297,3 +297,23 @@ def test_admission_record_says_each_fact_once():
         assert sum(bool(re.search(r"수면|주무|잠들|잠을|잠이", x)) for x in body) <= 1, sents
         assert sum(bool(re.search(r"보행|걸으|보조기|휠체어|워커|부축|거동", x)) and not re.search(r"낙상|교육|간호 문제|간호진단", x) for x in body) <= 1, sents
         assert sum(bool(re.search(r"식사량|식욕|입맛", x)) for x in sents) <= 1, sents
+
+
+def test_progress_record_has_three_duty_roundings_and_its_own_kind():
+    """user 2026-10-17: 경과기록 is its own record kind (not 수술후설명) and charts the first regular rounding of Day (07:00),
+    Evening (15:00) and Night (23:00) with vitals each time; drain/urine colour is said in English (no 장액혈성/혈성)."""
+    from nursing_tts import signal
+    rng = random.Random(88)
+    for i in range(30):
+        p = random_patient(rng, "s6")
+        f = random_form("s6", rng, p)
+        s = build_script("s6", f, p, random_datetime(rng), style="chart", seed=9100 + i)
+        head = s.spoken_text.splitlines()[0]
+        assert "수술후설명" not in head and signal.parse(s.spoken_text).kind == "경과기록", head
+        lines = s.spoken_text.splitlines()
+        for t in ("오전 7시", "오후 3시", "오후 11시"):
+            assert any(l.startswith(t) for l in lines), (t, lines)
+        rounds = [l for l in lines if l.startswith(("오전 7시", "오후 3시", "오후 11시"))]
+        assert all(re.search(r"혈압|BP|활력|V/S|VS|바이탈", l) for l in rounds), rounds
+        assert not re.search(r"장액혈성|(?<!무)혈성", s.spoken_text) and "serosanguineous" not in s.tts_text and "bloody" not in s.tts_text
+        assert s.spoken_text.splitlines()[-1].startswith(("이상", "여기까지"))
