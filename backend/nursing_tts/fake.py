@@ -130,7 +130,7 @@ def random_patient(rng: random.Random, template_key: str | None = None, scenario
         return Patient(**common, surgery="", kind="chemo", regimen=sc.key, pod=None,
                        cycle=rng.randint(1, int(sc.form.get("_cycles") or 8)), day=rng.choice(sc.form.get("_days") or [1]))
     lo, hi = sc.los
-    pod = {"s1": None, "s2": None, "s3_1": 0, "s3_2": rng.choice([1, 2, 3]),
+    pod = {"s1": None, "s2": None, "s3_1": 0, "s3_2": rng.randint(1, max(1, min(3, hi))),   # no POD 3 event after a day surgery
            "s4": rng.randint(max(0, lo), max(lo, hi)), "s5": rng.randint(0, max(1, hi))}.get(template_key or "", rng.choice([1, 2, 3]))
     return Patient(**common, surgery=sc.key, pod=pod)
 
@@ -1201,14 +1201,14 @@ _EVENTS: dict[str, list[dict[str, Any]]] = {
             exam=["blood culture 2쌍 채혈하고 wound culture 검체 검사실로 보냄"],
             plan=["배양 결과 확인 예정이며 2시간 후 체온 재측정", "항생제 투여 후 체온과 수술 부위 발적 추적 관찰"]),
         _ev(vs="fever", complaint=["열감 있고 소변 볼 때 불편하다고 함", "열감 조금 있다고 표현하고 오한은 없음"], urine=["cloudy"], lung=["clear"],
-            judgement=["요로 감염 가능성"], tail=["소변 혼탁하고 배뇨 시 불편감 있는 상태"],
+            judgement=["요로 감염 가능성"], tail=["소변 turbid하고 배뇨 시 불편감 있는 상태"],
             orders=["urine culture 시행 후 acetaminophen 650mg PO", "urine analysis, urine culture 시행 후 acetaminophen 1g IV"],
             med=["{t} acetaminophen 650mg PO", "{t} PRN acetaminophen 1g IV"], nursing=[["hydration"], ["hydration", "tepid"]],
             exam=["urine culture 검체 채취하여 검사실로 보냄"], plan=["배양 결과 확인 예정이며 2시간 후 체온 재측정", "수분 섭취 격려하며 배뇨 양상 관찰"]),
         _ev(vs="fever", complaint=["열감 없다고 하나 얼굴 붉어져 있음", "입이 마르고 기운 없다고 함"], lung=["clear"],
             judgement=["탈수 가능성", "수술 후 흡수열 가능성"], tail=["수술 부위와 호흡음 특이 소견 없고 경구 섭취 적은 상태"],
             orders=["수액 500cc 추가 주입, acetaminophen 650mg PO", "N/S 500cc 추가 후 체온 재측정"],
-            med=["{t} acetaminophen 650mg PO", ""], nursing=[["hydration", "tepid"], ["hydration"]], exam=[""],
+            med=["{t} N/S 500cc 연결하고 acetaminophen 650mg PO", "{t} N/S 500cc"], nursing=[["hydration", "tepid"], ["hydration"]], exam=[""],
             plan=["수액 주입 후 체온 재측정 예정이며 내일 아침 랩 F/U", "2시간 후 체온 재측정 예정"]),
     ],
     "통증": [_ev(vs="normal", vs_adj={"hr": (88, 104)}, nrs=(6, 8), complaint=["PCA 눌러도 통증 조절 안 된다고 함", "PCA 사용 중에도 수술 부위 통증 심해졌다고 호소함"],
@@ -1222,7 +1222,7 @@ _EVENTS: dict[str, list[dict[str, Any]]] = {
                med=["{t} PRN 트라마돌 50mg IV", "{t} 케토롤락 30mg IV"], nursing=[["position", "icepack"], ["position"]], exam=[""],
                plan=["30분 후 통증 재사정 예정이며 조절 안 되면 재노티", "통증 재사정 후 NRS 4점 이하 유지되는지 관찰"])],
     "오심구토": [_ev(vs="normal", complaint=["오심 호소하며 구토 1회 있었음", "메스껍고 속 울렁거린다고 함"], judgement=["PCA 관련 오심 가능성", "마취 후 오심구토 가능성"],
-                 tail=["오심 호소하며 구토 1회 있는 상태"], orders=["온단세트론 4mg IV 1회", "메토클로프라미드 10mg IV, PCA 속도 조절"],
+                 tail=["오심 호소하며 구토 1회 있는 상태", "오심 호소하나 구토는 없는 상태"], orders=["온단세트론 4mg IV 1회", "메토클로프라미드 10mg IV, PCA 속도 조절"],
                  med=["{t} 온단세트론 4mg IV", "{t} 메토클로프라미드 10mg IV"], nursing=[["position"], ["position", "hydration"]], exam=[""],
                  plan=["항구토제 투여 후 오심 재사정, 지속 시 재노티", "오심 호전 후 식이 진행 예정"])],
     "출혈": [_ev(vs="normal", vs_adj={"hr": (92, 110), "sbp": (96, 118)}, complaint=["드레싱에 피 비친다고 호소함", "드레싱 젖은 느낌 있다고 함"], wound=["bleeding"],
@@ -1232,17 +1232,18 @@ _EVENTS: dict[str, list[dict[str, Any]]] = {
     "저혈압": [_ev(vs="hypo", complaint=["어지럽다고 호소함", "일어설 때 어지럽고 식은땀 난다고 함"], mental=["alert", "drowsy"], urine=["decreased", "clear"],
                 judgement=["체액 부족에 의한 저혈압 가능성", "PCA 관련 저혈압 가능성"], tail=["저혈압 상태"],
                 orders=["N/S 500cc 로딩 후 V/S 재확인", "수액 로딩 및 PCA 일시 중단, 30분 후 재측정"], med=["{t} N/S 500cc 빠르게", "{t} N/S 500cc 빠르게"],
+                nursing_by_order=[None, ["pca_hold"]],
                 nursing=[["leg_up"], ["leg_up", "blanket"]], exam=[""], plan=["30분 후 혈압 재측정 예정이며 유지 안 되면 재노티", "수액 로딩 후 혈압 추적 관찰"])],
     "호흡곤란": [_ev(vs="normal", vs_adj={"rr": (24, 28), "spo2": (89, 93), "hr": (92, 108)}, complaint=["숨차다고 호소함", "가슴 답답하고 숨 쉬기 힘들다고 함"], lung=["crackle", "decreased", "sputum"],
                  judgement=["무기폐 가능성", "폐 합병증 가능성"], tail=["호흡 곤란 호소하는 상태"], orders=["O2 nasal 3L 적용, chest PA, ABGA", "산소 적용 후 SpO2 추적, chest PA 촬영"],
-                 med=["", ""], nursing=[["o2", "breathing", "inspirometer", "position"]], exam=["chest PA 촬영 위해 휠체어로 영상의학과 이송함"],
+                 med=["", ""], nursing=[["o2", "breathing", "inspirometer", "position"]], exam=["병실에서 portable chest PA 촬영함"],   # a desaturating patient is not wheeled to radiology
                  plan=["chest PA 결과 확인 후 노티 예정이며 SpO2 지속 관찰", "산소 유지하며 1시간 간격 SpO2 확인 예정"], o2_after="O2 3L nasal")],
     "배액 이상": [_ev(vs="normal", vs_adj={"hr": (88, 104)}, complaint=["특이 호소 없음", "배액관 쪽 불편감 호소함"],
                   drain_text=["JP 배액 bloody하게 2시간 동안 150cc 증가함", "JP 배액 색 짙어지고 양 늘어 120cc 확인됨"],
                   judgement=["배액량 증가로 수술 부위 출혈 가능성"], tail=["배액 bloody하게 짙어지고 양 늘어난 상태"],
                   orders=["CBC F/U, 배액 양상 1시간마다 관찰", "배액관 milking 후 양상 관찰, CBC F/U"], med=["", ""], nursing=[["milking"]],
                   exam=["CBC 채혈하여 검사실로 보냄"], plan=["1시간 후 배액량 재확인 예정이며 증가 시 재노티"], recheck=True)],
-    "섬망": [_ev(vs="normal", complaint=["밤에 소리 지르고 라인 빼려고 함", "장소와 시간 헷갈려 하며 집에 가겠다고 함"], mental=["confuse"],
+    "섬망": [_ev(vs="normal", complaint=["밤새 소리 지르고 라인 빼려고 함", "장소와 시간 헷갈려 하며 집에 가겠다고 함"], mental=["confuse"],
                judgement=["수술 후 섬망 가능성"], tail=["지남력 저하되고 안절부절 못하는 상태"], orders=["쿠에티아핀 12.5mg PO 1회, 억제대 없이 보호자 상주", "할로페리돌 2.5mg IM 1회 후 관찰"],
                med=["{t} 쿠에티아핀 12.5mg PO", "{t} 할로페리돌 2.5mg IM"], nursing=[["reorient"]], exam=[""], plan=["야간 섬망 재발 관찰하며 낙상 예방 지속", "다음 근무에서 지남력 재사정 예정"])],
     "저혈당": [_ev(vs="normal", vs_adj={"hr": (90, 105)}, complaint=["BST 52mg/dL 확인되고 식은땀 난다고 함", "어지럽고 손 떨린다고 호소하여 BST 58mg/dL 확인함"], mental=["alert", "drowsy"],
@@ -1260,7 +1261,12 @@ _EVENTS: dict[str, list[dict[str, Any]]] = {
                exam=["CBC 채혈하여 검사실로 보냄"], plan=["소변 색 1시간마다 관찰 예정이며 짙어지면 재노티"])],
 }
 # where the generic story does not fit the surgery
+_NECK_BLEED = dict(complaint=["목이 붓고 답답하다고 호소함", "목 수술 부위 부어오르고 드레싱 젖어 있음"], wound=["bleeding"],
+                   judgement=["경부 수술 부위 출혈과 혈종 가능성"], tail=["경부 부종과 드레싱 젖음 있어 호흡곤란·목소리 변화 관찰 중인 상태"],
+                   orders=["즉시 병실 방문하여 확인, 침상 머리 올리고 산소 준비, CBC F/U"], med=[""], nursing=[["position"]],
+                   exam=["CBC 채혈하여 검사실로 보냄"], plan=["경부 부종과 호흡 양상, 목소리 변화 15분마다 관찰"], recheck=True)
 _EVENT_OVERRIDES: dict[tuple[str, str], dict[str, Any]] = {
+    ("Bilateral total thyroidectomy", "출혈"): _NECK_BLEED, ("MRND", "출혈"): _NECK_BLEED,
     ("ESS", "출혈"): dict(complaint=["코피 나서 거즈 자주 교환함", "목 뒤로 피 넘어간다고 함"], wound=None, judgement=["비강 패킹 부위 출혈 가능성"], tail=["비강 출혈 지속되는 상태"],
                         orders=["비강 패킹 보강, 머리 올리고 냉찜질, 출혈 지속 시 재노티"], med=[""], nursing=[["icepack", "position"]], exam=[""], plan=["코피 양 1시간마다 관찰 예정"], recheck=False),
     ("TURB", "출혈"): dict(complaint=["소변 붉어지고 덩어리 섞여 나옴"], wound=None, urine=["hematuria"], judgement=["방광 수술 부위 출혈 가능성"], tail=["혈뇨 짙어진 상태"],
@@ -1290,15 +1296,24 @@ def _derive_s3_2(form: dict[str, Any], patient: Patient, sc, rng: random.Random)
     ev = form["event"]
     no_wound = sc is not None and (sc.key in ("ESS", "TURB") or ("s3_1.dressing" in sc.form and sc.form["s3_1.dressing"] is None))
     cands = _EVENTS[ev]
+    # PCA talk only for a patient who has a PCA (2026-10-18: "PCA 관련 오심" for a patient on 정규 진통제)
+    pca_ok = sc is not None and any("pca" in a for a in (sc.form.get("attachments") or []))   # the surgery leaves a PCA at all
+    if not pca_ok and form.get("pain_med") == "pca":
+        form["pain_med"] = "regular"
+    if not pca_ok:
+        cands = [c for c in cands if not c.get("pca")] or cands
     if no_wound and (sc.key, ev) not in _EVENT_OVERRIDES:
         cands = [c for c in cands if not c.get("wound")] or cands      # no wound-infection or bleeding story without a wound
     var = dict(rng.choice(cands))
     var.update(_EVENT_OVERRIDES.get((sc.key if sc else "", ev), {}))
     t0 = rng.choice([6, 7, 9, 10, 11, 13, 14, 15, 16, 18, 19, 20, 21, 22, 23, 1, 3, 5]) * 60 + rng.choice([0, 0, 10, 20, 30, 40, 50])
-    t_noti = t0 + rng.randint(5, 15)
-    t_med = t_noti + rng.randint(10, 30)
-    t_re = t0 + (rng.randint(15, 30) if var.get("quick") else rng.randint(60, 120))
-    form["found_time"], form["noti_time"], form["re_time"] = _clock(t0), _clock(t_noti), _clock(t_re)
+    if ev == "섬망" and 7 * 60 <= t0 < 20 * 60:
+        var["complaint"] = [c for c in var["complaint"] if "밤" not in c] or var["complaint"]   # "밤새 소리 지르고" found at noon
+    quick = bool(var.get("quick"))
+    t_noti = t0 + (rng.randint(3, 6) if quick else rng.randint(5, 15))
+    t_med = t_noti + (rng.randint(2, 5) if quick else rng.randint(10, 30))
+    # recheck after the drug has had time to work (2026-10-18: juice at 19:33, recheck at 19:27; 38.1 → 36.6 23 min after PO)
+    form["found_time"], form["noti_time"] = _clock(t0), _clock(t_noti)   # re_time follows the drug (below)
     v = random_vitals(rng, var.get("vs", "normal"), with_spo2=True)
     v["spo2"] = v["spo2"] or rng.randint(95, 99)
     v["o2"] = "room air"
@@ -1325,20 +1340,53 @@ def _derive_s3_2(form: dict[str, Any], patient: Patient, sc, rng: random.Random)
     form["judgement"] = rng.choice(var["judgement"])
     head = f"BT {v['bt']}, BP {v['sbp']}/{v['dbp']}, HR {v['hr']}" + (f", RR {v['rr']}, SpO2 {v['spo2']}%" if ev == "호흡곤란" else "")
     form["noti_content"] = f"{head}, {rng.choice(var['tail']).format(nrs=form['nrs'])}"
-    i = rng.randrange(len(var["orders"]))
+    idx = [j for j, o in enumerate(var["orders"]) if pca_ok or "PCA" not in o] or list(range(len(var["orders"])))
+    i = rng.choice(idx)
     form["orders"] = var["orders"][i]
+    if not pca_ok and "PCA" in form["judgement"]:
+        form["judgement"] = next((j for j in var["judgement"] if "PCA" not in j), form["judgement"].replace("PCA 관련 ", ""))
+    if "PCA" in form["orders"] + form["judgement"] and ev != "통증":   # the pain event says its PCA in the complaint
+        form["pain_med"] = "pca"
+    if ev == "오심구토" and (patient.pod or 1) >= 2 and "마취 후" in form["judgement"]:
+        form["judgement"] = "PCA 관련 오심 가능성" if form.get("pain_med") == "pca" else "장운동 저하 관련 오심 가능성"   # PONV is the first day
+    if ev == "오심구토":
+        form["noti_content"] = f"{head}, {'오심 호소하며 구토 1회 있는 상태' if '구토' in form['complaint'] else '오심 호소하나 구토는 없는 상태'}"
+    if ev == "발열" and form.get("pain_med") in ("prn_po", "prn_iv"):
+        form["pain_med"] = "regular"     # "PRN 아세트아미노펜 드셨습니다" then acetaminophen again
+    if ev == "저혈당" and form.get("mental") == "drowsy" and "주스" in form["orders"]:
+        i, form["orders"] = 0, var["orders"][0]          # a drowsy patient gets IV dextrose, not juice by mouth
+    if ev != "통증" and form.get("pain_med") == "prn_iv" and int(form.get("nrs") or 0) < 4:
+        form["pain_med"] = "regular"                     # "아파하셔서 PRN" at NRS 2
     meds = var.get("med") or [""]
     med = meds[i] if len(meds) == len(var["orders"]) else rng.choice(meds)   # the drug given is the drug ordered
+    oral = "PO" in med or "섭취" in med
+    t_re = t_med + (rng.randint(15, 20) if quick else rng.randint(60, 90) if oral else rng.randint(30, 60))
+    form["re_time"] = _clock(t_re)
     if med:
         form["med_given"] = med.format(t=_clock(t_med))
     else:
         form.pop("med_given", None)
-    nursing = rng.choice(var.get("nursing") or [[]])
+    nursing = list(rng.choice(var.get("nursing") or [[]]))
+    by_order = (var.get("nursing_by_order") or [None] * len(var["orders"]))[i] if var.get("nursing_by_order") else None
+    if by_order:
+        nursing += by_order
+    if "PCA 속도 조절" in form["orders"]:
+        nursing.append("pca_down")       # the ordered PCA change is charted
+    if "방광 세척 속도" in form["orders"]:
+        nursing.append("cbi_up")
+    anal = sc is not None and sc.key in ("Hemorrhoidectomy", "Rectal prolapse OP")
+    limb_or_breast = patient.department in ("정형외과", "유방외과") or "유방" in patient.diagnosis or (sc is not None and sc.key == "ESS")
+    if "icepack" in nursing and anal:
+        nursing = ["sitz" if x == "icepack" else x for x in nursing]   # an anal wound gets 좌욕
+    elif "icepack" in nursing and not limb_or_breast:
+        nursing = [x for x in nursing if x != "icepack"]
     if nursing:
-        form["nursing"] = list(nursing)
+        form["nursing"] = nursing
     else:
         form.pop("nursing", None)
-    exam = rng.choice(var.get("exam") or [""])
+    exams = var.get("exam") or [""]
+    exam = next((x for x in exams if "chest PA" in x), "") if "chest PA" in form["orders"] else \
+        next((x for x in exams if "CBC" in x), "") if "CBC" in form["orders"] else rng.choice(exams)   # the ordered test is done
     if exam:
         form["exam"] = exam
     else:
@@ -1353,46 +1401,117 @@ def _derive_s3_2(form: dict[str, Any], patient: Patient, sc, rng: random.Random)
             form.pop("drain", None)
     resp = rng.choices(["improved", "same", "worse"], weights=[70, 25, 5])[0]
     form["response"] = resp
+    # the recheck starts from the finding (2026-10-18: BT 38.7 → 36.2 within 40 min; "악화" while BT fell)
+    rv = dict(v)
     if resp == "improved":
-        rv = random_vitals(rng, "normal", with_spo2=True)
+        rv["bt"] = round(max(36.8, float(v["bt"]) - rng.uniform(0.5, 1.2)), 1) if ev == "발열" else round(float(v["bt"]) + rng.uniform(-0.2, 0.1), 1)
+        rv["hr"] = max(70, int(v["hr"]) - rng.randint(5, 15)) if int(v["hr"]) > 90 else int(v["hr"]) + rng.randint(-4, 4)
+        if ev == "저혈압":
+            rv["sbp"], rv["dbp"] = int(v["sbp"]) + rng.randint(12, 25), int(v["dbp"]) + rng.randint(6, 12)
+        if ev == "호흡곤란":
+            rv["rr"] = int(v["rr"]) - rng.randint(4, 7)
+    elif resp == "worse":
+        rv["bt"] = round(float(v["bt"]) + (rng.uniform(0.2, 0.5) if ev == "발열" else 0.0), 1)
+        rv["hr"] = int(v["hr"]) + rng.randint(5, 15)
+        if ev == "저혈압":
+            rv["sbp"] = int(v["sbp"]) - rng.randint(4, 10)
     else:
-        rv = dict(v)
         for k in ("sbp", "dbp", "hr", "rr"):
             rv[k] = int(v[k]) + rng.randint(-4, 4)
-        rv["bt"] = round(max(36.0, float(v["bt"]) - (rng.uniform(0, 0.4) if ev == "발열" else rng.uniform(-0.1, 0.1))), 1)
+        rv["bt"] = round(float(v["bt"]) - (rng.uniform(0, 0.3) if ev == "발열" else rng.uniform(-0.1, 0.1)), 1)
+    rv["dbp"] = min(int(rv["dbp"]), int(rv["sbp"]) - 30)
     rv["spo2"] = rv["spo2"] or rng.randint(95, 99)
     rv["o2"] = var.get("o2_after", "room air")
     if var.get("o2_after"):
         rv["spo2"] = rng.randint(95, 98)
+    if resp == "worse" and ev == "호흡곤란":
+        rv["spo2"] = rng.randint(90, 93)
     form["re_vitals"] = rv
     form["recheck"] = "no_change" if var.get("recheck") and resp != "worse" else "na"
     form["plan"] = rng.choice(var["plan"])
+    if resp == "worse":                   # the re-notify is in the response line; the plan is not "지속 시 재노티" again
+        form["plan"] = rng.choice(["추가 처방 시행 후 30분 뒤 재평가", "주치의 직접 확인 예정이며 30분 간격으로 활력징후 측정"])
+        form["worse_order"] = {"발열": "blood culture와 항생제 추가", "통증": "PRN 진통제 추가", "오심구토": "다른 항구토제 추가",
+                               "출혈": "주치의 직접 확인과 CBC 재검", "저혈압": "N/S 500cc 추가 로딩", "호흡곤란": "O2 5L mask로 변경, ABGA",
+                               "배액 이상": "주치의 직접 확인", "섬망": "추가 진정제", "저칼슘혈증": "칼슘 추가 투여", "혈뇨": "방광 세척 속도 증가"}.get(ev, "추가 처치")
+    # what the re-assessment actually measured (2026-10-18: no NRS after the analgesic, no BST number in a glucose event)
+    if ev == "통증":
+        form["re_nrs"] = max(1, int(form["nrs"]) - rng.randint(3, 5)) if resp == "improved" else int(form["nrs"]) - rng.randint(0, 1)
+        if resp == "improved" and "30분 후 통증 재사정" in form["plan"]:
+            form["plan"] = "NRS 4점 이하 유지되는지 관찰하고 조절 안 되면 재노티"
+    else:
+        form.pop("re_nrs", None)
+    if ev in ("저혈당", "고혈당"):   # the BST number is the outcome: corrected, so improved, with the follow-up (not "15분 후 재측정" again)
+        form["response"] = "improved" if ev == "저혈당" else "na"   # 고혈당 "특이 증상 없음" has nothing to feel better about
+        form["plan"] = "식사 시작 전까지 2시간마다 BST 측정" if ev == "저혈당" else "식전 BST 추적 관찰하며 sliding scale 적용"
+        start = int(re.search(r"BST (\d+)", form["complaint"]).group(1)) if re.search(r"BST (\d+)", form["complaint"]) else (55 if ev == "저혈당" else 320)
+        form["re_bst"] = rng.randint(95, 140) if ev == "저혈당" else max(160, start - rng.randint(60, 140))
+        form["noti_content"] = form["noti_content"].replace(f"BT {v['bt']}", f"BST {start}mg/dL, BT {v['bt']}", 1)
+    else:
+        form.pop("re_bst", None)
+    if resp == "improved" and ev in ("배액 이상", "출혈", "혈뇨"):
+        form["response"] = "na"           # "환자 편해졌다고 하십니다" after "특이 호소 없음"; the recheck line says what changed
+    if resp == "improved" and ev == "섬망":
+        form["response"] = "settled"
+    if "소변" in form["complaint"]:
+        form.pop("urine", None)           # TURB 출혈: the complaint already describes the urine
+    if sc is not None and sc.key == "BKA":
+        form.pop("leg", None)             # "양측 하지 부종" for an amputee
+    elif "leg" in form:
+        form["leg"] = True                # a new leg swelling would be its own SBAR, not "관찰 중"
 
 
 def _derive_s4(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -> None:
     """Discharge education: home drugs by age, ER criteria by admission kind, outpatient date in the patient's calendar."""
     age = patient.age or 50
     chemo = patient.kind == "chemo"
-    form["report_edu"] = "chemo" if chemo else "op"
+    form["report_edu"] = "chemo" if chemo else ("nowound" if sc is not None and sc.key in ("ESS", "TURB") else "op")
     form["id_check"] = rng.random() < 0.95
+    if chemo and ("FOLF" in (patient.regimen or "") or form.get("device") == "picc"):
+        form["id_check"] = False              # the port needle / PICC is its own sentence, not "정맥주사 제거 부위"
+    first_day = patient.day or 1
+    pump = chemo and "FOLF" in (patient.regimen or "")
+    if chemo:   # the discharge is the morning after the infusion (2026-10-18: "항암 중 오심 … 호전" dictated before the drug ran on D1)
+        patient.day = 3 if pump else first_day + 1            # 5-FU pump (46 h from D1) comes off on D3; the rest go home the next morning
+        if pump and not form.get("device_note"):
+            form["device_note"] = "5-FU 펌프 제거하고 케모포트 바늘 제거 부위 지혈된 것 확인하였습니다"
     if age < 50:
         form["home_meds"] = "none" if rng.random() < 0.85 else "continue"
     else:
         form["home_meds"] = rng.choices(["continue", "none", "continue_aspirin_later", "changed"], weights=[50, 30, 0 if chemo else 10, 10])[0]
-    form["teachback"] = rng.choices(["both", "patient", "caregiver", "re_edu"], weights=[70, 20, 5, 5])[0]
+    form["teachback"] = rng.choices(["both", "patient", "caregiver", "re_edu"], weights=[70, 20, 5 if age >= 80 else 0, 5])[0]
+    if "보호자 내원 후" in str(form.get("discharge_date") or ""):
+        form["teachback"] = "patient"      # the guardian arrives at 15:00, after this 09:00 teaching
     if "없음" in str(form.get("discharge_meds") or ""):
         form["side_effect_edu"] = False   # 복약지도문 without a prescription (2026-10-17)
     m = re.match(r"(\d+)월 (\d+)일", patient.op_date or "")
     if m:
+        md = (int(m.group(1)), int(m.group(2)))
+        now = datetime.now()                                  # the same year record_datetime will give this discharge
+        stay = (patient.day - 1) if chemo else (patient.pod or 0)
+        year = now.year if datetime(now.year, *md) + timedelta(days=stay) <= now else now.year - 1
+        op = datetime(year, *md)
         offset = rng.randint(12, 21)
         if not chemo and patient.pod:
             offset = max(offset, patient.pod + rng.randint(5, 9))   # a 21-day BKA stay still has its clinic after discharge
-        if chemo:   # D1 = op_date for chemo; clinic the day before the next cycle ("3주 후 외래" must match the next admission)
-            offset = (14 if "FOLF" in (patient.regimen or "") else 21) - 1
-        visit = datetime(2026, int(m.group(1)), int(m.group(2))) + timedelta(days=offset)
-        form["opd"] = f"{visit.month}월 {visit.day}일 {rng.choice(['오전 9시', '오전 10시 30분', '오전 11시', '오후 2시', '오후 3시'])}"
+        same_day_admit = "입원 수속" in str(form.get("opd_exam") or "")
+        if chemo:   # D1 = op_date; the clinic is the day before the next infusion (weekly K+TC: D8, D15), or that day when admitted from it
+            cycle = int(sc.form.get("_cycle_days") or (14 if pump else 21)) if sc is not None else (14 if pump else 21)
+            days = sorted(sc.form.get("_days") or [1]) if sc is not None and not pump else [1]   # FOLF [1, 2] are pump days, not infusions
+            later = [d for d in days if d > first_day]
+            next_rel = later[0] if later else cycle + 1
+            offset = next_rel - (1 if same_day_admit else 2)
+        visit = op + timedelta(days=offset)
+        while visit.weekday() >= 5:                           # no clinic on a weekend (2026-10-18: 28% Sat/Sun)
+            visit += timedelta(days=1)
+        clock = ['오전 9시', '오전 10시 30분', '오전 11시', '오후 2시', '오후 3시']
+        if "8시 30분 채혈" in str(form.get("opd_exam") or ""):
+            clock = clock[1:]                 # the 08:30 blood needs an hour before the visit
+        form["opd"] = f"{visit.month}월 {visit.day}일 {rng.choice(clock)}"
         if chemo:                                            # 다음 입원 일자: the cycle after the clinic check (user 2026-10-17)
-            nxt = visit + timedelta(days=1)
+            nxt = visit if same_day_admit else visit + timedelta(days=1)
+            while nxt.weekday() >= 5:
+                nxt += timedelta(days=1)
             form["next_admission"] = f"{nxt.month}월 {nxt.day}일"
             if form.get("further") == "next_cycle":
                 form.pop("further")                           # "다음 차수 입원 예정" is now the 다음 입원 일자 sentence
@@ -1413,8 +1532,8 @@ def _derive_s4(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
         form.pop("exam_prep", None)
     if _upper_limb(patient.diagnosis) and form.get("activity") == "weight_bearing":
         form["activity"] = "walk_no_heavy"   # a wrist fracture walks normally
-    if form.get("device") == "stoma":
-        form["referral"] = [r for r in form.get("referral", []) if r != "stoma"]
+    if form.get("device") == "stoma" or (sc is not None and sc.key in ("LAR", "Ileostomy repair")):
+        form["referral"] = [r for r in form.get("referral", []) if r != "stoma"]   # the stoma line says it; a closed stoma has no 장루 외래
     if sc is not None and "referral" not in sc.form:
         cancer = any(w in patient.diagnosis for w in ("암", "종양", "전이"))
         form["referral"] = ["nutrition"] if cancer and rng.random() < 0.15 else []
@@ -1436,6 +1555,26 @@ def _derive_s4(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
         form.pop("report_edu", None)                          # the leaflet warning already lists the fever criterion
     if re.search(r"조직검사|항암 여부|방사선|병리", form.get("opd_note", "")):
         form.pop("further", None)
+    if age >= 70 and "복직" in str(form.get("driving") or ""):
+        form["driving"] = "운전은 외래에서 확인 후 하도록"   # nobody tells a 78-year-old when to go back to work
+    if age >= 80 and "운전" in str(form.get("driving") or ""):
+        form.pop("driving", None)
+    if sc is not None and sc.key == "Hemorrhoidectomy" and form.get("wound") == "dressing":
+        form.pop("wound")
+        form["wound_note"] = form.get("wound_note") or "배변 후 미지근한 물로 좌욕하고 항문 부위 청결하게 유지하도록 교육하였습니다"
+    if sc is not None and sc.key == "BKA" and "외상" in patient.diagnosis and form.get("diet_edu") == "dm":
+        form["diet_edu"] = "gd"
+    if form.get("activity") == "weight_bearing" and age < 60:
+        form["activity"] = "crutch"           # a young ORIF patient uses crutches, not a walker
+    notes = " ".join(str(form.get(k) or "") for k in ("wound_note", "precautions", "activity_note", "device_note", "opd_note", "diet_note"))
+    if "좌욕" in notes and form.get("wound") == "glue":
+        form.pop("wound")                     # perineal wound: 좌욕, not "피부 접착제"
+    if form.get("activity") == "full" and re.search(r"쪼그려|계단|무거운|달리기|뛰|운동은", notes):
+        form.pop("activity")                  # "활동 제한 없다" next to "쪼그려 앉기·계단 피하도록"
+    if "사람 많은" in notes and "사람 많은" in str(form.get("driving") or ""):
+        form.pop("driving", None)
+    if "오전 9시" in str(form.get("opd") or "") and any("8시 30분 채혈" in str(v) for v in form.values() if isinstance(v, str)):
+        form["opd"] = form["opd"].replace("오전 9시", "오전 10시 30분")   # the 08:30 blood (exam or leaflet) needs time before the visit
 
 
 def _diet_for_day(sc, pod: int, rng: random.Random) -> str:
@@ -2021,6 +2160,8 @@ _LF_OPD = r"외래|조직검사|결과|문자|납부|원무|추적|방사선|심
 
 def leaflet_category(x: str) -> str:
     head = x[:14]
+    if re.search(r"사우나|대중탕|통목욕|탕 목욕", x):
+        return "wound"                     # bathing replaces the generic "탕 목욕은 외래까지" (2026-10-18: 두 가지 기간)
     if re.search(_LF_DEVICE, head):
         return "device"
     if re.search(_LF_WOUND, head):
@@ -2045,6 +2186,9 @@ def _spread_leaflet(form: dict[str, Any], rng: random.Random, patient: Patient, 
     pool = sc_pools.get("s4.leaflet") or ()
     if pool and patient is not None:
         pool = coherent_pool(patient.diagnosis, tuple(pool), trauma=False) or list(pool)
+    if pool and sc is not None and sc.key == "LAR":   # stoma care and reversal only with a stoma, LARS advice only without (2026-10-18)
+        stoma = form.get("device") == "stoma"
+        pool = [x for x in pool if ("장루" in x) == stoma] or list(pool)
     if not pool:
         return
     k = min(len(pool), rng.choice([1, 2, 2, 3]))

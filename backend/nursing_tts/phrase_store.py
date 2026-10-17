@@ -199,9 +199,19 @@ _CLAUSE_FROM_CHART: list[tuple[re.Pattern[str], str]] = [
 ]
 
 
+_QUOTATIVE: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(r"(가능|필요)함? (설명|교육)함"), r"\1하다고 \2함"), (re.compile(r"결정됨 (설명|교육)함"), r"결정된다고 \1함"),
+    (re.compile(r"줄어듦 (설명|교육)함"), r"줄어든다고 \1함"), (re.compile(r"보냄 (설명|교육)함"), r"보낸다고 \1함"),
+    (re.compile(r"됨 (설명|교육)함"), r"된다고 \1함"), (re.compile(r"있음 (설명|교육)함"), r"있다고 \1함"),
+    (re.compile(r"없음 (설명|교육)함"), r"없다고 \1함"), (re.compile(r"(예정|금지) (설명|교육)함"), r"\1이라고 \2함"),
+]
+
+
 def formal_from_chart(phrase: str) -> str:
     """'수면양상을 관찰함.' -> '수면양상을 관찰하였습니다.' (used for spoken styles)."""
     p = phrase.strip()
+    for rx, rep in _QUOTATIVE:   # 2026-10-18 대량 검수: "통목욕은 … 두 달 뒤 가능 설명하였습니다"
+        p = rx.sub(rep, p)
     for rx, rep in _CLAUSE_FROM_CHART:
         p = rx.sub(rep, p)
     for rx, rep in _FROM_CHART:

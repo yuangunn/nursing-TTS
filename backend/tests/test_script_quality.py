@@ -178,7 +178,8 @@ def test_other_templates_are_coherent():
                     assert "arrival_time" not in f and f["breathing"] == "inspirometer"
             if t == "s3_2":
                 ev, v = f["event"], f["vitals"]
-                assert f["noti_content"].startswith(f"BT {v['bt']}, BP {v['sbp']}/{v['dbp']}, HR {v['hr']}")
+                # the SBAR opens with the measured numbers; a glucose event puts its BST first (2026-10-18)
+                assert re.sub(r"^BST \d+mg/dL, ", "", f["noti_content"]).startswith(f"BT {v['bt']}, BP {v['sbp']}/{v['dbp']}, HR {v['hr']}")
                 if ev == "발열":
                     assert v["bt"] >= 37.8
                 if ev == "통증":
@@ -188,7 +189,8 @@ def test_other_templates_are_coherent():
                 if f.get("med_given", "").endswith("PO"):
                     assert "PO" in f["orders"] or "경구" in f["orders"] or "주스" in f["med_given"], (f["orders"], f["med_given"])
             if t == "s4":
-                assert f.get("report_edu", "chemo" if p.kind == "chemo" else "op") == ("chemo" if p.kind == "chemo" else "op")
+                want = "chemo" if p.kind == "chemo" else "nowound" if p.scenario in ("ESS", "TURB") else "op"   # no skin wound to redden
+                assert f.get("report_edu", want) == want
                 for generic, note in (("wound", "wound_note"), ("diet_edu", "diet_note"), ("activity", "activity_note"), ("device", "device_note")):
                     assert not (f.get(generic) and f.get(note)), (generic, f.get(generic), f.get(note))   # 범주당 한 번
                 assert "referral" not in f or "stoma" not in f["referral"] or f.get("device") != "stoma"
@@ -376,7 +378,8 @@ def test_record_time_follows_the_patient_timeline():
                 if again < found:
                     assert same_day(w - timedelta(days=p.pod + 1), op), (p.op_date, p.pod, w)
                 else:
-                    assert same_day(w - timedelta(days=p.pod), op) and mins > again, (p.op_date, p.pod, f["re_time"], w)
+                    late = w.hour < 2 and again >= 22 * 60     # a 23:30 recheck is charted just after midnight
+                    assert same_day(w - timedelta(days=p.pod + (1 if late else 0)), op) and (late or mins > again), (p.op_date, p.pod, f["re_time"], w)
             if t == "s4":
                 assert 8 * 60 + 30 <= mins <= 10 * 60 + 40, w
                 visit = _month_day(f["opd"])
@@ -434,7 +437,9 @@ def test_demo_read_through_context_rules():
         if p.kind == "chemo" and f.get("next_admission"):
             (om, od), (nm, nd) = [tuple(int(x) for x in re.match(r"(\d+)월 (\d+)일", v).groups()) for v in (p.op_date, f["next_admission"])]
             gap = (date(2026 + (nm < om), nm, nd) - date(2026, om, od)).days
-            assert gap == (14 if "FOLF" in p.regimen else 21), (p.regimen, p.op_date, f["next_admission"])
+            # the next infusion (weekly K+TC: D8/D15), discharged the morning after (D2/D9/D16; FOLF pump D3), moved off weekends (2026-10-18)
+            want = 14 if "FOLF" in p.regimen else {2: 7, 9: 14}.get(p.day, 21) if p.regimen == "K+TC" else 21
+            assert want <= gap <= want + 3, (p.regimen, p.day, p.op_date, f["next_admission"])
     for i in range(30):
         p = random_patient(rng, "s2", scenario="ESS")
         f = random_form("s2", rng, p)
@@ -585,3 +590,46 @@ def test_preop_and_postop_review_2026_10_18():
         if side and ("유방" in p.diagnosis or p.department == "유방외과"):
             assert ("Rt" not in f["iv"] and "오른" not in f["iv"]) if side == "우측" else ("Lt" not in f["iv"] and "왼" not in f["iv"]), (p.diagnosis, f["iv"])
     assert rh_neg == 0
+
+
+def test_event_and_discharge_review_2026_10_18():
+    """대량 검수(이벤트·퇴원): 재측정이 투약보다 먼저(저혈당 72%), 38.7 → 36.2를 40분 만에, 통증 재사정에 점수 없음, 혈당 사건에 BST 숫자 없음,
+    PCA 없는 수술에 PCA 판단, "오심/구토"·"(손저림)" 낭독, 당일 수술에 POD 3 이벤트; 주말 외래 28%, 항암 D1 오전 퇴원,
+    "지참약은 없으십니다", "…가능 설명하였습니다", ESS·TURB에 "상처가 빨개지고"."""
+    from datetime import datetime as _dt
+    from nursing_tts.fake import _parse_clock, record_datetime
+    rng = random.Random(1022)
+    for i in range(160):
+        p = random_patient(rng, "s3_2")
+        f = random_form("s3_2", rng, p)
+        sc = clinical.BY_KEY[p.scenario]
+        assert p.pod <= max(1, sc.los[1]), (p.scenario, p.pod)
+        s = build_script("s3_2", f, p, random_datetime(rng), style=rng.choice(["formal", "mixed", "casual", "chart"]), seed=i).spoken_text
+        assert "오심/구토" not in s and "(손저림)" not in s, s
+        m = re.match(r"(\S+ \d+시(?: \d+분)?)", f.get("med_given") or "")
+        if m:
+            med, re_t = _parse_clock(m.group(1)), _parse_clock(f["re_time"])
+            assert (re_t - med) % (24 * 60) >= 15, (f["med_given"], f["re_time"])          # the recheck follows the drug
+        if f["event"] == "발열" and f.get("response") == "improved":
+            assert float(f["vitals"]["bt"]) - float(f["re_vitals"]["bt"]) <= 1.2, (f["vitals"]["bt"], f["re_vitals"]["bt"])
+        if f["event"] == "통증":
+            assert "re_nrs" in f and f"NRS {f['re_nrs']}점" in s, s
+        if f["event"] in ("저혈당", "고혈당"):
+            assert "re_bst" in f and f["noti_content"].startswith("BST "), f["noti_content"]
+        if not any("pca" in a for a in (sc.form.get("attachments") or [])):
+            assert "PCA" not in f.get("judgement", "") + f.get("orders", "") + f.get("complaint", ""), (p.scenario, f.get("judgement"), f.get("orders"))
+    rng = random.Random(1023)
+    for i in range(160):
+        p = random_patient(rng, "s4")
+        f = random_form("s4", rng, p)
+        w = record_datetime("s4", p, f, rng)
+        s = build_script("s4", f, p, w, style=rng.choice(["formal", "mixed", "casual", "chart"]), seed=i).spoken_text
+        if p.kind == "chemo":
+            assert p.day >= 2, (p.regimen, p.day)                                          # the morning after the infusion
+        mo, dd = (int(x) for x in re.match(r"(\d+)월 (\d+)일", f["opd"]).groups())
+        visit = _dt(w.year + (1 if (mo, dd) < (w.month, w.day) else 0), mo, dd)
+        assert visit.weekday() < 5, (f["opd"], w)                                          # no weekend clinic
+        assert "지참약은 없으십니다" not in s and "활동 제한은 없으시고" not in s, s
+        assert not re.search(r"(가능|결정됨|줄어듦|보냄|됨) 설명(하였|했|드렸)", s), s
+        if p.scenario in ("ESS", "TURB"):
+            assert "상처가 빨개지고" not in s, s
