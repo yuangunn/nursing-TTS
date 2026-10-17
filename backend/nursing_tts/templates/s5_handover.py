@@ -23,7 +23,7 @@ TEMPLATE = RecordTemplate(
                 opt("none", "없음"),
             ], phrases=["과거력 {v} 있고,", "{v} 있으시고,", "과거력은 {v} 있습니다."],   # "{v}, " read "HTN, 알레르기 없어요" (= HTN 없음)
                none_phrases=["과거력 특이사항 없고,", "기저질환 없으시고,"], default=["htn", "dm"]),
-            txt("allergy", "알레르기", placeholder="예: 조영제", phrases=["{v} 알레르기 있습니다.", "{v} 알러지 있고,", "알레르기는 {v}이구요,"], default="조영제"),
+            txt("allergy", "알레르기", placeholder="예: 조영제", phrases=["{v} 알레르기 있습니다.", "{v} 알러지 있고,", "알레르기는 {v}(이)구요,"], default="조영제"),
             boolean("allergy_none", "알레르기 없음", phrases=["알레르기 없습니다.", "알러지 없고,"], default=False),
             sel("isolation", "격리", ISOLATION, default="none"),
             sel("code", "DNR / 연명의료", CODE_STATUS, default="none", skip_values=("none",)),
@@ -56,7 +56,7 @@ TEMPLATE = RecordTemplate(
             boolean("gas_out", "가스 배출", phrases=["금일 가스 아웃 확인되어 저녁부터 물 시작했고 잘 드셨습니다.", "가스 아웃 확인됐고,", "오늘 gas out 됐구요,"],
                     false_phrases=["아직 가스 배출 안 됐습니다.", "gas out 아직 안 됐고,"], default=True),   # 금식은 식이 문장이 이미 말함
             txt("io", "I/O", placeholder="예: 수액 2000, 소변 1800, JP 60",
-                phrases=["I/O는 {v}cc입니다.", "I/O {v}이고,", "인아웃은 {v}이구요,"], default="수액 2000, 소변 1800, JP 60"),
+                phrases=["I/O는 {v}cc입니다.", "I/O {v}(이)고,", "인아웃은 {v}(이)구요,"], default="수액 2000, 소변 1800, JP 60"),
             sel("voiding", "배뇨", [
                 opt("self", "자가배뇨", "자가배뇨 잘 하고 있습니다.", "self voiding 잘 하시고,", "소변 잘 보시구요,"),
                 opt("foley", "도뇨관", "Foley 유지 중입니다.", "소변줄 유지 중이고,"),
@@ -75,8 +75,8 @@ TEMPLATE = RecordTemplate(
             ], default="good", speak_prob=0.7),
         ]),
         Section("tx", "치료", hint="수액·항생제·항암제·수혈, PCA, 산소, PRN 사용", fields=[
-            txt("fluid", "수액", placeholder="예: 하트만 80cc/hr", phrases=["수액은 {v} 들어가고 있고,", "{v} 유지 중이고,", "수액 {v}이구요,"], default="하트만 80cc/hr"),
-            txt("antibiotic", "항생제", placeholder="예: 세파졸린 q8h", phrases=["{v} 들어가고 있습니다.", "항생제는 {v}이고,", "{v} 유지 중이구요,"], default="세파졸린 q8h"),
+            txt("fluid", "수액", placeholder="예: 하트만 80cc/hr", phrases=["수액은 {v} 들어가고 있고,", "{v} 유지 중이고,", "수액 {v}(이)구요,"], default="하트만 80cc/hr"),
+            txt("antibiotic", "항생제", placeholder="예: 세파졸린 q8h", phrases=["{v} 들어가고 있습니다.", "항생제는 {v}(이)고,", "{v} 유지 중이구요,"], default="세파졸린 q8h"),
             sel("o2", "산소", [
                 opt("none", "없음"),
                 opt("nasal", "nasal", "O2 nasal 유지 중입니다.", "산소 nasal 들어가고 있고,"),
@@ -85,25 +85,25 @@ TEMPLATE = RecordTemplate(
             txt("prn", "PRN 사용", placeholder="예: 트라마돌 1회, 항구토제 1회",
                 phrases=["PRN으로 {v} 들어갔습니다.", "PRN {v} 썼고,"], speak_prob=0.8),
             txt("transfusion", "수혈/항암", placeholder="예: PRBC 1 pack 수혈 완료",
-                phrases=["{v}.", "{v}이고,"]),
+                phrases=["{v}.", "{v}(이)고,"]),
             txt("special", "수술/항암별 특이 관리", placeholder="예: 환측 팔 혈압·채혈 금지 팔찌 적용 중",
-                phrases=["{v}.", "{v}이고,", "{v}구요,"], hint="수술·항암 종류에 따른 관리 포인트 (가상 환자 생성 시 자동으로 채워짐)"),
+                phrases=["{v}.", "{v}(이)고,", "{v}구요,"], hint="수술·항암 종류에 따른 관리 포인트 (가상 환자 생성 시 자동으로 채워짐)"),
         ]),
         Section("lines", "라인/튜브/배액", hint="종류, 부위, 삽입일, 양상·양, 교환 예정", fields=[
             txt("line", "말초 라인", placeholder="예: Rt arm 22G line 하나, 10월 13일 삽입, 내일 교환 예정",
-                phrases=["라인은 {v}입니다.", "라인은 {v}이고,", "{v}이구요,"], default="Rt arm 22G line 하나, 10월 13일 삽입이라 내일 교환 예정"),
+                phrases=["라인은 {v}입니다.", "라인은 {v}(이)고,", "{v}(이)구요,"], default="Rt arm 22G line 하나, 10월 13일 삽입이라 내일 교환 예정"),
             txt("drain", "배액관", placeholder="예: 우측 복부 JP 장액성, 색 옅어지는 중",
-                phrases=["{v}.", "{v}이고,", "배액은 {v}이구요,"], default="우측 복부 JP 배액은 장액성으로 색 옅어지고 있음"),
+                phrases=["{v}입니다.", "{v}(이)고,", "배액은 {v}(이)구요,"], default="우측 복부 JP 배액은 장액성으로 색 옅어지고 있음"),   # "골반 JP serosanguineous 60cc." in 격식체
             txt("other_tube", "기타 튜브", placeholder="예: L-tube 자연 배액 중",
-                phrases=["{v}.", "{v}이고,"]),
+                phrases=["{v}.", "{v}(이)고,"]),
         ]),
         Section("lab", "검사 결과", hint="Lab, 영상, 배양 특이 수치 및 noti 여부", fields=[
             txt("lab", "Lab", placeholder="예: WBC 11.2, CRP 8.5 어제보다 약간 상승",
-                phrases=["금일 랩 {v}입니다.", "오늘 랩은 {v}이고,", "랩은 {v}이구요,"], default="WBC 11.2, CRP 8.5로 어제보다 약간 상승한 상태"),
+                phrases=["금일 랩 {v}입니다.", "오늘 랩은 {v}(이)고,", "랩은 {v}(이)구요,"], default="WBC 11.2, CRP 8.5로 어제보다 약간 상승한 상태"),
             txt("glucose", "혈당", placeholder="예: 식전 150~180, 슬라이딩 스케일",
-                phrases=["혈당은 {v}입니다.", "혈당 {v}이고,", "BST {v}이구요,"], default="식전 150~180으로 슬라이딩 스케일 적용 중"),
+                phrases=["혈당은 {v}입니다.", "혈당 {v}(이)고,", "BST {v}(이)구요,"], default="식전 150~180으로 슬라이딩 스케일 적용 중"),
             txt("imaging", "영상/배양", placeholder="예: chest PA 특이 소견 없음",
-                phrases=["{v}.", "{v}이고,"], speak_prob=0.8),
+                phrases=["{v}.", "{v}(이)고,"], speak_prob=0.8),
         ]),
         Section("risk", "위험 사정", hint="낙상, 욕창, 섬망, 자해", fields=[
             sel("fall", "낙상", FALL_RISK, default="low"),

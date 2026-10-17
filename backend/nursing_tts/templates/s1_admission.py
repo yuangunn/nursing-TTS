@@ -15,7 +15,7 @@ TEMPLATE = RecordTemplate(
     sections=[
         Section("basic", "기본정보", hint="입원일, 입원 경로, 입원 목적", fields=[
             txt("admission_date", "입원일", placeholder="예: 10월 13일",
-                phrases=["{v} 입원하셨고,", "{v} 입원하였고,", "입원일은 {v}이고,"],
+                phrases=["{v} 입원하셨고,", "{v} 입원하였고,", "입원일은 {v}(이)고,"],
                 hint="입원일", example="10월 13일"),
             sel("route", "입원 경로", [
                 opt("opd", "외래", "외래 통해 입원하셨습니다.", "외래 경유로 오셨고,", "외래로 오셨구요,"),
@@ -62,13 +62,13 @@ TEMPLATE = RecordTemplate(
                 opt("none", "없음"),
             ], phrases=["과거력 {v} 있으십니다.", "과거력은 {v} 있으시고,", "{v} 있으시구요,", "기저질환으로 {v} 있으십니다.",
                         "{v} 진단받고 약 드시고 계십니다.", "혹시 과거에 앓으셨던 질환이 있을까요? {v} 있으시고,",
-                        "앓고 계신 질환은 {v}이고,", "과거에 앓으셨던 질환 여쭤보니 {v} 있으시다고 하십니다."],
+                        "앓고 계신 질환은 {v}(이)고,", "과거에 앓으셨던 질환 여쭤보니 {v} 있으시다고 하십니다."],
                none_phrases=["과거력 특이사항 없습니다.", "기저질환 없으시고,", "과거력 없으십니다.",
                              "혹시 과거에 앓으셨던 질환 있을까요? 따로 없으시고,"], default=[]),
             txt("history_detail", "과거력 상세", placeholder="예: 고혈압 10년, 당뇨 5년 경구약 복용",
                 phrases=["{v}입니다.", "{v}(이)고,"], speak_prob=0.9),   # "결핵 완치으로 약 드시고" 삭제
             txt("past_surgery", "과거 수술/입원", placeholder="예: 20년 전 충수절제술",
-                phrases=["{v} 있으십니다.", "수술력은 {v} 있으시고,", "{v} 하셨다고 합니다.", "과거 수술은 {v}이구요,",
+                phrases=["{v} 있으십니다.", "수술력은 {v} 있으시고,", "{v} 하셨다고 합니다.", "과거 수술은 {v}(이)구요,",
                          "입원하시거나 수술하신 적 있으세요? {v} 하셨고,", "입원하시거나 수술하신 적 여쭤보니 {v} 하셨다고 하십니다."]),
             sel("transfusion", "수혈력", [
                 opt("no", "없음", "수혈력 없습니다.", "수혈 받은 적 없으시고,", "수혈력 없으시구요,"),
@@ -95,7 +95,7 @@ TEMPLATE = RecordTemplate(
         ]),
         Section("meds", "투약", hint="복용 약, 항응고제/항혈소판제 중단 여부", fields=[
             txt("medications", "복용 중인 약", placeholder="예: 암로디핀 5mg, 메트포르민 500mg bid",
-                phrases=["현재 {v} 복용 중입니다.", "복용 약은 {v}이고,", "{v} 드시고 계시구요,", "집에서 {v} 드시고 계십니다.",
+                phrases=["현재 {v} 복용 중입니다.", "복용 약은 {v}(이)고,", "{v} 드시고 계시구요,", "집에서 {v} 드시고 계십니다.",
                          "따로 드시고 계신 약 있으실까요? {v} 드시고 계시고,", "드시는 약은 {v}, 아침 식후에 하나씩 드시고,"]),
             sel("antiplatelet", "항응고/항혈소판제", [
                 opt("na", "해당 없음", "항응고제, 항혈소판제 복용 안 하십니다.", "항혈소판제 복용력 없으시고,"),
@@ -150,7 +150,7 @@ TEMPLATE = RecordTemplate(
             boolean("dysphagia", "연하 곤란", phrases=["연하 곤란 있으십니다.", "삼킴 어려움 호소하시고,"],
                     false_phrases=["연하 곤란 없습니다.", "연하 곤란은 없으시고,", "삼키는 건 문제 없으십니다."], default=False),
             txt("weight_change", "체중 변화", placeholder="예: 2개월간 5kg 감소", speak_prob=0.0,
-                phrases=["{v} 있으십니다.", "체중 변화는 {v}이고,", "{v}했다고 하십니다."]),
+                phrases=["{v} 있으십니다.", "체중 변화는 {v}(이)고,", "{v}했다고 하십니다."]),
         ]),
         Section("elimination", "배설", fields=[
             sel("voiding", "배뇨", [
@@ -252,7 +252,7 @@ TEMPLATE = RecordTemplate(
                     "금연 교육하였구요,", "금연하시도록 교육했습니다."], default=False),
             boolean("alcohol_edu", "금주 교육 (음주할 때)", phrases=["입원 중과 치료 기간 동안 금주하도록 교육하였습니다.", "금주 교육 시행했고,",
                     "금주 교육하였구요,", "술은 치료 끝날 때까지 드시지 않도록 금주 교육했습니다."], default=False),
-            txt("religion", "종교", placeholder="예: 기독교", phrases=["종교는 {v}입니다.", "종교 {v}이고,"], speak_prob=0.6),
+            txt("religion", "종교", placeholder="예: 기독교", phrases=["종교는 {v}입니다.", "종교 {v}(이)고,"], speak_prob=0.6),
         ]),
         Section("screening", "선별 문진", hint="우울·영양·수면·일상생활·증상 선별 (문진형)", fields=[
             sel("depression_screen", "우울 선별 (2주간 기분 저하·흥미 상실)", [

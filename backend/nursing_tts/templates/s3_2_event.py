@@ -21,7 +21,7 @@ TEMPLATE = RecordTemplate(
         ]),
         Section("assess", "1. 사정", hint="발견 시점·V/S, 사정, 간호 판단", fields=[
             txt("found_time", "발견 시각", placeholder="예: 오전 10시",
-                phrases=["{v} 라운딩 시", "{v}에", "{v} 정규 라운딩에서"], default="오전 10시"),   # "환자 호소로" also for 섬망·특이 호소 없음
+                phrases=["{v} 라운딩 시", "{v}에", "{v} 라운딩에서"], default="오전 10시"),   # 정규 라운딩 = 07·15·23시 (user 2026-10-17), 이벤트는 아무 때나   # "환자 호소로" also for 섬망·특이 호소 없음
             VITALS_FIELD,
             txt("complaint", "환자 호소", placeholder="예: 열감 조금 있음, 오한 없음",
                 phrases=["환자 {v}.", "환자분 {v}."],
@@ -43,6 +43,7 @@ TEMPLATE = RecordTemplate(
                 opt("redness", "발적", "수술 부위 발적 있고 열감 있습니다.", "수술 부위 빨갛고 열감 있고,"),
                 opt("oozing", "oozing", "수술 부위 oozing 있어 드레싱 교환했습니다.", "드레싱 oozing 있고,"),
                 opt("bleeding", "드레싱 혈액 젖음", "수술 부위 드레싱 혈액으로 젖어 있고 활동성 출혈 양상입니다.", "드레싱 피 많이 비치고,"),
+                opt("nose", "비강 패킹 출혈", "비강 패킹 거즈 혈액으로 젖어 있고 선홍색 출혈 지속됩니다.", "비강 패킹 거즈 피로 젖어 있고,"),   # ESS
                 opt("na", "해당 없음"),
             ], default="clean", skip_values=("na",)),
             sel("abdomen", "복부", [
@@ -51,7 +52,7 @@ TEMPLATE = RecordTemplate(
                 opt("normal", "정상", "복부 팽만 없고 장음 정상입니다.", "복부 특이사항 없고,"),
             ], default="soft"),
             txt("drain", "배액 양상/양", placeholder="예: JP serosanguineous 40cc, 변화 없음",
-                phrases=["{v}, 특이 변화 없습니다.", "{v}입니다.", "배액은 {v}이고,"], default="JP 배액 serosanguineous 양상 40cc"),
+                phrases=["{v}, 특이 변화 없습니다.", "{v}입니다.", "배액은 {v}(이)고,"], default="JP 배액 serosanguineous 양상 40cc"),
             sel("urine", "배뇨", [
                 opt("clear", "맑은 노란색, 불편감 없음", "소변 노란색으로 맑고 배뇨 시 불편감 없습니다.", "소변 clear하게 나오고 배뇨 불편감 없고,"),
                 opt("cloudy", "혼탁", "소변 turbid하게 나오고 배뇨 시 불편감 호소합니다.", "소변 turbid하고 배뇨통 있고,"),
@@ -91,6 +92,7 @@ TEMPLATE = RecordTemplate(
                 opt("inspirometer", "inspirometer 시행", nouns=["inspirometer 시간당 10회 격려"]),
                 opt("ambulation", "보행", nouns=["보호자 동반 병동 복도 보행"]),
                 opt("position", "체위 변경", nouns=["체위 변경"]),
+                opt("hob", "침상 머리 올림", nouns=["침상 머리 30도 상승"]),   # the order said "머리 올리고" (2026-10-18)
                 opt("icepack", "냉요법", nouns=["ice pack 적용"]),
                 opt("hydration", "수분 섭취 격려", nouns=["수분 섭취 격려"]),
                 opt("tepid", "미온수 마사지", nouns=["미온수 마사지"]),
@@ -130,6 +132,8 @@ TEMPLATE = RecordTemplate(
             txt("worse_order", "악화 시 추가 처방", placeholder="예: blood culture 추가", phrases=[], speak_prob=0.0, default="추가 수액"),
             sel("recheck", "재확인", [
                 opt("no_change", "수술 부위·배액 변화 없음", "수술 부위 드레싱과 배액 양상 더 이상 변화 없습니다.", "드레싱, 배액 변화 없고,"),
+                opt("dressing", "드레싱 더 젖지 않음", "수술 부위 드레싱 더 이상 젖지 않습니다.", "드레싱 더 젖지 않고,"),   # no drain to speak of
+                opt("nose", "비강 추가 출혈 없음", "비강 패킹 추가 출혈 없습니다.", "코피 더 나지 않고,"),
                 opt("na", "해당 없음"),
             ], default="no_change", skip_values=("na",)),
             txt("plan", "추적 계획", placeholder="예: chest PA 판독 확인 후 주치의 노티, 4시간 간격 체온 추적",

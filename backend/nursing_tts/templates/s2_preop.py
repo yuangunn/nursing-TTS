@@ -10,7 +10,7 @@ TEMPLATE = RecordTemplate(
     sections=[
         Section("op", "수술/검사 정보", hint="수술명/검사명, 예정 일시, 집도의/시행 과, 순서", fields=[
             txt("op_date", "예정 일시", placeholder="예: 내일 10월 14일 오전 8시",
-                phrases=["{v} ", "{v} 수술로,", "{v}에,"]),   # "예정으로, … 예정" twice
+                phrases=["{v} ", "{v}에,"]),   # "예정으로, … 예정" twice; "{v} 수술로," + "첫 수술로," (2026-10-18)
             sel("order", "수술 순서", [
                 opt("first", "첫 수술", "첫 수술로,", "첫 번째 수술이고,", "1번 수술로 잡혀 있고,"),
                 opt("second", "두 번째", "두 번째 수술로,", "2번 수술이고,", "두 번째 순서로 예정되어 있습니다."),
@@ -68,7 +68,7 @@ TEMPLATE = RecordTemplate(
             ], phrases=["{v} 예정이라고 설명하였습니다.", "전처치로 {v} 시행 예정입니다.", "{v} 하기로 하고 설명드렸구요,"],   # "예정이고 설명" (49%)
                none_phrases=["특별한 전처치는 없습니다.", "전처치 해당 없고,"], default=["bowel_prep", "shave"]),
             txt("prep_detail", "전처치 상세", placeholder="예: 오늘 저녁 8시 하제 복용 예정",
-                phrases=["{v}.", "{v}이고,"]),   # free text for the user; the virtual patient leaves it empty (the 전처치 item already says it)
+                phrases=["{v}.", "{v}(이)고,"]),   # free text for the user; the virtual patient leaves it empty (the 전처치 item already says it)
         ]),
         Section("remove", "제거물", hint="틀니, 안경/렌즈, 장신구, 매니큐어, 보청기", fields=[
             multi("removables", "제거물", [
@@ -92,7 +92,7 @@ TEMPLATE = RecordTemplate(
             boolean("marking", "수술 부위 마킹", phrases=["수술 부위 마킹 확인했습니다.", "수술 부위 마킹 되어 있는 것 확인했고,"],
                     false_phrases=["수술 부위 마킹 아직 안 되어 있어 담당의 noti 했습니다."], default=True),
             txt("blood_type", "혈액형", placeholder="예: A형 Rh+",
-                phrases=["혈액형 {v}, 팔찌 확인했습니다.", "혈액형 {v} 확인했고,", "{v}이고 팔찌 확인했구요,"], default="A형 Rh+"),
+                phrases=["혈액형 {v}, 팔찌 확인했습니다.", "혈액형 {v} 확인했고,", "{v}(이)고 팔찌 확인했구요,"], default="A형 Rh+"),
         ]),
         Section("expect", "수술 후 예상 경과", hint="회복실/ICU, 소요 시간, 부착물, 통증 조절", fields=[
             sel("after_route", "수술 후 경로", [

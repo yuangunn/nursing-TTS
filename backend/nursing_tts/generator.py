@@ -240,6 +240,8 @@ def _choose(variants: list[str], rng: random.Random, style: str, force_close: bo
     pool = variants
     if style in ("formal", "chart"):
         pool = [v for v in variants if not _is_connective(v)] or variants
+    if style == "chart":
+        pool = [v for v in pool if "거는" not in v] or pool   # "확인할 거는 …임" is speech, not chart (2026-10-18)
     if style in ("formal", "chart") or no_questions:   # interview questions ("…있을까요?") belong to 현장 말투 only, and never to the
         pool = [v for v in pool if "?" not in v] or pool   # dictation after a dialogue (nobody answered them; 2026-10-18)
     # parenthetical checklist forms "사정함(부위, 점수)" read badly aloud in every style, 기록체 included (2026-10-17 대량 검수:
@@ -535,6 +537,7 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
 
     # an empty placeholder ("{stage}" when POD is unknown) must not leave "절제술 ." or double spaces
     paragraphs = [re.sub(r"\s+([.,!?])", r"\1", re.sub(r"[ \t]{2,}", " ", p)).strip() for p in paragraphs]
+    paragraphs = [re.sub(r"(다시 잰|재측정) (활력징후|V/S|바이탈) 체크하니 ", r"\1 \2 ", p) for p in paragraphs]   # "다시 잰 활력징후 체크하니"
     spoken_text = "\n".join(paragraphs)
     # TTS layer: signal line already phonetic; convert the rest.
     tts_rng = random.Random(seed + 1)
