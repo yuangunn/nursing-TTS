@@ -1,6 +1,8 @@
 """Record template registry."""
 from __future__ import annotations
 
+import copy
+
 from .base import RecordTemplate
 from . import s1_admission, s2_preop, s3_postop, s3_2_event, s4_discharge, s5_handover, s6_progress
 from .extra_phrases import EXTRA
@@ -20,12 +22,29 @@ TEMPLATES: dict[str, RecordTemplate] = {
 
 
 
+_OWNED: set[tuple[str, str]] = set()
+
+
+def _own_field(t, fkey: str):
+    """common.py fields and options (CONSCIOUSNESS, VITALS_FIELD, PAIN_MED …) are the same objects in several templates, so
+    a variant scoped to one record (("s5", "consciousness", "alert")) used to land in every record that shares it — the
+    handover's "멘탈 alert, 오리엔테이션 있으십니다" showed up in the admission interview (2026-10-17). Copy before appending."""
+    for sec in t.sections:
+        for i, f in enumerate(sec.fields):
+            if f.key == fkey:
+                if (t.key, fkey) not in _OWNED:
+                    sec.fields[i] = copy.deepcopy(f)
+                    _OWNED.add((t.key, fkey))
+                return sec.fields[i]
+    return None
+
+
 def _apply_extras() -> None:
     """Append the extra variant pack to the built-in option/field phrase lists (idempotent)."""
     for (tkey, fkey, slot), phrases in EXTRA.items():
         targets = TEMPLATES.values() if tkey == "*" else [TEMPLATES[tkey]] if tkey in TEMPLATES else []
         for t in targets:
-            f = t.field_map().get(fkey)
+            f = t.field_map().get(fkey) if tkey == "*" else _own_field(t, fkey)
             if f is None:
                 continue
             if slot == "phrases":

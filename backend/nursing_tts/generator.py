@@ -281,7 +281,10 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
         nouns = [rng.choice(o.nouns) if o.nouns else o.label for o in options]
         if len(nouns) > 1:
             short = all(len(n) <= 6 for n in nouns) and len(nouns) <= 3
-            joiner = rng.choice([", ", ", ", "하고 ", "(이)랑 "]) if short else ", "
+            if style in ("formal", "chart"):
+                joiner = rng.choice([", ", "(과)와 "]) if short and len(nouns) == 2 else ", "
+            else:
+                joiner = rng.choice([", ", ", ", "하고 ", "(이)랑 "]) if short else ", "
             local["v"] = joiner.join(nouns)
         else:
             local["v"] = nouns[0] if nouns else ""

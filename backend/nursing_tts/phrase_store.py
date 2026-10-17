@@ -234,6 +234,9 @@ def stylize(text: str, rng: random.Random, style: str = "mixed", allow_connectiv
     if style == "chart":
         # 기록체: "~함/~됨/~임". Connectives stay as they are ("~하고,").
         return vary_ending(chart_form(text), rng, "chart")
+    parts = re.split(r"(?<=\.)\s+", text.strip())
+    if len(parts) > 1:   # multi-sentence 기록체 phrase: every sentence but the last here, the last one below (2026-10-17)
+        text = " ".join([formal_from_chart(p) for p in parts[:-1]] + [parts[-1]])
     variants = expand_styles(text)
     if len(variants) == 1 and variants[0] != text:
         return variants[0]
