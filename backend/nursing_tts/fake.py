@@ -1560,7 +1560,7 @@ def _derive_s4(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
     if re.search(r"조직검사|항암 여부|방사선|병리", form.get("opd_note", "")):
         form.pop("further", None)
     if age >= 70 and "복직" in str(form.get("driving") or ""):
-        form["driving"] = "운전은 외래에서 확인 후 하도록"   # nobody tells a 78-year-old when to go back to work
+        form["driving"] = "운전은 외래에서 확인 후 가능함"   # nobody tells a 78-year-old when to go back to work ("가능함을 설명")
     if age >= 80 and "운전" in str(form.get("driving") or ""):
         form.pop("driving", None)
     if sc is not None and sc.key == "Hemorrhoidectomy" and form.get("wound") == "dressing":
@@ -1732,6 +1732,8 @@ def _derive_s5(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
         sp = [x for x in sp if not any(w in x for w in ("보행", "어제", "제거", "줄"))]
     elif pod == 1:
         sp = [x for x in sp if "어제 제거" not in x]   # yesterday was the op day
+    if pod >= 2:
+        sp = [x for x in sp if "신경차단" not in x]   # a nerve block wears off on the first day
     sp = [x for x in sp if ("미음" not in x or d == "ld") and ("죽식 진행 여부" not in x or d == "ld") and ("제거" not in x or "제거" not in drain)]
     if drain and "제거" not in drain:   # a drain is being reported: no line saying it was taken out yesterday
         sp = [x for x in sp if not re.search(r"(Hemovac|JP|헤모박|배액관)[^.]*제거", x)]
@@ -2032,7 +2034,8 @@ def _derive_s6(form: dict[str, Any], patient: Patient, sc, rng: random.Random, t
         form["p_temp_measure"] = form["p_antipyretic_give"] = form["p_temp_recheck"] = True
         if rng.random() < 0.7:
             form["p_fever_noti"] = True
-        recheck = float(form.get("p_recheck_temp") or 37.3)
+        form["p_recheck_temp"] = round(max(37.0, float(form.get("p_temp") or 38.4) - rng.uniform(0.5, 1.2)), 1)   # not 38.7 → 36.8 in an hour
+        recheck = float(form["p_recheck_temp"])
         form["bt3"] = round(rng.uniform(36.6, max(36.7, min(37.4, recheck))), 1)
     else:
         form["bt3"] = round(rng.uniform(36.3, 37.4), 1)
