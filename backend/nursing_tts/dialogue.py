@@ -36,7 +36,8 @@ _LAY_HISTORY = {"htn": "고혈압", "dm": "당뇨", "heart": "심장병", "strok
                 "thyroid": "갑상선", "tb": "결핵", "prediabetes": "당뇨 전단계", "dyslipidemia": "고지혈증", "hypothyroid": "갑상선 기능 저하"}
 _LAY_MEDS = {"htn": "혈압약", "dm": "당뇨약", "heart": "심장약", "stroke": "피 묽게 하는 약", "lung": "흡입기", "ckd": "신장약", "liver": "간약",
              "thyroid": "갑상선약", "hypothyroid": "갑상선약", "dyslipidemia": "고지혈증약", "prediabetes": "", "tb": ""}
-_LAY_SURGERY = [("충수절제술", "맹장 수술"), ("제왕절개", "제왕절개"), ("담낭절제술", "담낭 수술"), ("백내장 수술", "백내장 수술"),
+_LAY_SURGERY = [("유방 전절제술", "가슴 수술"), ("갑상선 전절제술", "갑상선 수술"), ("저위전방절제술", "직장암 수술"),   # "3년 전에 3년 전 유방 전절제술" (2026-10-18)
+                ("충수절제술", "맹장 수술"), ("제왕절개", "제왕절개"), ("담낭절제술", "담낭 수술"), ("백내장 수술", "백내장 수술"),
                 ("편도절제술", "편도 수술"), ("유방 수술", "유방 수술"), ("대장 수술", "대장 수술")]
 _LAY_SITE = [("고관절", "엉덩이 쪽"), ("무릎 아래", "정강이"), ("무릎", "무릎"), ("어깨", "어깨"), ("발목", "발목"), ("손목", "손목"), ("쇄골", "쇄골 쪽"),
              ("우상복부", "오른쪽 윗배"), ("하복부", "아랫배"), ("복부", "배"), ("유방", "가슴"), ("항문", "항문"), ("서혜부", "사타구니"),
@@ -92,11 +93,17 @@ def _a_meds(f: dict[str, Any], p: Patient, rng: random.Random) -> str:
     meds = [_LAY_MEDS[h] for h in hist if _LAY_MEDS[h]]
     if "인슐린" in str(f.get("medications") or ""):
         meds = [m for m in meds if m != "당뇨약"] + ["인슐린"]
+    if "졸피뎀" in str(f.get("medications") or ""):
+        meds.append("자기 전에 수면제")             # the list has it, so the patient says it (2026-10-18: "없어요" → "졸피뎀 드시는 거 확인")
     if not meds:
         return rng.choice(["따로 먹는 약은 없어요.", "없어요."])
-    if "인슐린" in meds:
-        rest = [m for m in meds if m != "인슐린"]
-        return (f"네, {_join(rest)} 먹고 " if rest else "네, ") + "당뇨는 인슐린 맞아요."
+    if "인슐린" in meds or "흡입기" in meds:          # not eaten: "흡입기 먹는데" (2026-10-18)
+        eaten = [m for m in meds if m not in ("인슐린", "흡입기")]
+        parts = ([f"{_join(eaten)} 먹고"] if eaten else []) + (["흡입기 쓰고"] if "흡입기" in meds else [])
+        if "인슐린" in meds:
+            return "네, " + " ".join(parts + ["당뇨는 인슐린 맞아요."])
+        parts[-1] = "흡입기 써요."
+        return "네, " + " ".join(parts)
     if rng.random() < 0.25:                        # 이름은 모름 (user 2026-10-17: 기억 안 나는 것도)
         return f"네, {_join(meds)} 먹는데 이름은 잘 모르겠어요."
     return rng.choice([f"네, {_join(meds)} 먹고 있어요.", f"{_join(meds)} 아침에 먹어요."])
@@ -116,11 +123,13 @@ def _a_past_surgery(f: dict[str, Any], p: Patient, rng: random.Random) -> str:
     raw = str(f.get("past_surgery") or "")
     if not raw or raw == "없음":
         return rng.choice(["아니요, 없어요.", "수술은 처음이에요."])
-    lay = next((l for k, l in _LAY_SURGERY if k in raw), raw)
+    lay = next((l for k, l in _LAY_SURGERY if k in raw), re.sub(r"^\d+(년|개월) 전\s*", "", raw))   # the time is said once, by `when`
     m = re.match(r"(\d+)(년|개월) 전", raw)
     when = f"{m.group(1)}{m.group(2)} 전에" if m else "어릴 때" if "어릴 때" in raw else "전에"
     r = rng.random()
     if r < 0.18:                                   # 기억이 흐릿: when
+        if "개월" in raw:                          # 6개월 전 LAR is not "한참 됐어요, 몇 년 전인지" (2026-10-18)
+            return f"네, 몇 달 전에 {lay} 했어요. 정확히 몇 월인지는 기억이 안 나요."
         return rng.choice([f"네, {lay} 했는데 한참 됐어요. 몇 년 전인지는 정확히 기억이 안 나요.", f"네, 꽤 오래전에 {lay} 했어요. 정확히 언제인지는 모르겠어요."])
     if r < 0.35 and any(k in raw for k in ("충수", "담낭", "제왕절개", "대장", "위")):   # 기억이 흐릿: what kind
         return rng.choice([f"네, {when} {lay} 했는데 복강경으로 했는지 그냥 열고 했는지는 잘 모르겠어요.",
@@ -140,8 +149,7 @@ def _a_allergy(f: dict[str, Any], p: Patient, rng: random.Random) -> str:
     now, past = _LAY_REACTION.get(reaction, (f"{reaction} 생겨요", f"{reaction} 생긴"))
     a = al[0]
     if a == "food":
-        food = str(f.get("intake_note") or "")
-        food = food.replace(" 알레르기", "") if "알레르기" in food else "해산물"     # the note may be a diet preference, not the allergen
+        food = str(f.get("allergy_food") or "해산물")   # the record names the same food (2026-10-18)
         return f"{food} 먹으면 {now}."
     return {"contrast": "조영제 맞고 안 좋았던 적 있어요.", "penicillin": f"페니실린 맞으면 {now}.", "nsaid": f"진통제 먹으면 {now}.",
             "antibiotic": f"항생제 맞고 {past} 적 있어요."}.get(a, "네, 좀 있어요.")
@@ -156,7 +164,8 @@ def _a_social(f: dict[str, Any], p: Patient, rng: random.Random) -> str:
 
 
 def _a_marital(f: dict[str, Any], p: Patient, rng: random.Random) -> str:
-    return {"married": rng.choice(["네, 했어요.", "네, 결혼했어요."]), "single": rng.choice(["아니요, 아직이요.", "아니요, 안 했어요."]),
+    single = ["아니요, 아직이요.", "아니요, 안 했어요."] if (p.age or 50) < 40 else ["아니요, 안 했어요.", "혼자 살아요."]   # "아직이요" at 75 (2026-10-18)
+    return {"married": rng.choice(["네, 했어요.", "네, 결혼했어요."]), "single": rng.choice(single),
             "other": rng.choice(["사별했어요.", "지금은 혼자 살아요."])}.get(str(f.get("marital")), "네.")
 
 
@@ -325,6 +334,8 @@ _LAY_CC: list[tuple[str, str]] = [
     (r"장루 주위 피부", "장루 주변 피부가 자꾸 짓물러서요."),
     (r"진통 있어 내원|분만 진행", "진통이 와서 왔는데 진행이 안 된다고 하더라고요."),
     (r"항암 (후|중).*(설사|발열|호중구|구토|오심|발진|혈압|단백뇨|저림)|(세툭시맙|파클리탁셀|옥살리플라틴|펨브롤리주맙|베바시주맙|트라스투주맙|이리노테칸) (후|중)", "항암 맞고 나서 몸이 안 좋아져서 왔어요."),
+    (r"항암 완료 후 복원", "항암 다 끝나서 장루 닫는 수술 하러 왔어요."),   # 회장루 복원: not "항암 맞으러 왔어요" (2026-10-18)
+    (r"복원 (예정|위해|결정)", "그래서 장루 닫는 수술 하기로 했어요."),
     (r"항암.*(위해 입원|차)|선행 항암|보조 항암|표적치료|유지", "항암 맞으러 왔어요."),
     (r"손으로 밀어 넣|항문 탈출|탈출", "항문이 밖으로 빠져나와서 손으로 밀어 넣어야 들어가요."),
     (r"혈변|항문.*출혈|선홍색 출혈|배변 (시|후).*출혈|항문 출혈", "변 볼 때 피가 났어요."),
@@ -491,16 +502,17 @@ def opening(form: dict[str, Any], patient: Patient, rng: random.Random) -> list[
     # the nurse extracts the chart facts from the story
     onset = re.sub(r"\s*다치심$", "", str(form.get("onset") or ""))
     rl, pl = _ROUTE_CHART.get(route, "외래"), _PURPOSE_CHART.get(str(form.get("purpose") or "op"), "")
+    via = "" if (rl == "응급실" and "응급실" in cc) else f"{rl} 통해 "   # "응급실 내원으로 응급실 통해" (2026-10-18)
     if not cc:                                                # hand-made form without a complaint: confirm only the route/purpose
         confirm = f"네, {rl} 통해 {pl} 입원하셨고요."
     elif "입원" in cc:
         confirm = rng.choice([f"네, 그러면 {cc}(이)시네요.", f"{cc}(이)시고요."])
     else:
-        if re.search(r"(으로|로) ", cc):                   # "후두암으로 기도 폐쇄 위험" + "(으)로" would double the particle
-            confirm = rng.choice([f"네, 주호소는 {onset} {cc}(이)고, {rl} 통해 {pl} 입원하셨고요.", f"네, 그러면 {onset} {cc} 때문에 {rl} 통해 {pl} 입원하신 거네요."])
+        if re.search(r"(으로|로) ", cc):                   # "후두암으로 기도 폐쇄 위험": no "(으)로" and no "때문에" (two causes)
+            confirm = f"네, 주호소는 {onset} {cc}(이)고, {via}{pl} 입원하셨고요."
         else:
-            confirm = rng.choice([f"네, 그러면 {onset} {cc}(으)로 {rl} 통해 {pl} 입원하신 거네요.", f"네, 주호소는 {onset} {cc}(이)고, {rl} 통해 {pl} 입원하셨고요.",
-                                  f"네, {cc}(으)로 오셨고, {rl} 통해 {pl} 입원하셨네요."])
+            confirm = rng.choice([f"네, 그러면 {onset} {cc}(으)로 {via}{pl} 입원하신 거네요.", f"네, 주호소는 {onset} {cc}(이)고, {via}{pl} 입원하셨고요.",
+                                  f"네, {cc}(으)로 오셨고, {via}{pl} 입원하셨네요."])
     confirm = re.sub(r"\s{2,}", " ", confirm).replace(" ,", ",").strip()
     return [("nurse", rng.choice(OPENERS)), ("patient", _answer(story, patient)), ("nurse", fix_josa(confirm))]
 
@@ -614,8 +626,9 @@ def qa(field_key: str, form: dict[str, Any], patient: Patient, rng: random.Rando
     turns: list[tuple[str, str]] = [("nurse", rng.choice(questions)), ("patient", _answer(answer, patient))]
     follow = _followup(field_key, answer, form) or _education(field_key, form, patient, rng)
     meds = str(form.get("medications") or "")
-    if not follow and field_key == "medications" and meds and "없음" not in meds and rng.random() < 0.6:
-        follow = rng.choice([f"네, {meds} 드시는 거 확인했습니다.", f"네, 처방 내역 보니까 {meds} 드시네요."])
+    if not follow and field_key == "medications" and meds and "없음" not in meds and "없어요" not in answer and rng.random() < 0.6:
+        verb = "쓰시는" if re.search(r"주사|흡입", meds) else "드시는"            # 인슐린 "자가 주사 드시네요" (2026-10-18)
+        follow = rng.choice([f"네, {meds} {verb} 거 확인했습니다.", f"네, 처방 내역 보니까 {meds} {verb} 거 맞으시네요."])
     if follow:
         turns.append(("nurse", fix_josa(follow)))
     if field_key == "emotion":

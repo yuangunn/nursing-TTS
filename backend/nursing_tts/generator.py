@@ -208,6 +208,12 @@ def realize_vitals(value: dict[str, Any], rng: random.Random, verb_style: str = 
 _CONNECTIVE_ENDINGS = ("구요,", "고요,", "고,", "며,", "하고,", "이며,", "지만,", "으며,", "이고,", "되고,")
 
 
+def _close(fragment: str, style: str) -> str:
+    """close_sentence in the record's own register: 기록체 "사별하심.", not "…없습니다." (2026-10-18 2차 검수)."""
+    text = close_sentence(fragment)
+    return phrase_store.chart_form(text) if style == "chart" else text
+
+
 def _is_connective(phrase: str) -> bool:
     return phrase.rstrip().endswith(",")
 
@@ -293,7 +299,7 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
             return _finish(phrase, local, rng, style, force_close)
         options = [o for o in f.options if o.value in values and o.value != "none"]
         # Each option may have its own full phrase; otherwise use the list form.
-        nouns = [rng.choice(o.nouns) if o.nouns else o.label for o in options]
+        nouns = [_fmt(rng.choice(o.nouns), ctx) if o.nouns else o.label for o in options]   # "{allergy_food}"
         if len(nouns) > 1:
             short = all(len(n) <= 6 for n in nouns) and len(nouns) <= 3
             if style in ("formal", "chart"):
@@ -334,7 +340,12 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
             if style == "chart":
                 return _fmt("{v}.", local)
             return _finish(phrase_store.formal_from_chart(local["v"] + "."), {}, rng, style, force_close)
-        phrase = _choose(phrase_store.effective(ctx.get("_template", ""), f.key, "phrases", f.phrases), rng, style, force_close, no_questions, bool(ctx.get("_mute")))
+        pool = phrase_store.effective(ctx.get("_template", ""), f.key, "phrases", f.phrases)
+        if f.key == "medications":   # 인슐린 "복용", 흡입기 "드시고", bid "아침 식후 하나씩" (2026-10-18)
+            inject = re.search(r"주사|흡입", local["v"])
+            several = re.search(r"bid|tid|hs|주사|흡입", local["v"])
+            pool = [p for p in pool if not (inject and re.search(r"복용|드시", p)) and not (several and "식후" in p)] or pool
+        phrase = _choose(pool, rng, style, force_close, no_questions, bool(ctx.get("_mute")))
         return _finish(phrase, local, rng, style, force_close)
     if f.kind == "bool":
         tk = ctx.get("_template", "")
@@ -495,14 +506,14 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
                 fragments.append(frag)
                 structured.setdefault(section.key, {})[f.key] = v
             elif is_last and fragments and fragments[-1].endswith(","):
-                fragments[-1] = close_sentence(fragments[-1])
+                fragments[-1] = _close(fragments[-1], style)
         # Avoid very long run-on sentences: close every 3rd connective
         run = 0
         for i, frag in enumerate(fragments):
             if frag.endswith(","):
                 run += 1
                 if run >= 3:
-                    fragments[i] = close_sentence(frag)
+                    fragments[i] = _close(frag, style)
                     run = 0
             else:
                 run = 0

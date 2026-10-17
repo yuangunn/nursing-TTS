@@ -772,3 +772,51 @@ def test_second_review_progress_and_postop_2026_10_18():
             assert f["foley"] == "cbi" and "16 Fr" not in s, s
         if p.scenario == "Tracheostomy":
             assert not quoted.search(s.replace("보호자분께 교육하였고 이해했다고", "")), s
+
+
+def test_second_review_admission_2026_10_18():
+    """2차 검수(간호정보조사 7,000개): 진단·주호소·현병력·과거 수술이 다른 병(재건 지연↔즉시, 용종↔결석, 난소↔자궁내막, 갑상선 전절제 후↔및 …),
+    "혈뇨 1회 … 1년 전부터", 64세 생리 과다 + 폐경, 삽관 환자 면담, 낙상 점수를 꾸며 냄, 걷는 84세 욕창 14점, 당뇨 일반식, 인슐린 "복용",
+    궤양인데 "피부 손상 없음", 뇌경색 "후유증 없음" + 편측 힘 빠짐, 음식 이름 없는 음식 알레르기, 75세 "아직이요", 확인 문장 응급실 두 번,
+    술 두 번 질문, "지난 한 달간 체중 2개월간", "3년 전에 3년 전", 기록체 "…없습니다.", 클로피도그렐을 "항응고제", 약 없음 + "약 드시고"."""
+    from nursing_tts.fake import jhfrat_score, record_datetime
+    pairs = [(r"전절제 후|지연|DIEP", r"즉시|NSM 시행|동시 재건"), (r"용종", r"결석|담낭염"), (r"난소 종괴|CA-125", r"자궁내막암,|내막 조직검사"),
+             (r"전절제 후|재발", r"전절제 및"), (r"섬유선종", r"엽상|유두종"), (r"근종", r"증식증|내막암"), (r"3도", r"4도"), (r"상행결장", r"맹장")]
+    scen = [None, None, "Breast reconstruction", "Lapa chole", "Staging laparotomy", "MRND", "NSM c SLNB", "Breast mass excision",
+            "TLH c BSO", "Hemorrhoidectomy", "Lapa RHC", "Tracheostomy", "BKA", "Ileostomy repair", "ESS"]
+    rng = random.Random(4040)
+    for i in range(420):
+        p = random_patient(rng, "s1", scenario=scen[i % len(scen)])
+        f = random_form("s1", rng, p)
+        style, dlg = ["formal", "mixed", "casual", "chart"][i % 4], i % 3 == 0
+        sc_ = build_script("s1", f, p, record_datetime("s1", p, f, rng), style=style, seed=i, dialogue=dlg)
+        s, cc = sc_.spoken_text, str(f.get("chief_complaint") or "")
+        story = f"{p.diagnosis} | {cc} | {f.get('present_illness', '')} | {f.get('past_surgery', '')}"
+        for a, b in pairs:
+            assert not (re.search(a, story) and re.search(b, story)), story
+        assert not (f.get("onset") and re.search(r"수개월|수년|\d+\s*(회|주|개월|년|일)(?!\s*전)|제왕절개", cc)), (cc, f.get("onset"))
+        assert not (re.search(r"생리|월경", cc) and "폐경" in str(f.get("lmp") or "")), story
+        assert "삽관" not in p.diagnosis, p.diagnosis
+        if "jhfrat" in f:
+            assert int(f["jhfrat"]) == jhfrat_score(f, p), (f["jhfrat"], jhfrat_score(f, p))
+        if "braden" in f and f.get("mobility") == "independent":
+            assert int(f["braden"]) >= 15 and f.get("skin") != "pressure", (f["braden"], f.get("skin"))
+        if "dm" in (f.get("history") or []) and p.kind != "chemo":
+            assert f.get("diet") in (None, "dm"), f.get("diet")
+        if re.search(r"궤양|(?<!무혈성 )괴사|압궤|짓무름", story) and p.kind != "chemo":
+            assert f.get("skin") != "intact", (story, f.get("skin"))
+        assert not ("후유증 없음" in s and f.get("weakness") == "pos"), s
+        if f.get("allergy") == ["food"]:
+            assert not re.search(r"(?<!이나 )음식(에)? (알레르기|알러지) 있(?!으실까요)", s), s
+        assert not ((p.age or 0) >= 40 and "아직이요" in s), s
+        assert not any(t["speaker"] == "nurse" and t["text"].count("응급실") >= 2 for t in (sc_.turns or [])), sc_.turns
+        assert "음주나 흡연 하실까요?" not in s and not re.search(r"(한 달간|한 달 사이) 체중 \S*(개월간|한 달)", s), s
+        assert not re.search(r"\d+(년|개월) 전에 \d+(년|개월) 전", s) and "간헐적으로 오셨" not in s, s
+        if style == "chart" and not dlg:
+            assert not any(re.search(r"습니다\.", line) for line in s.split("\n")[2:-1]), s
+        assert not (re.search(r"클로피도그렐|아스피린", str(f.get("apt_drug") or "")) and "항응고제 복용 중" in s), s
+        assert not ("약 드시고 계십니다" in s and "복용 중인 약 없" in s), s
+        if p.scenario == "ESS":
+            assert f.get("dysphagia") is not True, f.get("dysphagia")
+        if p.scenario == "Ileostomy repair" and dlg:
+            assert "항암 맞으러 왔어요" not in s, s
