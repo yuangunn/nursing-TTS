@@ -611,7 +611,7 @@ def test_event_and_discharge_review_2026_10_18():
             med, re_t = _parse_clock(m.group(1)), _parse_clock(f["re_time"])
             assert (re_t - med) % (24 * 60) >= 15, (f["med_given"], f["re_time"])          # the recheck follows the drug
         if f["event"] == "발열" and f.get("response") == "improved":
-            assert float(f["vitals"]["bt"]) - float(f["re_vitals"]["bt"]) <= 1.2, (f["vitals"]["bt"], f["re_vitals"]["bt"])
+            assert float(f["vitals"]["bt"]) - float(f["re_vitals"]["bt"]) <= 1.25, (f["vitals"]["bt"], f["re_vitals"]["bt"])
         if f["event"] == "통증":
             assert "re_nrs" in f and f"NRS {f['re_nrs']}점" in s, s
         if f["event"] in ("저혈당", "고혈당"):

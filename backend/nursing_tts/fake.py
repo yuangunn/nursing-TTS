@@ -1429,6 +1429,10 @@ def _derive_s3_2(form: dict[str, Any], patient: Patient, sc, rng: random.Random)
     form["re_vitals"] = rv
     form["recheck"] = "no_change" if var.get("recheck") and resp != "worse" else "na"
     form["plan"] = rng.choice(var["plan"])
+    if resp == "improved" and len(var["plan"]) > 1:   # after an improvement the plan is not "투여 후 재사정 / 30분 후 재측정" again
+        later = [x for x in var["plan"] if not re.search(r"투여 후|30분 후|15분 후", x)]
+        if later:
+            form["plan"] = rng.choice(later)
     if resp == "worse":                   # the re-notify is in the response line; the plan is not "지속 시 재노티" again
         form["plan"] = rng.choice(["추가 처방 시행 후 30분 뒤 재평가", "주치의 직접 확인 예정이며 30분 간격으로 활력징후 측정"])
         form["worse_order"] = {"발열": "blood culture와 항생제 추가", "통증": "PRN 진통제 추가", "오심구토": "다른 항구토제 추가",

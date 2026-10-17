@@ -179,7 +179,7 @@ _FROM_CHART: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r" 중\.$"), " 중입니다."), (re.compile(r"필요\.$"), "필요합니다."), (re.compile(r"호소\.$"), "호소하였습니다."), (re.compile(r"의심\.$"), "의심됩니다."),
     (re.compile(r"보냄\.$"), "보냈습니다."), (re.compile(r"계심\.$"), "계십니다."), (re.compile(r"하심\.$"), "하셨습니다."),
     (re.compile(r"(었|았|였|했|됐|웠|렸|켰|쳤|졌|셨)음\.$"), r"\1습니다."),   # 있었음 → 있었습니다, 하였음 → 하였습니다
-    (re.compile(r"나옴\.$"), "나옵니다."), (re.compile(r"보임\.$"), "보입니다."), (re.compile(r"들림\.$"), "들립니다."), (re.compile(r"들어감\.$"), "들어갑니다."),
+    (re.compile(r"나옴\.$"), "나옵니다."), (re.compile(r"시범 보임\.$"), "시범 보였습니다."), (re.compile(r"보임\.$"), "보입니다."), (re.compile(r"들림\.$"), "들립니다."), (re.compile(r"들어감\.$"), "들어갑니다."),
     (re.compile(r"않음\.$"), "않습니다."), (re.compile(r"잠듦\.$"), "잠들었습니다."), (re.compile(r"낮춤\.$"), "낮췄습니다."),
     (re.compile(r"(?<=\s)둠\.$"), "두었습니다."), (re.compile(r"(?<=[려어와해\s])줌\.$"), "주었습니다."),
     (re.compile(r"(해|아|어|여)짐\.$"), r"\1집니다."), (re.compile(r"(넣|먹|씻|닦|찍|읽)음\.$"), r"\1습니다."),   # "손으로 밀어 넣음."

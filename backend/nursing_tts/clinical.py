@@ -138,7 +138,7 @@ ORTHO_POOLS = {
                        "진통제 2주분, 항응고제 리바록사반 10mg 하루 한 번 2주분, 변비약", "진통제 1주분, 근이완제, 철분제 하루 한 번"),
     "driving": ("운전은 6주 후, 복직은 외래 확인 후 가능함", "운전은 외래에서 확인 후 가능함", "운전은 4주 후 가능함"),
     "opd_exam": ("외래 진료 시간보다 1시간 정도 일찍 와서 엑스레이 촬영할 것", "외래 전 엑스레이 촬영할 것", "따로 영상검사나 혈액검사 없음"),
-    "drain": ("Hemovac 배액 sanguineous 양상 80cc", "Hemovac serosanguineous 50cc", "배액관 없음", "Hemovac 어제보다 줄어 30cc"),
+    "drain": ("Hemovac 배액 bloody하게 80cc", "Hemovac serosanguineous 50cc", "배액관 없음", "Hemovac 어제보다 줄어 30cc"),
     "s5.drain": ("Hemovac 배액 bloody하게 80cc, 양 줄고 있음", "Hemovac 어제 제거함", "배액관 없음"),
     "line": ("왼팔 20게이지", "오른손등 22게이지", "Lt arm 20G", "Rt hand 22G", "Lt forearm 22G"),
 }
