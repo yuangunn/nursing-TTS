@@ -408,8 +408,8 @@ def _consistency(form: dict[str, Any], template_key: str, t, rng: random.Random,
     if timing == "day0":
         if form.get("diet_status") in ("ld", "gd") and not scenario_gd:
             form["diet_status"] = rng.choice(["npo", "sow"])
-        if form.get("ambulation_plan") == "walk_today":
-            form["ambulation_plan"] = rng.choice(["evening_sit", "bedrest"])
+        if form.get("ambulation_plan") == "walk_today" and not (sc is not None and (sc.form.get("ambulation_plan") or []) == ["walk_today"]):
+            form["ambulation_plan"] = rng.choice(["evening_sit", "bedrest"])   # arthroscopy that walks the same day keeps it
     elif timing in ("pod1", "pod2"):
         if form.get("foley") == "keep" and not (sc is not None and set(sc.form.get("foley") or []) == {"keep"}):   # RALRP keeps it for weeks
             form["foley"] = rng.choice(["removed", "none"])
