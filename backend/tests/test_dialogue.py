@@ -74,3 +74,49 @@ def test_dialogue_recording_has_two_speakers(tmp_path, monkeypatch):
     meta2 = jobs.generate_one(spec2, {"tts_engine": "silent", "sample_rate": 24000, "loudness_dbfs": -20.0}, [])
     assert [t["speaker"] for t in meta2["turns"]] == ["nurse", "nurse", "patient", "nurse"]
     assert "환자:" not in meta2["spoken_text"] and "네, 잘 자요." in meta2["spoken_text"]
+
+
+def test_dialogue_opens_with_how_did_you_come_in_and_extracts_the_chart(monkeypatch):
+    """user 2026-10-17: the interview starts with "어떻게 오셨어요?", the patient tells the story in lay words (sometimes
+    rambling or unsure), and the nurse pins the chart facts (주호소·발생 시기·경로·목적) in one confirmation line."""
+    from nursing_tts import dialogue as d
+    rng = random.Random(21)
+    vague = chemo = 0
+    for i in range(150):
+        p = random_patient(rng, "s1")
+        f = random_form("s1", rng, p)
+        s = build_script("s1", f, p, random_datetime(rng), style="formal", seed=3000 + i, dialogue=True)
+        qs = [k for k, t in enumerate(s.turns) if t["speaker"] == "nurse" and t["text"].rstrip().endswith("?")]
+        first_q = qs[0]
+        assert s.turns[first_q]["text"] in d.OPENERS, s.turns[first_q]["text"]
+        assert all(t["speaker"] == "nurse" and not t["text"].endswith("?") for t in s.turns[:first_q])   # signal/intro only before it
+        story = s.turns[first_q + 1]
+        assert story["speaker"] == "patient" and "?" not in story["text"]
+        assert len(re.findall(r"[.!]", story["text"])) >= 2, story["text"]                                 # a story, not one word
+        confirm = s.turns[first_q + 2]
+        assert confirm["speaker"] == "nurse" and not confirm["text"].endswith("?")
+        cc = str(f.get("chief_complaint") or "")
+        assert cc in confirm["text"], (cc, confirm["text"])                                              # exact chart wording survives
+        assert "(이)" not in confirm["text"] and "(으)" not in confirm["text"] and "{" not in s.spoken_text
+        nurse_lines = [t["text"] for t in s.turns if t["speaker"] == "nurse"]
+        assert sum(cc in l for l in nurse_lines) == 1, cc                                                 # not narrated a second time
+        patient_lines = [t["text"] for t in s.turns if t["speaker"] == "patient"]
+        for w in ("소견", "촉지", "예정", "경유", "주호소", "CT", "MRI"):                                  # chart jargon stays with the nurse
+            assert not any(w in t for t in patient_lines), (w, patient_lines)
+        joined = " ".join(patient_lines)
+        if "기억이 안 나" in joined or "모르겠" in joined:
+            vague += 1
+        if p.kind == "chemo":
+            chemo += 1
+            assert "항암" in story["text"]
+        if f.get("route") == "er":
+            assert "응급실" in story["text"] or p.kind == "chemo"
+        for k, t in enumerate(s.turns[1:-1], 1):                                                         # a follow-up after a vague surgery answer
+            prev = s.turns[k - 1]["text"]
+            if t["speaker"] == "patient" and ("기억이 안 나" in t["text"] or "모르겠" in t["text"]) and prev.endswith("?") and "수술" in prev:
+                nxt = s.turns[k + 1]
+                assert nxt["speaker"] == "nurse" and ("하셨고요" in nxt["text"] or "맹장 수술" in nxt["text"]), (t["text"], nxt["text"])
+    assert vague >= 15 and chemo >= 3, (vague, chemo)
+    # a known complaint has lay wording with the trauma cause in front
+    assert d.lay_complaint("낙상 후 어깨 통증과 변형", random.Random(1))[0].startswith("넘어져서 어깨")
+    assert d.lay_complaint("배변 후 항문에서 선홍색 출혈", random.Random(1)) == ["변 볼 때 피가 났어요."]

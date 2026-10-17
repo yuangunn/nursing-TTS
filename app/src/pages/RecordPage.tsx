@@ -62,6 +62,11 @@ export default function RecordPage({ status, onTab }: Props) {
 
   const current = basket.find((b) => b.id === cur);
   const selected = basket.filter((b) => checked.has(b.id));
+  // 대화형 대본의 환자 줄을 읽을 목소리 (user 2026-10-17: 잘 안 보이고 수정이 불편) — what "자동" will resolve to, per patient sex
+  const dialogueItems = selected.filter((b) => b.dialogue);
+  const dialogueSexes = Array.from(new Set(dialogueItems.map((b) => (b.patient.sex || "")[0]).filter(Boolean)));
+  const autoPatientVoices = (sex: string) => voices.filter((v) => v.samples.length && v.id !== voiceId && v.sex && v.sex[0] === sex);
+  const patientVoiceObj = voices.find((v) => v.id === patientVoice);
   const toggle = (id: string) => setChecked((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const remove = (id: string) => { setBasket(removeFromBasket(id)); setChecked((s) => { const n = new Set(s); n.delete(id); return n; }); if (cur === id) setCur(""); };
 
@@ -174,9 +179,9 @@ export default function RecordPage({ status, onTab }: Props) {
               </div>
             </div>
           )}
-          <div className="row">
+          <div className="row" style={{ alignItems: "flex-start" }}>
             <div>
-              <label>목소리 (등록된 간호사)</label>
+              <label>간호사 목소리 (등록된 목소리)</label>
               <select value={voiceId} onChange={(e) => setVoiceId(e.target.value)} onFocus={refreshVoices}>
                 <option value="">— 선택 —</option>
                 {voices.map((v) => (
@@ -185,16 +190,27 @@ export default function RecordPage({ status, onTab }: Props) {
               </select>
               <div style={{ marginTop: 4 }}><VoiceDemo voiceId={voiceId} disabled={!voiceId} initialPitch={voices.find((v) => v.id === voiceId)?.pitch ?? 0} initialTempo={voices.find((v) => v.id === voiceId)?.tempo ?? 1} /></div>
             </div>
-            {basket.some((b) => b.dialogue && checked.has(b.id)) && (
+            {dialogueItems.length > 0 && (
               <div>
-                <label>환자 목소리 (💬 대화형 대본)</label>
+                <label>환자 목소리 <span className="muted">💬 대화형 대본 {dialogueItems.length}개의 환자 대답 줄</span></label>
                 <select value={patientVoice} onChange={(e) => setPatientVoice(e.target.value)} title="환자 대답 줄을 읽을 목소리. 자동 = 환자 성별과 같은 등록 목소리(기본 음성 포함), 없으면 간호사 목소리를 낮춰서">
-                  <option value="auto">자동 (환자 성별에 맞는 등록 목소리)</option>
-                  <option value="same">간호사 목소리 변조 (남 −5·여 −2반음, 80세↑ 느리게)</option>
+                  <option value="auto">자동 — 환자 성별과 같은 등록 목소리</option>
+                  <option value="same">간호사 목소리 변조 — 남 −5·여 −2반음</option>
                   {voices.filter((v) => v.samples.length && v.id !== voiceId).map((v) => <option key={v.id} value={v.id}>{v.name}{v.sex ? ` (${v.sex})` : ""}</option>)}
                 </select>
+                <div className="muted" style={{ marginTop: 4 }}>
+                  {patientVoice === "auto" && dialogueSexes.map((sx) => {
+                    const c = autoPatientVoices(sx);
+                    return <div key={sx}>{sx} 환자 → {c.length ? `${c.slice(0, 3).map((v) => v.name).join(", ")}${c.length > 3 ? ` 외 ${c.length - 3}` : ""} 중 무작위` : "같은 성별 목소리가 없어 간호사 목소리를 변조"}</div>;
+                  })}
+                  {patientVoice === "auto" && !dialogueSexes.length && "환자 성별을 알 수 없어 간호사 목소리를 변조"}
+                  {patientVoice === "same" && "간호사 목소리를 낮춰 환자 줄을 읽습니다 (80세 이상은 느리게)"}
+                  {patientVoiceObj && <VoiceDemo voiceId={patientVoiceObj.id} compact initialPitch={patientVoiceObj.pitch ?? 0} initialTempo={patientVoiceObj.tempo ?? 1} />}
+                </div>
               </div>
             )}
+          </div>
+          <div className="row">
             <div className="narrow">
               <label>말투</label>
               <select value={style} onChange={(e) => setStyle(e.target.value)} title="비우면 대본을 담을 때의 말투 그대로">

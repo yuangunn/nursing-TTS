@@ -38,8 +38,8 @@ def _patient_voice(spec: dict[str, Any], patient: Patient, voice_id: str, rng: r
     if v is None and choice == "auto":
         cands = [c for c in voices_mod.list_voices() if c.id != voice_id and c.samples and c.sex and c.sex[0] == patient.sex[:1]]
         v = rng.choice(cands) if cands else None
-    if v is not None and v.samples:
-        return voices_mod.pick_reference(v.id, rng=rng), (0.0, 0.88 if old else 1.0), v.name
+    if v is not None and v.samples:                        # the voice's own preset applies, 80+ a little slower
+        return voices_mod.pick_reference(v.id, rng=rng), (float(v.pitch or 0.0), float(v.tempo or 1.0) * (0.88 if old else 1.0)), v.name
     shift = (-5.0 if male else -2.0) - (1.0 if old else 0.0)
     return None, (shift, 0.85 if old else 0.95), ""
 
