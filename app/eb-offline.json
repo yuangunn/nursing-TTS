@@ -1,0 +1,73 @@
+{
+  "appId": "kr.nursing.tts",
+  "productName": "NursingTTS",
+  "artifactName": "${productName}-offline-${version}-${os}-${arch}.${ext}",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "dist/**",
+    "dist-electron/**",
+    "package.json"
+  ],
+  "extraResources": [
+    {
+      "from": "../backend",
+      "to": "backend",
+      "filter": [
+        "**/*",
+        "!.venv/**",
+        "!**/__pycache__/**",
+        "!tests/**",
+        "!local_data/**",
+        "!*.egg-info/**"
+      ]
+    },
+    {
+      "from": "../scripts",
+      "to": "scripts",
+      "filter": [
+        "**/*"
+      ]
+    },
+    {
+      "from": "offline-build/offline",
+      "to": "offline",
+      "filter": [
+        "**/*"
+      ]
+    }
+  ],
+  "mac": {
+    "target": [
+      "dmg"
+    ],
+    "category": "public.app-category.medical",
+    "hardenedRuntime": false,
+    "gatekeeperAssess": false,
+    "identity": null
+  },
+  "dmg": {
+    "writeUpdateInfo": false
+  },
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      }
+    ]
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true
+  },
+  "linux": {
+    "target": [
+      "AppImage"
+    ]
+  },
+  "npmRebuild": false
+}
