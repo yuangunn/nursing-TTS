@@ -1,7 +1,7 @@
 /* Audio-reactive visualizer: a Three.js ring of bars driven by an AnalyserNode
    attached to an <audio> element.  Reports a smoothed energy value upward so
    the background Scene can breathe with playback. */
-import { useEffect, useRef } from "react";
+import { MutableRefObject, useEffect, useRef } from "react";
 import * as THREE from "three";
 
 interface Props {
@@ -9,15 +9,30 @@ interface Props {
   autoPlay?: boolean;
   onEnergy?: (e: number) => void;
   height?: number;
+  onTime?: (t: number) => void;                                   // playback position, every animation frame while playing
+  seekRef?: MutableRefObject<((t: number) => void) | null>;       // parent calls seekRef.current(seconds) to jump (and play)
 }
 
 const BARS = 96;
 
-export default function Visualizer({ src, autoPlay = false, onEnergy, height = 150 }: Props) {
+export default function Visualizer({ src, autoPlay = false, onEnergy, height = 150, onTime, seekRef }: Props) {
   const wrap = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const energyCb = useRef(onEnergy);
   energyCb.current = onEnergy;
+  const timeCb = useRef(onTime);
+  timeCb.current = onTime;
+  useEffect(() => {
+    if (!seekRef) return;
+    seekRef.current = (t: number) => {
+      const a = audioRef.current;
+      if (!a) return;
+      a.currentTime = Math.max(0, t);
+      a.play().catch(() => undefined);
+      timeCb.current?.(a.currentTime);
+    };
+    return () => { seekRef.current = null; };
+  }, [seekRef, src]);
 
   useEffect(() => {
     const el = wrap.current;
@@ -96,6 +111,7 @@ export default function Visualizer({ src, autoPlay = false, onEnergy, height = 1
       ring.rotation.z = t * 0.2;
       scene.rotation.y = t * 0.12;
       energyCb.current?.(energy);
+      if (!audio.paused) timeCb.current?.(audio.currentTime);
       renderer.render(scene, camera);
       raf = requestAnimationFrame(render);
     };
@@ -126,7 +142,8 @@ export default function Visualizer({ src, autoPlay = false, onEnergy, height = 1
   return (
     <div className="viz">
       <div ref={wrap} className="viz-canvas" style={{ height }} />
-      <audio ref={audioRef} controls autoPlay={autoPlay} src={src} crossOrigin="anonymous" />
+      <audio ref={audioRef} controls autoPlay={autoPlay} src={src} crossOrigin="anonymous"
+        onSeeked={(e) => timeCb.current?.((e.target as HTMLAudioElement).currentTime)} onPause={(e) => timeCb.current?.((e.target as HTMLAudioElement).currentTime)} />
     </div>
   );
 }

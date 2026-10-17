@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Visualizer from "../components/Visualizer";
 import Term from "../components/Term";
 import { apiUrl, del, ExportReport, get, NoiseCatalogItem, post, RecordingItem, Settings } from "../lib/api";
@@ -45,11 +45,21 @@ export default function ResultsPage() {
   useEffect(() => { get<NoiseCatalogItem[]>("/api/noises").then((c) => setNoiseLabels(Object.fromEntries(c.map((n) => [n.key, n.label])))).catch(() => undefined); }, []);
 
   const [events, setEvents] = useState<{ type: string; start: number; duration: number }[]>([]);
+  // sentence segments (start/end seconds) drive click-to-seek and the karaoke highlight (user 2026-10-17)
+  const [segments, setSegments] = useState<{ start: number; end: number; text: string; speaker?: string }[]>([]);
+  const [time, setTime] = useState(0);
+  const seek = useRef<((t: number) => void) | null>(null);
   useEffect(() => {
-    if (!sel) { setEvents([]); return; }
-    get<{ noise?: { events?: { type: string; start: number; duration: number }[] } }>(`/api/output/meta?rel=${encodeURIComponent(sel.rel)}`)
-      .then((m) => setEvents(m.noise?.events || [])).catch(() => setEvents([]));
+    setTime(0);
+    if (!sel) { setEvents([]); setSegments([]); return; }
+    get<{ noise?: { events?: { type: string; start: number; duration: number }[] }; segments?: { start: number; end: number; text: string; speaker?: string }[] }>(`/api/output/meta?rel=${encodeURIComponent(sel.rel)}`)
+      .then((m) => { setEvents(m.noise?.events || []); setSegments(m.segments || []); }).catch(() => { setEvents([]); setSegments([]); });
   }, [sel?.rel]);
+  const segStyle = (s: { start: number; end: number }): React.CSSProperties | undefined => {
+    if (time < s.start || time >= s.end) return undefined;
+    const p = Math.round(((time - s.start) / Math.max(0.2, s.end - s.start)) * 100);
+    return { backgroundImage: `linear-gradient(90deg, #67e8f9 0%, #67e8f9 ${Math.max(0, p - 8)}%, #e9f0ff ${Math.min(100, p + 8)}%)` };
+  };
   const eventLabel = (t: string) => t.startsWith("voice:") ? `회진 대화 (${t.slice(6)})` : (noiseLabels[t] || t);
   const noiseText = (it: RecordingItem) => it.noise ? `${(it.noise_types || []).map((k) => noiseLabels[k] || k).join("·") || "소음"}${it.noise_level !== undefined && it.noise_level !== null ? ` ${it.noise_level}` : ""}` : "";
   const REASONS = ["발음 오류", "잡음 과다", "끊김·반복", "대본 오류", "목소리 다름", "기타"];
@@ -270,7 +280,7 @@ export default function ResultsPage() {
                 <button className="small" onClick={() => next(1)}>▶</button>
               </span>
             </h2>
-            <Visualizer autoPlay src={apiUrl(`/api/output/file?rel=${encodeURIComponent(sel.rel)}`)} onEnergy={setEnergy} height={130} />
+            <Visualizer autoPlay src={apiUrl(`/api/output/file?rel=${encodeURIComponent(sel.rel)}`)} onEnergy={setEnergy} height={130} onTime={setTime} seekRef={seek} />
             <div className="muted" style={{ margin: "8px 0" }}>
               {sel.record_kind} · {sel.voice_name || "목소리 없음"} · {sel.engine} · {sel.duration}s · 소음 {sel.noise ? `O (${noiseText(sel)}${sel.noise_events ? `, 이벤트 ${sel.noise_events}개` : ""})` : "X"} · 장비 {sel.channel || "-"} · 흐트러짐 {sel.disfluency ?? 0} · 시그널 {sel.signal_format || "-"}
             </div>
@@ -279,9 +289,24 @@ export default function ResultsPage() {
                 소음 이벤트: {events.map((e, i) => <span key={i} style={{ marginRight: 10 }}>{eventLabel(e.type)} <b>{Math.round(e.start)}–{Math.round(e.start + e.duration)}초</b></span>)}
               </div>
             )}
-            <div className="preview" style={{ minHeight: 120 }}>
-              <span className="signal">{(sel.spoken_text || "").split("\n")[0]}</span>{"\n" + (sel.spoken_text || "").split("\n").slice(1).join("\n")}
-            </div>
+            {segments.length > 0 ? (
+              <div className="preview" style={{ minHeight: 120 }} title="문장을 누르면 그 자리부터 재생됩니다">
+                {segments.map((s, i) => {
+                  const cls = "seg" + (i === 0 ? " signal" : "") + (time >= s.end ? " done" : time >= s.start ? " active" : "");
+                  return (
+                    <span key={i}>
+                      {i === 1 ? "\n" : i > 1 ? " " : ""}
+                      {s.speaker && (i === 0 || s.speaker !== segments[i - 1].speaker) && <span className="muted">{s.speaker === "patient" ? "환자: " : "간호사: "}</span>}
+                      <span className={cls} style={segStyle(s)} onClick={() => seek.current?.(s.start)}>{s.text}</span>
+                    </span>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="preview" style={{ minHeight: 120 }}>
+                <span className="signal">{(sel.spoken_text || "").split("\n")[0]}</span>{"\n" + (sel.spoken_text || "").split("\n").slice(1).join("\n")}
+              </div>
+            )}
             {sel.verbatim_text && sel.verbatim_text !== sel.spoken_text && (
               <details style={{ marginTop: 6 }}><summary className="muted">추임새 포함 발화(verbatim) 보기</summary><div className="preview" style={{ minHeight: 60 }}>{sel.verbatim_text}</div></details>
             )}
