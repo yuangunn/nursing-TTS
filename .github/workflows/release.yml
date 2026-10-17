@@ -78,7 +78,9 @@ jobs:
           gh release upload "$RELEASE_TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
 
   # "-offline" installers: the same app with a relocatable Python + every package (+ Qwen3-TTS stack) inside
-  # resources/offline, so an intranet PC runs without pip. Models, voices and noises stay separate (user 2026-10-17).
+  # resources/offline, so an intranet PC runs without pip. Only the models stay separate; voices and noises are seed data
+  # inside every installer (user 2026-10-17). No Intel mac: macos-13 runners never pick up and PyTorch has no x86_64 macOS wheels.
+  # The bundle scripts resolve a relative --out from the repo root, so pass an absolute path from app/.
   offline:
     name: Offline installer (${{ matrix.name }})
     needs: prepare
@@ -88,7 +90,6 @@ jobs:
       matrix:
         include:
           - { os: macos-latest, name: mac-arm64, eb: "--mac --arm64", shell: bash }
-          - { os: macos-13, name: mac-x64, eb: "--mac --x64", shell: bash }
           - { os: windows-latest, name: win-x64, eb: "--win --x64", shell: pwsh }
     defaults:
       run:
@@ -107,15 +108,18 @@ jobs:
         if: matrix.shell == 'bash'
         shell: bash
         run: |
-          ../scripts/build-offline-bundle.sh --qwen --out offline-build
-          rm -f offline-build/*.zip                       # only the folder goes into the installer
+          ../scripts/build-offline-bundle.sh --qwen --no-zip --out "$PWD/offline-build"
           mv offline-build/nursing-tts-offline-*/ offline-build/offline
+          test -x offline-build/offline/python/bin/python3
       - name: Python bundle (PowerShell)
         if: matrix.shell == 'pwsh'
         shell: pwsh
         run: |
-          powershell -ExecutionPolicy Bypass -File ..\scripts\build-offline-bundle.ps1 -Qwen -Out offline-build
+          $ErrorActionPreference = "Stop"
+          powershell -ExecutionPolicy Bypass -File ..\scripts\build-offline-bundle.ps1 -Qwen -NoZip -Out "$PWD\offline-build"
+          if ($LASTEXITCODE -ne 0) { throw "bundle build failed ($LASTEXITCODE)" }
           Get-ChildItem offline-build -Directory -Filter "nursing-tts-offline-*" | Rename-Item -NewName "offline"
+          if (-not (Test-Path offline-build\offline\python\python.exe)) { throw "bundle folder missing" }
       - name: electron-builder config with the bundle
         shell: bash
         run: |

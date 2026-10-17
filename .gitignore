@@ -10,6 +10,9 @@ node_modules/
 app/dist/
 app/dist-electron/
 app/release/
+app/offline-build/
+app/eb-offline.json
+dist-offline/
 *.log
 
 # Local data
