@@ -200,10 +200,10 @@ _CLAUSE_FROM_CHART: list[tuple[re.Pattern[str], str]] = [
 
 
 _QUOTATIVE: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(r"(가능|필요)함? (설명|교육)함"), r"\1하다고 \2함"), (re.compile(r"결정됨 (설명|교육)함"), r"결정된다고 \1함"),
+    (re.compile(r"(가능|필요)함? (설명|교육)함"), r"\1하다고 \2함"), (re.compile(r"결정됨 (설명|교육)함"), r"결정된다고 \1함"), (re.compile(r"결정 (설명|교육)함"), r"결정한다고 \1함"),
     (re.compile(r"줄어듦 (설명|교육)함"), r"줄어든다고 \1함"), (re.compile(r"보냄 (설명|교육)함"), r"보낸다고 \1함"),
     (re.compile(r"됨 (설명|교육)함"), r"된다고 \1함"), (re.compile(r"있음 (설명|교육)함"), r"있다고 \1함"),
-    (re.compile(r"없음 (설명|교육)함"), r"없다고 \1함"), (re.compile(r"(예정|금지) (설명|교육)함"), r"\1이라고 \2함"),
+    (re.compile(r"없음 (설명|교육)함"), r"없다고 \1함"), (re.compile(r"예정 (설명|교육)함"), r"예정이라고 \1함"), (re.compile(r"금지 (설명|교육)함"), r"금지라고 \1함"),
 ]
 
 
@@ -243,6 +243,7 @@ def expand_styles(phrase: str) -> list[str]:
             else:
                 b = False
             casual_form = stem + ("이에요." if b else "예요.")
+            conn = "이고요," if b else "고요,"   # "당뇨고요", not "당뇨이고요" (2026-10-18 2차 검수)
         else:
             casual_form = stem + casual
         return [p, stem + conn, casual_form]

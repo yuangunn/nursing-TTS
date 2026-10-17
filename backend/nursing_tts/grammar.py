@@ -110,6 +110,8 @@ def close_sentence(fragment: str) -> str:
             if stem.endswith(ending):
                 return stem[: -len(ending)] + "입니다."
         return stem + "."
+    if stem and final_consonant(stem[-1]) == 20:   # ㅆ 받침 = 과거·있다: 했/됐/드렸/낮췄/보냈 + 습니다
+        return stem + "습니다."
     for rx, suffix in _STEM_RULES:
         if rx.search(stem):
             if suffix.startswith("@"):

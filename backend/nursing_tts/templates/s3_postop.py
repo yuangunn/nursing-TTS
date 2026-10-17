@@ -5,7 +5,7 @@
 from .base import RecordTemplate, Section, opt, sel, multi, num, txt, boolean
 from .common import VITALS_FIELD, CONSCIOUSNESS, PAIN_NRS, PAIN_MED
 
-_NOTE = ["{v}.", "{v}이고,"]
+_NOTE = ["{v}.", "{v}(이)고,"]
 
 TEMPLATE = RecordTemplate(
     key="s3_1",
@@ -156,7 +156,7 @@ TEMPLATE = RecordTemplate(
         ]),
         Section("special", "수술별 관찰·교육", hint="수술 종류에 따른 관찰·교육 포인트 (가상 환자 생성 시 자동으로 채워짐)", fields=[
             txt("special_edu", "수술별 특이 교육", placeholder="예: 손끝·입 주위 저림 있으면 즉시 알리도록 교육함",
-                phrases=["{v}.", "{v}이고,", "{v}구요,"]),
+                phrases=["{v}.", "{v}(이)고,", "{v}구요,"]),
         ]),
         Section("report", "알려야 할 증상", hint="발열, 숨참, 심한 통증, 드레싱 젖음·출혈 + 수술별", fields=[
             boolean("report_edu", "보고 증상 교육", phrases=["38도 이상 발열, 숨참, 심한 통증, 드레싱 젖거나 피 비칠 때 즉시 알리도록 교육하였습니다.",

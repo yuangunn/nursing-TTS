@@ -633,3 +633,87 @@ def test_event_and_discharge_review_2026_10_18():
         assert not re.search(r"(가능|결정됨|줄어듦|보냄|됨) 설명(하였|했|드렸)", s), s
         if p.scenario in ("ESS", "TURB"):
             assert "상처가 빨개지고" not in s, s
+
+
+def test_second_review_2026_10_18():
+    """2차 검수(새 시드로 다시 뽑아 읽기): 여자·배꼽/반흔 탈장에 "음낭 부종", 수술한 팔에 IV, "K 3.3로", "복숭아이구요", "설명드렸.",
+    "금지이라고", 손목 골절에 목발·체중 부하, 어깨 보조기 6주인데 "무거운 물건 4주간", 갑상선암에 "보조 항암", 기면인데 식사,
+    수혈했는데 랩 정상, "수술로, 첫 수술로", 우측 대장암 마킹, 이벤트의 "정규 라운딩"·"다시 잰 활력징후 체크하니"·재측정 혈압 그대로,
+    ESS 출혈에 패킹 관찰 없음, 새벽 1시 복도 보행, "처방 처방", 오후 외래에 8시 30분 공복 채혈, 기록체에 "확인할 거는"."""
+    from nursing_tts.fake import _upper_limb, record_datetime
+    from nursing_tts.grammar import close_sentence
+    from nursing_tts.phrase_store import expand_styles, formal_from_chart
+    assert close_sentence("탕 목욕은 금지라고 설명드렸고,") == "탕 목욕은 금지라고 설명드렸습니다."
+    assert close_sentence("침상 높이 낮췄고,") == "침상 높이 낮췄습니다."
+    assert "금지라고" in formal_from_chart("다리 겹치는 자세는 금지 교육함.")
+    assert expand_styles("기저질환은 당뇨입니다.")[1] == "기저질환은 당뇨고요,"
+    styles = ["formal", "mixed", "casual", "chart"]
+    rng = random.Random(2027)
+
+    def gen(t, i, scenario=None):
+        p = random_patient(rng, t, scenario=scenario)
+        f = random_form(t, rng, p)
+        s = build_script(t, f, p, record_datetime(t, p, f, rng), style=styles[i % 4], seed=i).spoken_text
+        assert not re.search(r"\((이|으|을|은|과)\)", s), s                               # every particle marker resolved
+        assert not re.search(r"(?<![\d.])[\d.]*[036]로 |(?<![\d.])[\d.]*[124579]으로 ", s), s   # "K 3.3로", "Hb 9.0로"
+        assert not re.search(r"(복숭아|새우|당뇨|키위)이(구요|고요|고,)", s), s
+        assert not [m for m in re.finditer(r"([가-힣])\.(?=\s|$)", s) if (ord(m.group(1)) - 0xAC00) % 28 == 20], s   # "설명드렸."
+        assert "금지이라고" not in s and "처방 처방" not in s and not re.search(r"결정 설명(하였|했|드렸)", s), s
+        if styles[i % 4] == "chart":
+            assert "확인할 거는" not in s, s
+        return p, f, s
+
+    for t in ("s3_1", "s5", "s6"):
+        for i in range(60):
+            p, f, s = gen(t, i, scenario="Hernioplasty")
+            if "음낭" in s:
+                assert p.sex.startswith("남") and not re.search("배꼽|반흔", p.diagnosis), (p.sex, p.diagnosis, s)
+            for sc_key in ("Rotator cuff repair", "Partial mastectomy c SLNB", "ORIF"):
+                p, f, s = gen(t, i, scenario=sc_key)
+                side = "우측" if "우측" in p.diagnosis else "좌측" if "좌측" in p.diagnosis else ""
+                if side and (sc_key != "ORIF" or _upper_limb(p.diagnosis)):
+                    bad = r"(Rt|오른)\S*" if side == "우측" else r"(Lt|왼)\S*"
+                    assert not re.search(bad + r"( (arm|hand|forearm))? ?\d\d(G|게이지)", s), (p.diagnosis, s)
+    for i in range(80):
+        p, f, s = gen("s4", i, scenario=random.Random(i).choice(["ORIF", "Rotator cuff repair", "TSA", "MRND", "Bilateral total thyroidectomy"]))
+        if _upper_limb(p.diagnosis):
+            assert not re.search(r"목발|체중 부하|보행기|다리 올리기|무거운 (물건은|건|것 들기) 4주간|항응고|리바록사반|에독사반", s), (p.diagnosis, s)
+        if "갑상선" in p.diagnosis:
+            assert "보조 항암" not in s, s
+        body = s.split("\n", 1)[1]                                                    # not the signal line's own clock
+        if "8시 30분 채혈" in body:
+            assert not re.search(r"\d+월 \d+일 (오후 \d+시|오전 9시)", body), body
+        assert len(re.findall(r"무거운", body)) <= 1, body                                 # 활동 교육 한 번 (BTT: 운전·복직 문장과 설명문)
+        if "PICC" not in s and "펌프" not in s:
+            assert "팔찌" in s, s                                                           # 퇴원 범주 1번은 빠지지 않는다
+    for i in range(120):
+        p, f, s = gen("s5", i)
+        if f.get("consciousness") == "drowsy":
+            assert f.get("diet") in (None, "npo"), f.get("diet")
+        if f.get("transfusion"):
+            assert "Hb" in str(f.get("lab")), f.get("lab")
+        if re.search(r"gas out 아직|가스 배출 안 됐", s):
+            assert "가스 배출 확인" not in s, s
+    for i in range(80):
+        sc_key = random.Random(i).choice([None, "Lapa RHC", "Tracheostomy", "Total mastectomy c ALND"])
+        p, f, s = gen("s2", i, scenario=sc_key)
+        assert not re.search(r"수술로, (첫|두|세|1|2)\S* (번째 )?수술", s), s
+        if re.search("대장|결장", p.diagnosis):
+            assert "마킹" not in s, s
+        if p.scenario == "Tracheostomy":
+            assert "필담" in s, s
+        if p.scenario == "Total mastectomy c ALND":
+            assert "JP" in s, s
+    for i in range(160):
+        p, f, s = gen("s3_2", i, scenario="ESS" if i % 8 == 0 else None)
+        assert "정규 라운딩" not in s and not re.search(r"(다시 잰|재측정) (활력징후|V/S|바이탈) 체크하니", s), s
+        if f["event"] != "저혈압":
+            assert (f["vitals"]["sbp"], f["vitals"]["dbp"]) != (f["re_vitals"]["sbp"], f["re_vitals"]["dbp"]), (f["vitals"], f["re_vitals"])
+        if p.scenario == "ESS" and f["event"] == "출혈":
+            assert "비강 패킹 거즈" in s and "체위 변경" not in s, s
+        if "배액 양상 더 이상" in s:
+            assert f.get("drain"), s
+        found = f["found_time"]
+        hour = int(re.search(r"(\d+)시", found).group(1)) % 12 + (12 if found.startswith("오후") else 0)
+        if hour >= 22 or hour < 6:
+            assert not re.search(r"복도 보행|도보로", s), s

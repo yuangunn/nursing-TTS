@@ -43,7 +43,7 @@ PAIN_NRS = Field(
 
 PAIN_SITE = Field(
     key="pain_site", label="통증 부위", kind="text", placeholder="예: 상복부, 수술 부위",
-    phrases=["{v} 통증 있으시고,", "통증 부위는 {v}이고,", "{v} 쪽 아프다고 하시구요,", "{v} 통증 호소하십니다."],
+    phrases=["{v} 통증 있으시고,", "통증 부위는 {v}(이)고,", "{v} 쪽 아프다고 하시구요,", "{v} 통증 호소하십니다."],
     speak_prob=0.9,
 )
 
