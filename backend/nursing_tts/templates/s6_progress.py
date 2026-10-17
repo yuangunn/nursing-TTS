@@ -1,13 +1,13 @@
-"""S6. 시간별 경과기록 (기록체, 여러 시각 항목을 한 녹음에)."""
-from .base import RecordTemplate, Section, opt, sel, multi, num, txt, boolean
+"""S6. 경과기록: 그날 있었던 간호기록을 시간대별로 (기록체). 수술 당일 도착 직후는 S3-1 수술 후 기록 (user 2026-10-17)."""
+from .base import Field, RecordTemplate, Section, opt, sel, multi, num, txt, boolean
 from .common import VITALS_FIELD
 
 TEMPLATE = RecordTemplate(
     key="s6",
     title="S6. 시간별 경과기록 (기록체)",
     signal_kind="수술후설명",
-    description="한 근무 동안의 시각별 경과를 차팅하듯 구술합니다. '~함/~됨' 기록체가 기본이며, 시각마다 '환자명 ○○○'을 다시 말합니다.",
-    intros=["", "{name} 님 경과기록 시작합니다.", "환자명 {name}, 경과기록 하겠습니다."],
+    description="그날 있었던 간호기록을 시각 순서로 차팅하듯 구술합니다(아침 라운딩부터 저녁 활력징후, 프로토콜 체크까지). '~함/~됨' 기록체가 기본이며, 시각마다 '환자명 ○○○'을 다시 말합니다. 수술 당일 병실 도착 직후는 S3-1.",
+    intros=["지금 경과기록 하겠습니다.", "{name} 님 오늘 경과기록 하겠습니다.", "{name} 님 경과기록 시작합니다.", "환자명 {name}, 경과기록 하겠습니다."],
     closings=["이상 {name} 님 경과기록 마치겠습니다.", "여기까지 {name} 님 경과기록입니다.", "이상입니다.", "간호정보조사는 다음 녹음 파일에 하겠습니다."],
     sections=[
         Section("e1", "1차 기록 (근무 시작)", hint="밤 동안 수면, 통증, 낙상 예방, 수액·라인, 상처, V/S", fields=[
@@ -69,6 +69,27 @@ TEMPLATE = RecordTemplate(
                 opt("after_prn", "PRN 후 재사정", "PRN 투여 후 통증 호전됨.", "진통제 투여 후 통증 감소함."),
                 opt("stable", "안정", "특이사항 없이 안정적임.", "변화 없이 안정됨."),
             ], default="after_pca"),
+        ]),
+        Section("e5", "5차 기록 (오후 활동·배액)", fields=[
+            txt("t5", "시각", placeholder="예: 오후 3시", phrases=["{v} 환자명 {name}.", "{v}, 환자명 {name}."], default="오후 3시"),
+            sel("afternoon_activity", "활동", [
+                opt("sit", "침상 옆 앉기", "침상 옆에 앉기 시행함, 어지럼 없음.", "침상 옆 앉기 10분 시행함. 어지럼 호소 없음."),
+                opt("walk_assist", "보호자 동반 보행", "보호자 동반하여 복도 보행 1회 시행함.", "보호자 부축 하에 병동 한 바퀴 보행함. 어지럼 없음."),
+                opt("walk_self", "혼자 보행", "혼자 복도 보행 2회 시행함.", "병동 복도 스스로 보행하며 지내심."),
+                opt("bedrest", "침상 안정", "침상 안정 유지 중. 체위 변경 시행함.", "침상 안정 유지하며 2시간마다 체위 변경함."),
+                opt("chemo_infusion", "항암제 주입 중", "항암제 주입 중이며 오심, 발진 등 특이 반응 없음.", "항암제 주입 중, 주입 부위 통증·발적 없음. 부작용 관찰 중."),
+            ], default="walk_assist"),
+            txt("drain_note", "배액/배뇨", placeholder="예: JP 배액 serosanguineous 30cc 비움", phrases=["{v}.", "{v}."]),
+        ]),
+        Section("e6", "6차 기록 (저녁 활력징후·특이사항)", fields=[
+            txt("t6", "시각", placeholder="예: 오후 5시", phrases=["{v} 환자명 {name}.", "{v}, 환자명 {name}."], default="오후 5시"),
+            Field(key="vitals_evening", label="저녁 활력징후", kind="vitals", default={"sbp": 118, "dbp": 76, "hr": 78, "rr": 18, "bt": 36.7, "spo2": "", "o2": ""}),
+            sel("evening_note", "특이사항", [
+                opt("stable", "특이사항 없음", "특이사항 없이 안정적임.", "별다른 호소 없이 안정적으로 지내심."),
+                opt("visit", "보호자 면회", "보호자 면회 중이며 환자 안정적임.", "보호자 면회 중. 특이 호소 없음."),
+                opt("edu", "내일 일정 설명", "내일 검사 및 처치 일정 설명함.", "다음 날 일정 설명하고 질문에 답함."),
+                opt("pain_prn", "통증 PRN", "통증 호소하여 PRN 진통제 투여함. 30분 후 재사정 예정.", "통증 4점 호소하여 PRN 투여함."),
+            ], default="stable"),
         ]),
     ],
 )

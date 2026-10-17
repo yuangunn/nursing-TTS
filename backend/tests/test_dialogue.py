@@ -120,3 +120,64 @@ def test_dialogue_opens_with_how_did_you_come_in_and_extracts_the_chart(monkeypa
     # a known complaint has lay wording with the trauma cause in front
     assert d.lay_complaint("낙상 후 어깨 통증과 변형", random.Random(1))[0].startswith("넘어져서 어깨")
     assert d.lay_complaint("배변 후 항문에서 선홍색 출혈", random.Random(1)) == ["변 볼 때 피가 났어요."]
+
+
+def test_worry_triggers_mood_screening_and_smokers_drinkers_get_education():
+    """user 2026-10-17: a worried patient is asked the two "최근 2주 동안 며칠" questions (answers follow mood_days/interest_days
+    and the screen result); smokers and drinkers get 금연·금주 education right after their answer."""
+    rng = random.Random(33)
+    mood = edu_smoke = edu_drink = 0
+    for i in range(200):
+        p = random_patient(rng, "s1")
+        f = random_form("s1", rng, p)
+        s = build_script("s1", f, p, random_datetime(rng), style="formal", seed=5000 + i, dialogue=True)
+        texts = [t["text"] for t in s.turns]
+        worried = any(e in (f.get("emotion") or []) for e in ("anxiety", "depression"))
+        k = next((j for j, t in enumerate(texts) if "최근 2주 동안" in t), None)
+        if worried:
+            assert k is not None, texts
+            mood += 1
+            assert s.turns[k]["speaker"] == "nurse" and s.turns[k + 1]["speaker"] == "patient" and s.turns[k + 3]["speaker"] == "patient"
+            ans = s.turns[k + 1]["text"] + " " + s.turns[k + 3]["text"]
+            if f["depression_screen"] == "pos":
+                assert "상담" in s.turns[k + 4]["text"], s.turns[k + 4]["text"]
+                assert "일주일" in ans or "매일" in ans
+            else:
+                assert "상담" not in s.turns[k + 4]["text"] and "일주일" not in ans and "매일" not in ans
+        else:
+            assert k is None and f.get("depression_screen") == "neg"
+        for j, t in enumerate(texts[:-1]):
+            if t.startswith("담배는 피우세요"):
+                nxt = texts[j + 2] if j + 2 < len(texts) else ""
+                if f.get("smoking") == "current":
+                    assert "금연" in nxt, nxt
+                    edu_smoke += 1
+                else:
+                    assert "끊으셔야" not in nxt
+            if t.startswith("술은 드세요"):
+                nxt = texts[j + 2] if j + 2 < len(texts) else ""
+                if f.get("alcohol") in ("social", "heavy"):
+                    assert "금주" in nxt, nxt
+                    edu_drink += 1
+                else:
+                    assert "금주" not in nxt
+        assert f.get("smoking_edu") == (f.get("smoking") == "current") and f.get("alcohol_edu") == (f.get("alcohol") in ("social", "heavy"))
+    assert mood >= 20 and edu_smoke >= 5 and edu_drink >= 8, (mood, edu_smoke, edu_drink)   # drinkers are rare in this ward
+
+
+def test_narrated_admission_speaks_education_only_for_smokers_and_drinkers():
+    rng = random.Random(34)
+    for i in range(80):
+        p = random_patient(rng, "s1")
+        f = random_form("s1", rng, p)
+        text = build_script("s1", f, p, random_datetime(rng), style="formal", seed=6000 + i).spoken_text
+        if "금연 교육" in text or "금연 필요성" in text:
+            assert f.get("smoking") == "current", (f.get("smoking"), text)
+        elif f.get("smoking") == "current" and "흡연 중" in text:
+            assert "금연" in text, text
+        if "금주" in text:
+            assert f.get("alcohol") in ("social", "heavy"), (f.get("alcohol"), text)
+        elif f.get("alcohol") in ("social", "heavy") and re.search(r"(?<!수)술|음주|소주", text):   # the drinking sentence itself was spoken
+            assert "금주" in text, text
+        if f.get("depression_screen") == "pos":
+            assert "우울 선별 양성" in text

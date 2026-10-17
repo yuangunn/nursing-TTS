@@ -8,7 +8,7 @@ from nursing_tts.generator import build_script
 from nursing_tts.templates import get_template, list_templates
 
 TEMPLATES = ["s1", "s2", "s3_1", "s3_2", "s4", "s5", "s6"]
-DEPTS = {"외과", "산부인과", "비뇨의학과", "이비인후과", "정형외과", "성형외과", "혈액종양내과"}
+DEPTS = {"외과", "산부인과", "비뇨의학과", "이비인후과", "정형외과", "성형외과", "혈액종양내과", "유방외과"}
 
 
 def _fields(tpl):

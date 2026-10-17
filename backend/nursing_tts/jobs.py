@@ -506,6 +506,8 @@ def start_batch(opts: dict[str, Any], custom_noises: list[NoiseClip]) -> Job:
         patient = random_patient(rng, t)
         when = random_datetime(rng)
         form = random_form(t, rng, patient)
+        if t == "s1" and not opts.get("nursing_dx", True):
+            form.pop("nursing_problems", None)          # 간호진단 문장 빼기 (user 2026-10-17)
         n = dict(noise)
         n["enabled"] = bool(noise.get("enabled")) and rng.random() < noise_prob
         if n["enabled"] and noise.get("level_jitter", True):

@@ -21,6 +21,7 @@ export default function BatchPage() {
   const [llm, setLlm] = useState(false);
   const [rounds, setRounds] = useState(false);
   const [dialogueS1, setDialogueS1] = useState(false);
+  const [nursingDx, setNursingDx] = useState(true);   // 간호정보조사 간호진단 문장 포함 (user 2026-10-17)
   const [folder, setFolder] = useState("");
   const [augment, setAugment] = useState<AugmentSettings>({ ...DEFAULT_AUGMENT, enabled: true });
   const [disfluency, setDisfluency] = useState<number | "random">("random");
@@ -50,7 +51,7 @@ export default function BatchPage() {
     try {
       const j = await post<Job>("/api/batch", {
         count, templates: sel, voice_ids: voiceIds, noise, noise_prob: noiseProb, style: style || null,
-        llm_polish: llm, rounds_voice: rounds, folder_name: folder, augment, disfluency, dialogue_s1: dialogueS1, patient_voice_id: "auto",
+        llm_polish: llm, rounds_voice: rounds, folder_name: folder, augment, disfluency, dialogue_s1: dialogueS1, nursing_dx: nursingDx, patient_voice_id: "auto",
         signal_format: signalFormat || "random", signal_aliases: signalAliases,
       });
       setJobId(j.id);
@@ -119,6 +120,7 @@ export default function BatchPage() {
             <label><input type="checkbox" checked={llm} disabled={!settings || settings.llm_provider === "none"} onChange={(e) => setLlm(e.target.checked)} /> LLM 다듬기 (API 비용 발생)</label>
             <label><input type="checkbox" checked={rounds} onChange={(e) => setRounds(e.target.checked)} /> 일부 녹음에 다른 환자 회진 음성 섞기</label>
             <label title="간호사 질문(~까요?)과 환자 대답(~어요/네/아니오, 80세 이상은 반말)을 환자 성별에 맞는 등록 목소리로 읽습니다"><input type="checkbox" checked={dialogueS1} onChange={(e) => setDialogueS1(e.target.checked)} /> 간호정보조사는 환자 대답 포함(대화형, 두 목소리)</label>
+            <label title="끄면 간호정보조사 끝의 '간호진단은 …입니다' 문장이 빠집니다"><input type="checkbox" checked={nursingDx} onChange={(e) => setNursingDx(e.target.checked)} /> 간호정보조사에 간호진단 문장 포함</label>
           </div>
         </div>
         <AugmentPanel value={augment} onChange={setAugment} disfluency={disfluency} onDisfluency={setDisfluency} allowRandomDisfluency />

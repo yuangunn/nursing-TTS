@@ -20,7 +20,15 @@ BANMAL_AGE = 80
 
 # fields whose content the patient already says in an answer: not narrated again by the nurse
 SKIP_IN_DIALOGUE = {"history_detail", "allergy_reaction", "medications", "supplements", "weight_screen", "intake_screen",
-                    "sleep_screen", "depression_screen", "adl", "weakness_note", "symptom_note", "intake_note", "pain_site", "pain_char"}
+                    "sleep_screen", "depression_screen", "adl", "weakness_note", "symptom_note", "intake_note", "pain_site", "pain_char",
+                    "mood_days", "interest_days", "smoking_edu", "alcohol_edu"}   # the last four are spoken inside the dialogue instead
+
+# 정서평가 (user 2026-10-17): when the patient is worried, two "최근 2주 동안 며칠이나" questions (PHQ-2 style, 4 levels)
+MOOD_QUESTIONS = ["그러면 최근 2주 동안, 기분이 가라앉거나 우울하거나 희망이 없다고 느낀 날이 며칠이나 되셨어요?",
+                  "최근 2주 동안 기분이 가라앉거나 우울한 날이 며칠 정도 있으셨어요?"]
+INTEREST_QUESTIONS = ["평소 하던 일에 흥미나 재미를 못 느낀 날은 며칠 정도였어요?", "그리고 뭘 해도 재미가 없다고 느낀 날은요, 며칠이나 되셨어요?"]
+_DAYS_ANSWER = {"none": ["그런 날은 없었어요.", "별로 없었어요."], "few": ["며칠 정도요.", "며칠 있었어요."],
+                "week": ["일주일은 넘은 것 같아요.", "일주일 넘게요."], "daily": ["거의 매일요.", "거의 매일 그랬어요."]}
 
 ACKS = ["네.", "네, 알겠습니다.", "아, 네.", "네, 그러시군요."]
 
@@ -297,7 +305,7 @@ _LAY_CC: list[tuple[str, str]] = [
     (r"갑상선 기능항진", "갑상선 약을 먹어도 조절이 안 된다고 수술하자고 하더라고요."),
     (r"장루 주위 피부", "장루 주변 피부가 자꾸 짓물러서요."),
     (r"진통 있어 내원|분만 진행", "진통이 와서 왔는데 진행이 안 된다고 하더라고요."),
-    (r"항암 (후|중).*(설사|발열|호중구|구토|오심|발진|혈압|단백뇨)", "항암 맞고 나서 몸이 안 좋아져서 왔어요."),
+    (r"항암 (후|중).*(설사|발열|호중구|구토|오심|발진|혈압|단백뇨)|(세툭시맙|파클리탁셀|옥살리플라틴|펨브롤리주맙|베바시주맙|트라스투주맙|이리노테칸) (후|중)", "항암 맞고 나서 몸이 안 좋아져서 왔어요."),
     (r"항암.*(위해 입원|차)|선행 항암|보조 항암|표적치료|유지", "항암 맞으러 왔어요."),
     (r"손으로 밀어 넣|항문 탈출|탈출", "항문이 밖으로 빠져나와서 손으로 밀어 넣어야 들어가요."),
     (r"혈변|항문.*출혈|선홍색 출혈|배변 (시|후).*출혈|항문 출혈", "변 볼 때 피가 났어요."),
@@ -409,6 +417,8 @@ def opening(form: dict[str, Any], patient: Patient, rng: random.Random) -> list[
     chemo = patient.kind == "chemo"
     if not sents:
         sents = ["몸이 좀 안 좋아서 검사를 했는데 수술해야 한다고 하더라고요." if not chemo else "항암 맞으러 왔어요."]
+    if chemo and not any("항암" in x for x in sents):
+        sents.insert(0, "항암 치료 중이에요.")
     # no "두 달 전부터" in front of a story that starts with a finding or a decision instead of a symptom
     screening = bool(re.search(r"검진|추적|우연히", cc))
     detected = screening or bool(re.search(r"재발|BRCA|재건|유지|위해 입원", cc)) or any(w in sents[0] for w in ("하더라고요", "하기로", "하러 왔어요", "검사를 더", "상담"))
@@ -505,8 +515,40 @@ def _followup(field_key: str, answer: str, form: dict[str, Any]) -> str:
     return ""
 
 
-def qa(field_key: str, form: dict[str, Any], patient: Patient, rng: random.Random, asked: set[str]) -> tuple[str, str, str] | None:
-    """(question, answer, nurse follow-up or "") for this field, or None when it is narrated instead. ``asked`` dedupes paired fields."""
+def _education(field_key: str, form: dict[str, Any], patient: Patient, rng: random.Random) -> str:
+    """금연·금주 교육 spoken to the patient who smokes or drinks (user 2026-10-17)."""
+    chemo = patient.kind == "chemo"
+    if field_key == "smoking":
+        if form.get("smoking") == "current":
+            return ("항암 중에는 담배를 꼭 끊으셔야 해요. 면역이 떨어져 있어서 폐렴 위험이 커져요. 입원 중에는 금연해 주세요." if chemo else
+                    rng.choice(["담배는 수술 전후로 꼭 끊으셔야 해요. 상처 회복이 더디고 폐 합병증 위험이 커져서요. 입원 중에는 금연해 주세요.",
+                                "수술 앞두고는 금연하셔야 해요. 마취 후에 가래 끓고 폐렴 올 수 있어서요. 병원 안에서는 흡연 안 되는 거 아시죠."]))
+        if form.get("smoking") == "quit" and rng.random() < 0.4:
+            return "네, 잘 끊으셨어요. 계속 유지해 주세요."
+    if field_key == "alcohol" and form.get("alcohol") in ("social", "heavy"):
+        edu = ("항암 중에는 술을 드시면 간에 부담이 되고 부작용이 심해질 수 있어서 금주하셔야 해요." if chemo else
+               rng.choice(["술은 수술 전후로 드시면 안 돼요. 마취하고 출혈에 영향이 있어서요. 퇴원하고 상처 아물 때까지는 금주해 주세요.",
+                           "수술 앞뒤로는 금주하셔야 해요. 상처 회복이 늦어지고 약이랑도 부딪쳐서요."]))
+        if form.get("alcohol") == "heavy":
+            edu += " 혹시 손 떨리거나 식은땀 나면 바로 말씀해 주세요."
+        return edu
+    return ""
+
+
+def _mood_turns(form: dict[str, Any], patient: Patient, rng: random.Random) -> list[tuple[str, str]]:
+    """After a worried answer: the two 2-week questions and the nurse's response (consistent with depression_screen)."""
+    if not any(e in (form.get("emotion") or []) for e in ("anxiety", "depression")):
+        return []
+    mood, interest = str(form.get("mood_days") or "none"), str(form.get("interest_days") or "none")
+    pos = mood in ("week", "daily") or interest in ("week", "daily")
+    close = "많이 힘드셨겠어요. 담당 선생님께 말씀드리고 상담 연결해 드릴게요." if pos else rng.choice(["네, 알겠습니다.", "네, 걱정되시는 건 언제든 말씀해 주세요."])
+    return [("nurse", rng.choice(MOOD_QUESTIONS)), ("patient", _answer(rng.choice(_DAYS_ANSWER[mood]), patient)),
+            ("nurse", rng.choice(INTEREST_QUESTIONS)), ("patient", _answer(rng.choice(_DAYS_ANSWER[interest]), patient)), ("nurse", close)]
+
+
+def qa(field_key: str, form: dict[str, Any], patient: Patient, rng: random.Random, asked: set[str]) -> list[tuple[str, str]] | None:
+    """[(speaker, text), ...] for this field — the nurse's question, the patient's answer and any follow-up (교육, 되짚기,
+    정서평가) — or None when the item is narrated instead. ``asked`` dedupes paired fields."""
     if field_key not in QA:
         return None
     if field_key in ("family_none", "family_history"):
@@ -522,7 +564,13 @@ def qa(field_key: str, form: dict[str, Any], patient: Patient, rng: random.Rando
     if not answer:
         return None
     asked.add(field_key)
-    return rng.choice(questions), _answer(answer, patient), fix_josa(_followup(field_key, answer, form))
+    turns: list[tuple[str, str]] = [("nurse", rng.choice(questions)), ("patient", _answer(answer, patient))]
+    follow = _followup(field_key, answer, form) or _education(field_key, form, patient, rng)
+    if follow:
+        turns.append(("nurse", fix_josa(follow)))
+    if field_key == "emotion":
+        turns += _mood_turns(form, patient, rng)
+    return turns
 
 
 def ack(rng: random.Random) -> str | None:

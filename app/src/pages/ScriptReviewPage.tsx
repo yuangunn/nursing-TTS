@@ -72,6 +72,8 @@ export default function ScriptReviewPage({ onTab }: { onTab?: (t: Tab) => void }
   const [signalFormat, setSignalFormat] = useState("");
   const [signalAliases, setSignalAliases] = useState<boolean | null>(null);
   const [dialogue, setDialogue] = useState(false);   // 간호정보조사만: 환자 대답 포함
+  const [nursingDx, setNursingDx] = useState(true);  // 간호정보조사 "간호진단은 …입니다" 문장 포함 (user 2026-10-17: 넣을지 말지 결정)
+  const withDx = (tpl: string, f: Record<string, unknown>) => (nursingDx || tpl !== "s1") ? f : Object.fromEntries(Object.entries(f).filter(([k]) => k !== "nursing_problems"));
   const debounce = useRef<number | null>(null);
   const template = useMemo(() => templates.find((t) => t.key === tkey), [templates, tkey]);
 
@@ -109,11 +111,11 @@ export default function ScriptReviewPage({ onTab }: { onTab?: (t: Tab) => void }
     if (!template) return;
     try {
       const p = await post<PreviewResp>("/api/script/preview", {
-        template: tkey, form, patient, datetime: when, style: customStyle, seed: opts?.newSeed ? null : customSeed,
+        template: tkey, form: withDx(tkey, form), patient, datetime: when, style: customStyle, seed: opts?.newSeed ? null : customSeed,
         signal_format: signalFormat || undefined, signal_aliases: signalAliases ?? undefined, dialogue: dialogue && tkey === "s1",
       });
       setCustomSeed(p.seed);
-      const it: Item = { id: CUSTOM, template: tkey, record_kind: kindOf(tkey), patient, form, datetime: when, style: customStyle, seed: p.seed,
+      const it: Item = { id: CUSTOM, template: tkey, record_kind: kindOf(tkey), patient, form: withDx(tkey, form), datetime: when, style: customStyle, seed: p.seed,
         spoken_text: p.spoken_text, tts_text: p.tts_text, llm_polished: p.llm_polished, issues: p.issues || [], text_override: null,
         signal_format: signalFormat || undefined, signal_aliases: signalAliases, dialogue: dialogue && tkey === "s1", turns: p.turns || [] };
       setItems((arr) => arr.some((x) => x.id === CUSTOM) ? arr.map((x) => x.id === CUSTOM ? it : x) : [it, ...arr]);
@@ -152,6 +154,7 @@ export default function ScriptReviewPage({ onTab }: { onTab?: (t: Tab) => void }
       try {
         const r = await post<{ patient: Patient; form: Record<string, unknown>; datetime: string }>("/api/random-patient", { template: tpl, seed });
         const dlg = dialogue && tpl === "s1";
+        r.form = withDx(tpl, r.form);
         const p = await post<PreviewResp>("/api/script/preview", { template: tpl, form: r.form, patient: r.patient, datetime: r.datetime, style, seed, dialogue: dlg });
         made.push({ id: `${seed}-${i}`, template: tpl, record_kind: kindOf(tpl), patient: r.patient, form: r.form, datetime: r.datetime,
           style, seed: p.seed, spoken_text: p.spoken_text, tts_text: p.tts_text, llm_polished: p.llm_polished, issues: p.issues || [], dialogue: dlg, turns: p.turns || [] });
@@ -269,6 +272,9 @@ export default function ScriptReviewPage({ onTab }: { onTab?: (t: Tab) => void }
               </div>
               <label className="small" style={{ display: "inline-flex", gap: 6, alignItems: "center" }} title="간호정보조사에서 묻는 항목이 간호사 질문(~까요?)과 환자 대답(~어요/네/아니오, 80세 이상은 ~어/응/아니)으로 나뉩니다. 녹음은 두 목소리로 만들어집니다">
                 <input type="checkbox" checked={dialogue} onChange={(e) => setDialogue(e.target.checked)} /> 간호정보조사는 환자 대답 포함(대화형)
+              </label>
+              <label className="small" style={{ display: "inline-flex", gap: 6, alignItems: "center", marginLeft: 12 }} title="끄면 간호정보조사 끝의 '간호진단은 …입니다' 문장이 빠집니다 (바구니에 담는 사양에서도 빠짐)">
+                <input type="checkbox" checked={nursingDx} onChange={(e) => setNursingDx(e.target.checked)} /> 간호진단 문장 포함
               </label>
             </>
           ) : (
