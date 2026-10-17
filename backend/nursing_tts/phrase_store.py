@@ -242,6 +242,7 @@ def stylize(text: str, rng: random.Random, style: str = "mixed", allow_connectiv
     formal, conn, casual = variants
     formal, conn = vary_ending(formal, rng, "formal"), vary_ending(conn, rng, "connective")
     if style == "formal":
+        conn = re.sub(r"(고요|구요),$", "고,", conn)      # 격식체 run-on: "~하였고," (user 2026-10-17: 어미가 제각각)
         options, weights = [formal, conn, casual], [9, 1, 0]
     elif style == "casual":
         options, weights = [formal, conn, casual], [2, 4, 4]

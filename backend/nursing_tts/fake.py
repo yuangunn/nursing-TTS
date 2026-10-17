@@ -261,8 +261,6 @@ def _consistency(form: dict[str, Any], template_key: str, t, rng: random.Random,
             and str(form.get("plan", "")).startswith("내일 수술"):
         form["plan"] = "퇴원 교육 시행" if (patient.pod or 0) >= 3 else "오전에 강화폐활량계 교육 재확인"   # no "surgery tomorrow" after the op
     if template_key == "s4":
-        if any(w in form.get("special_edu", "") for w in ("무거운", "운동")):
-            form.pop("activity", None)   # the leaflet item already covers activity
         if "further" in form and patient is not None and not any(w in patient.diagnosis for w in ("암", "종양", "전이", "증식", "림프", "종괴")):
             form["further"] = "none"     # benign surgery: no "조직검사 결과 따라 보조 항암"
         if patient is not None and patient.department != "정형외과" and rng.random() < 0.7:
@@ -1074,7 +1072,8 @@ def _derive_s4(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
     """Discharge education: home drugs by age, ER criteria by admission kind, outpatient date in the patient's calendar."""
     age = patient.age or 50
     chemo = patient.kind == "chemo"
-    form["er_edu"] = "chemo" if chemo else "op"
+    form["report_edu"] = "chemo" if chemo else "op"
+    form["id_check"] = rng.random() < 0.95
     if age < 50:
         form["home_meds"] = "none" if rng.random() < 0.85 else "continue"
     else:
@@ -1086,30 +1085,53 @@ def _derive_s4(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
         if d > 28:
             d, mo = d - 28, mo % 12 + 1
         form["opd"] = f"{mo}월 {d}일 {rng.choice(['오전 9시', '오전 10시 30분', '오전 11시', '오후 2시', '오후 3시'])}"
-    if "조직검사" in form.get("special_edu", ""):
-        form.pop("further", None)          # the leaflet item already says the pathology result decides
+        if chemo:                                            # 다음 입원 일자: the cycle after the clinic check (user 2026-10-17)
+            d2, mo2 = d + 1, mo
+            if d2 > 28:
+                d2, mo2 = 1, mo % 12 + 1
+            form["next_admission"] = f"{mo2}월 {d2}일"
+            if form.get("further") == "next_cycle":
+                form.pop("further")                           # "다음 차수 입원 예정" is now the 다음 입원 일자 sentence
+    if not chemo:
+        form.pop("next_admission", None)
     if any(w in form.get("driving", "") for w in ("무거운", "활동 제한")):
         form.pop("activity", None)
     abdominal = not chemo and sc is not None and sc.form.get("abdomen", 1) is not None
     cancer = any(w in patient.diagnosis for w in ("암", "종양", "전이"))
     if "CT" in form.get("opd_exam", "") and not (abdominal and cancer):   # a breast or knee patient has no CT before the clinic
         form["opd_exam"] = rng.choice(["따로 영상검사나 혈액검사 없음", "외래 당일 8시 30분 채혈 후 진료 볼 것"] if not chemo else ["다음 항암 전 채혈할 것"])
+    ex = form.get("opd_exam", "")                             # 검사 전 주의할 점 follows the test itself
+    if "CT" in ex:
+        form["exam_prep"] = rng.choice(["CT 검사 4시간 전부터 금식하고 조영제 알레르기 있으면 미리 말하도록", "검사 4시간 전부터 금식하도록"])
+    elif "채혈" in ex:
+        form["exam_prep"] = rng.choice(["채혈은 아침 공복으로 오도록", "채혈 있어 외래 당일 아침은 금식하고 오도록"])
+    else:
+        form.pop("exam_prep", None)
     if _upper_limb(patient.diagnosis) and form.get("activity") == "weight_bearing":
         form["activity"] = "walk_no_heavy"   # a wrist fracture walks normally
     if form.get("device") == "stoma":
         form["referral"] = [r for r in form.get("referral", []) if r != "stoma"]
-    if form.get("device") == "foley" and form.get("special_edu"):   # the 장치 관리 item says the catheter part
-        keep = [x for x in form["special_edu"].split(". ") if not any(w in x for w in ("소변줄 가지고", "소변백"))]
-        form["special_edu"] = ". ".join(keep).rstrip(".") if keep else ""
-        if not form["special_edu"]:
-            form.pop("special_edu")
     if sc is not None and "referral" not in sc.form:
         cancer = any(w in patient.diagnosis for w in ("암", "종양", "전이"))
         form["referral"] = ["nutrition"] if cancer and rng.random() < 0.15 else []
-    if "wound" not in form:
-        form["wound_warning"] = False     # TURB, ESS, shoulder: no wound sentence, no wound warning
-    if sc is not None and "activity" not in sc.form and not chemo:
+    if sc is not None and "activity" not in sc.form and not chemo and "activity" in form:
         form["activity"] = "full" if sc.los[1] <= 3 else "walk_no_heavy"   # 보행기 체중 부하 is for leg surgery only
+    # a leaflet sentence replaces the generic sentence of its category (user 2026-10-17: 범주당 한 번, 상처 교육 두 번 금지)
+    if form.get("wound_note"):
+        form.pop("wound", None)
+    if form.get("diet_note"):
+        form.pop("diet_edu", None)
+        form["dumping"] = False
+    if form.get("activity_note"):
+        form.pop("activity", None)
+        if any(w in form["activity_note"] for w in ("운전", "복직")):
+            form.pop("driving", None)
+    if form.get("device_note"):
+        form.pop("device", None)
+    if re.search(r"38도|발열|고열|열 나|열,|열 지속", form.get("report_note", "")):
+        form.pop("report_edu", None)                          # the leaflet warning already lists the fever criterion
+    if re.search(r"조직검사|항암 여부|방사선|병리", form.get("opd_note", "")):
+        form.pop("further", None)
 
 
 def _derive_s5(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -> None:
@@ -1459,8 +1481,11 @@ def audit(form: dict[str, Any], patient: Patient | None, template_key: str) -> l
         if form.get("meal1") == "npo" and form.get("meal2") in ("all", "half"):
             issues.append("아침 금식인데 점심 식사")
     if template_key == "s4" and patient is not None:
-        if form.get("er_edu") in ("op", "chemo") and (form["er_edu"] == "chemo") != (patient.kind == "chemo"):
-            issues.append("응급 내원 기준이 환자 종류와 다름")
+        if form.get("report_edu") in ("op", "chemo") and (form["report_edu"] == "chemo") != (patient.kind == "chemo"):
+            issues.append("알려야 할 상황 교육이 환자 종류와 다름")
+        for generic, note in (("wound", "wound_note"), ("diet_edu", "diet_note"), ("activity", "activity_note"), ("device", "device_note")):
+            if form.get(generic) and form.get(note):
+                issues.append(f"{generic} 일반 문장과 수술별 문장이 같이 있음")
         if form.get("further") in ("chemo", "rt", "pending_path") and not any(w in patient.diagnosis for w in ("암", "종양", "전이", "증식", "림프", "종괴")):
             issues.append("양성 질환인데 보조 항암·방사선 계획")
     if patient is not None and patient.kind == "chemo" and ("pain_char" in form) and int(form.get("nrs") or 0) == 0:
@@ -1486,6 +1511,52 @@ def random_form(template_key: str, rng: random.Random, patient: Patient | None =
             break
         form = _random_form_once(template_key, rng, patient)
     return form
+
+
+# --- discharge leaflet → category (user 2026-10-17: 퇴원 교육은 범주별로 한 번) -------------------------------------
+_LEAFLET_KEY = {"wound": "wound_note", "device": "device_note", "diet": "diet_note", "activity": "activity_note",
+                "report": "report_note", "opd": "opd_note", "precautions": "precautions"}
+_LF_WOUND = r"상처|드레싱|소독|샤워|통목욕|실밥|스테플|접착제|테이프|흉터|패킹"
+_LF_DEVICE = r"배액|장루|PICC|보형물|확장기|소변줄|소변백|카테터|스토마|기관절개관|흡인|내관|펌프"
+_LF_REPORT = r"내원|응급실|연락|문의|병원 방문|병원으로|알리도록|알리시|오시"
+_LF_DIET = r"식사|식이|음식|먹|섭취|수분|날 것|맵|금주|(?<!수)술|치료식|지사제|로페라마이드"
+_LF_ACT = r"운동|무거운|걷|활동|운전|복직|체중 부하|목발|보행|가사|달리기|수영|워커|부하|일상생활|양반다리|쪼그려"
+_LF_OPD = r"외래|조직검사|결과|문자|납부|원무|추적|방사선|심초음파|주사 일정|제거 예정|결정"
+
+
+def leaflet_category(x: str) -> str:
+    head = x[:14]
+    if re.search(_LF_DEVICE, head):
+        return "device"
+    if re.search(_LF_WOUND, head):
+        return "wound"
+    if re.search(_LF_REPORT, x) and re.search(r"면|시 |경우|땐|때|지속", x):
+        return "report"
+    if re.search(_LF_WOUND, x):
+        return "wound"
+    if re.search(_LF_DEVICE, x):
+        return "device"
+    if re.search(_LF_DIET, x):
+        return "diet"
+    if re.search(_LF_ACT, x):
+        return "activity"
+    if re.search(_LF_OPD, x):
+        return "opd"
+    return "precautions"
+
+
+def _spread_leaflet(form: dict[str, Any], rng: random.Random, patient: Patient, sc, sc_pools: dict[str, Any]) -> None:
+    """Two or three ward-leaflet items per discharge record, each filed under its category (one sentence per category)."""
+    pool = sc_pools.get("s4.leaflet") or ()
+    if pool and patient is not None:
+        pool = coherent_pool(patient.diagnosis, tuple(pool), trauma=False) or list(pool)
+    if not pool:
+        return
+    k = min(len(pool), rng.choice([1, 2, 2, 3]))
+    for x in rng.sample(list(pool), k):
+        key = _LEAFLET_KEY[leaflet_category(x)]
+        sent = formal_from_chart(_fill(x, patient, sc).rstrip(".") + ".").rstrip(".")   # "교육함" -> "교육하였습니다"
+        form[key] = f"{form[key]}. {sent}" if form.get(key) else sent
 
 
 def _random_form_once(template_key: str, rng: random.Random, patient: Patient | None = None) -> dict[str, Any]:
@@ -1524,12 +1595,6 @@ def _random_form_once(template_key: str, rng: random.Random, patient: Patient | 
                 pool = coherent_pool(patient.diagnosis, tuple(pool), trauma=False) or list(pool)   # 좌측 손목 골절 ↔ "발목 올리기" 금지
             if pool and f.key == "special_edu":
                 pool = [x for x in pool if "장루 교환" not in x and "장루 관리" not in x] or list(pool)   # the 장치 관리 item says it
-            if pool and template_key == "s4" and f.key == "special_edu":
-                # discharge education: two or three items from the ward leaflet summary, one record
-                k = min(len(pool), rng.choice([1, 2, 2, 3]))
-                items = [formal_from_chart(_fill(x, patient, sc).rstrip(".") + ".") for x in rng.sample(list(pool), k)]
-                form[f.key] = " ".join(items).rstrip(".")   # "교육함" -> "교육하였습니다" (discharge records are formal)
-                continue
             if pool:
                 val = _fill(rng.choice(pool), patient, sc)
                 if val and val not in ("없음", "허용 약 없음", "특이 질문 없음", "검사 없음", "배액관 없음", "특이사항 없음", "항생제 없음", "특이 소견 없음", "변화 없음"):
@@ -1598,6 +1663,8 @@ def _random_form_once(template_key: str, rng: random.Random, patient: Patient | 
             elif "onset" in form:
                 form["onset"] = rng.choice(["2개월 전부터", "3개월 전부터", "6개월 전부터 서서히", "1년 전부터", "1개월 전부터"])
         _apply_scenario(form, template_key, {f.key: f for _, f in t.iter_fields()}, sc, rng)
+    if template_key == "s4":
+        _spread_leaflet(form, rng, patient, sc, sc_pools)   # before _consistency, so _derive_s4 can drop the generic twin
     _consistency(form, template_key, t, rng, patient, sc)
     if template_key == "s1" and patient is not None:
         female = patient.sex.startswith("여")

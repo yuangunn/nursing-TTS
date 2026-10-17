@@ -245,6 +245,8 @@ def _choose(variants: list[str], rng: random.Random, style: str, force_close: bo
         if closed:
             pool = closed
     choice = rng.choice(pool)
+    if style in ("formal", "chart"):
+        choice = re.sub(r"(고요|구요),$", "고,", choice)   # a field whose variants are all 현장체 run-ons still reads 격식체
     if force_close and _is_connective(choice):
         choice = close_sentence(choice)
     return choice

@@ -48,4 +48,4 @@ def test_random_forms_all_templates():
 def test_styles():
     f = default_form("s1")
     formal = build_script("s1", f, Patient(), WHEN, style="formal", seed=5).spoken_text
-    assert "구요," not in formal
+    assert "구요," not in formal and "고요," not in formal   # 격식체 run-ons use "~하였고," (user 2026-10-17)
