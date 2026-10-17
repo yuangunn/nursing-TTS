@@ -413,6 +413,21 @@ def generate_one(spec: dict[str, Any], settings: dict[str, Any], custom_noises: 
     return meta
 
 
+def _trim_memory() -> None:
+    """Between batch items: hand freed tensors back to the OS.  The MPS/CUDA caching allocator otherwise keeps growing — on the
+    16 GB Mac the backend reached 17 GB and swapped after ~6 recordings, each one slower than the last (2026-10-17)."""
+    import gc
+    gc.collect()
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        elif hasattr(torch, "mps") and torch.backends.mps.is_available():
+            torch.mps.empty_cache()
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def _run(job: Job, specs: list[dict[str, Any]], custom_noises: list[NoiseClip]) -> None:
     settings = load_settings()
     job.status = "running"
@@ -436,6 +451,8 @@ def _run(job: Job, specs: list[dict[str, Any]], custom_noises: list[NoiseClip]) 
                 job.status = "error"
                 job.error = item.error
                 return
+        finally:
+            _trim_memory()
     job.status = "done"
     job.message = "완료"
 
