@@ -229,7 +229,7 @@ def test_admission_interview_review_2026_10_18():
         cc = f.get("chief_complaint", "")
         if "가슴에 멍울" in story:
             assert re.search(r"유방|가슴", cc), (cc, story)
-        assert story.count("보인다고") <= 1 and "한 번째" not in story, story
+        assert story.count("보인다고") <= 1 and not re.search(r"(?<!열)(?<!스물)한 번째", story), story   # 첫 번째, but 열한 번째 is right
         if p.kind == "chemo":
             assert not any("수술하시는 거" in t for t in nurse), nurse
         if "medications" in f:

@@ -275,7 +275,8 @@ def test_postop_record_keeps_observation_and_management_apart():
         f = random_form("s3_1", rng, p)
         has_drain = f.get("drain") not in (None, "", "none")
         assert not (f.get("drain_edu") and not has_drain) and not (f.get("drain_note") and not has_drain)
-        assert not (f.get("foley_edu") and f.get("foley") != "keep") and not (f.get("foley_note") and f.get("foley") != "keep")
+        kept = f.get("foley") in ("keep", "cbi")                                           # cbi = TURB 3-way irrigation
+        assert not (f.get("foley_edu") and not kept) and not (f.get("foley_note") and not kept)
         assert not (f.get("drain_edu") and f.get("drain_note") and re.search(r"당겨|색 짙", f["drain_note"]))
         assert not (f.get("foley_edu") and f.get("foley_note") and re.search(r"당겨|소변백|제거 예정|관리", f["foley_note"]))
         assert "wound_edu" not in f
@@ -579,7 +580,7 @@ def test_preop_and_postop_review_2026_10_18():
         assert "자가배뇨 중" not in s and "가스 배출 확인되어" not in s, s
         sc = clinical.BY_KEY.get(p.scenario)
         if sc is not None and "keep" in (sc.form.get("s3_1.foley") or sc.form.get("foley") or []):
-            assert f.get("foley") == "keep", (p.scenario, f.get("foley"))
+            assert f.get("foley") in ("keep", "cbi"), (p.scenario, f.get("foley"))
         if f.get("nausea") in ("nausea", "vomit") or f.get("consciousness") == "drowsy":
             assert "식이 제한 없이" not in s and "식사 가능" not in s, s
         if p.scenario == "Breast reconstruction":
@@ -717,3 +718,57 @@ def test_second_review_2026_10_18():
         hour = int(re.search(r"(\d+)시", found).group(1)) % 12 + (12 if found.startswith("오후") else 0)
         if hour >= 22 or hour < 6:
             assert not re.search(r"복도 보행|도보로", s), s
+
+
+def test_second_review_progress_and_postop_2026_10_18():
+    """2차 검수(경과기록·수술 후): 잠든 환자에게 통증 점수(70%), 수술한 팔 IV, 재원 기간 넘는 POD, 금식인데 KVO, 기관절개 환자가 말함·일반식,
+    BKA 복도 보행, 체크리스트 배액 bilious, 케모포트 없이 케모포트 바늘 통증, ORIF 다른 뼈 상처, 도뇨관 체크리스트 모순, 호흡보조근 사용,
+    항암 발열에 "수술 부위", "상완로", "체크하니 … 체크"; 수술 후 "IV는 … IV line", NRS 5~6에 정규 진통제만, 도착 직후 경구 PRN,
+    PCA 없는 수술에 PCA, 정답 텍스트 "제이피", 발목 운동·침상 안정 두 번, TURB 방광 세척인데 "16 Fr 맑고 노란색"."""
+    from nursing_tts.fake import record_datetime
+    quoted = re.compile(r"(?<!이해했)[다라]고 (하|함|호소|말)")
+    rng = random.Random(3030)
+    for i in range(240):
+        sc_key = random.Random(i).choice([None, None, "Tracheostomy", "BKA", "ORIF", "TURB", "Rotator cuff repair"])
+        p = random_patient(rng, "s6", scenario=sc_key)
+        f = random_form("s6", rng, p)
+        s = build_script("s6", f, p, record_datetime("s6", p, f, rng), style=["formal", "mixed", "casual", "chart"][i % 4], seed=i).spoken_text
+        sc = clinical.BY_KEY.get(p.scenario)
+        if f.get("night_onset") in ("asleep", "hypnotic"):
+            assert "nrs_n" not in f, f
+        if sc is not None and p.kind != "chemo":
+            assert p.pod <= max(1, sc.los[1]), (p.scenario, p.pod)
+        if f.get("meal1") in ("npo", "sow"):
+            assert "KVO" not in s, s
+        if p.scenario == "Tracheostomy":
+            assert not quoted.search(s) and "일반식" not in s, s
+        if p.scenario == "BKA" and p.pod >= 2:
+            assert not re.search(r"복도 보행|병동 한 바퀴 보행", s), s
+        if f.get("p_drain_output") and f.get("drain_note") and "제거" not in f["drain_note"]:
+            assert f["p_drain_color"] in f["drain_note"], (f["p_drain_color"], f["drain_note"])
+        assert not re.search(r"bilious|purulent|Suprapubic|혼탁함, 혼탁 없음|호흡보조근 사용 있음|상완로|체크하니[^.]*체크(되|됨|됩)", s), s
+        if p.kind == "chemo":
+            assert not ("케모포트 바늘" in s and "케모포트" not in str(f.get("line") or "")), s
+            assert not re.search(r"wound culture|수술 부위 발적", s), s
+        if p.scenario == "ORIF" and "상완골" in p.diagnosis:
+            assert not re.search(r"(쇄골|손목|발목) 수술 부위", str(f.get("wound") or "")), f.get("wound")
+        if f.get("reassess") == "after_pca":
+            assert int(f["nrs4"]) <= 3, f["nrs4"]
+    rng = random.Random(3031)
+    for i in range(200):
+        sc_key = random.Random(i).choice([None, None, "Tracheostomy", "TURB", "Meniscal repair", "Partial nephrectomy", "ESS"])
+        p = random_patient(rng, "s3_1", scenario=sc_key)
+        f = random_form("s3_1", rng, p)
+        s = build_script("s3_1", f, p, record_datetime("s3_1", p, f, rng), style=["formal", "mixed", "casual", "chart"][i % 4], seed=i).spoken_text
+        sc = clinical.BY_KEY.get(p.scenario)
+        assert not re.search(r"IV는 [^.,]*IV line|제이피|헤모박", s), s
+        assert f.get("pain_med") != "prn_po", f.get("pain_med")                            # nothing by mouth an hour after the OR
+        if int(f.get("nrs") or 0) >= 5:
+            assert f.get("pain_med") in ("pca", "prn_iv"), (f.get("nrs"), f.get("pain_med"))
+        if f.get("pain_med") == "pca":
+            assert any("pca" in a for a in (sc.form.get("attachments") or [])), p.scenario
+        assert len(re.findall(r"발목 운동", s)) <= 1 and len(re.findall(r"침상 안정", s)) <= 1, s
+        if p.scenario == "TURB" and f.get("foley") in ("keep", "cbi"):
+            assert f["foley"] == "cbi" and "16 Fr" not in s, s
+        if p.scenario == "Tracheostomy":
+            assert not quoted.search(s.replace("보호자분께 교육하였고 이해했다고", "")), s
