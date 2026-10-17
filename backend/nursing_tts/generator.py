@@ -234,13 +234,14 @@ def _finish(phrase: str | None, local: dict[str, Any], rng: random.Random, style
 _PAREN = re.compile(r"\((?!.\))")
 
 
-def _choose(variants: list[str], rng: random.Random, style: str, force_close: bool) -> str | None:
+def _choose(variants: list[str], rng: random.Random, style: str, force_close: bool, no_questions: bool = False) -> str | None:
     if not variants:
         return None
     pool = variants
     if style in ("formal", "chart"):
         pool = [v for v in variants if not _is_connective(v)] or variants
-        pool = [v for v in pool if "?" not in v] or pool   # interview questions ("…있을까요?") belong to 현장 말투 only
+    if style in ("formal", "chart") or no_questions:   # interview questions ("…있을까요?") belong to 현장 말투 only, and never to the
+        pool = [v for v in pool if "?" not in v] or pool   # dictation after a dialogue (nobody answered them; 2026-10-18)
     # parenthetical checklist forms "사정함(부위, 점수)" read badly aloud in every style, 기록체 included (2026-10-17 대량 검수:
     # "수면양상을 관찰함(특이사항 없이 잘 잤다고 함)"); "(이)/(으)" particle markers are not parentheses
     pool = [v for v in pool if not _PAREN.search(v)] or pool
@@ -257,7 +258,7 @@ def _choose(variants: list[str], rng: random.Random, style: str, force_close: bo
 
 
 def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random, style: str,
-                  force_close: bool) -> str | None:
+                  force_close: bool, no_questions: bool = False) -> str | None:
     """Return one spoken fragment for this field, or None if nothing to say."""
     if value is None or value == "" or value == [] or value is False and f.kind != "bool":
         return None
@@ -269,7 +270,7 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
         option = next((o for o in f.options if o.value == value), None)
         if option is None:
             return None
-        phrase = _choose(phrase_store.effective(ctx.get("_template", ""), f.key, option.value, option.phrases), rng, style, force_close)
+        phrase = _choose(phrase_store.effective(ctx.get("_template", ""), f.key, option.value, option.phrases), rng, style, force_close, no_questions)
         if phrase is None:
             return None
         local["v"] = option.label
@@ -278,7 +279,7 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
         values = [v for v in value if v not in f.skip_values]
         tk = ctx.get("_template", "")
         if not values or values == ["none"]:
-            phrase = _choose(phrase_store.effective(tk, f.key, "none", f.none_phrases), rng, style, force_close)
+            phrase = _choose(phrase_store.effective(tk, f.key, "none", f.none_phrases), rng, style, force_close, no_questions)
             return _finish(phrase, local, rng, style, force_close)
         options = [o for o in f.options if o.value in values and o.value != "none"]
         # Each option may have its own full phrase; otherwise use the list form.
@@ -289,11 +290,13 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
                 joiner = rng.choice([", ", "(과)와 "]) if short and len(nouns) == 2 else ", "
             else:
                 joiner = rng.choice([", ", ", ", "하고 ", "(이)랑 "]) if short else ", "
+                if joiner == "하고 " and any(re.search(r"(안|울|험|족|함|약)$", n) for n in nouns[:-1]):
+                    joiner = ", "         # "불안하고 지식 부족" reads as the adjective 불안하다 (2026-10-18)
             local["v"] = joiner.join(nouns)
         else:
             local["v"] = nouns[0] if nouns else ""
         local["count"] = len(nouns)
-        phrase = _choose(phrase_store.effective(tk, f.key, "phrases", f.phrases), rng, style, force_close)
+        phrase = _choose(phrase_store.effective(tk, f.key, "phrases", f.phrases), rng, style, force_close, no_questions)
         return _finish(phrase, local, rng, style, force_close)
     if f.kind == "number":
         if rng.random() > f.speak_prob:
@@ -307,7 +310,7 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
             pool = [p for p in pool if "호소" not in p and "아픈 정도" not in p and "정도" not in p] or pool
         if f.key.startswith("nrs") and isinstance(v, int) and v >= 4:   # "NRS 6점으로 조절되고 있습니다" is not controlled
             pool = [p for p in pool if "조절" not in p] or pool
-        phrase = _choose(pool, rng, style, force_close)
+        phrase = _choose(pool, rng, style, force_close, no_questions)
         return _finish(phrase, local, rng, style, force_close)
     if f.kind == "text":
         if rng.random() > f.speak_prob:
@@ -315,18 +318,18 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
         local["v"] = str(value).strip()
         # Nominalised free text ("…옅어지고 있음", "…시행함") must not get "입니다" glued on: chart style keeps
         # it as is, spoken styles say it ("…있습니다", "…하였습니다") and then follow the register.
-        if re.search(r"(음|됨|함|임|없음|있음|입원|시작|예정|투여|내원|방문|완료|추적|보냄|하심|계심|\s중)$", local["v"]):
+        if re.search(r"(음|됨|함|임|없음|있음|입원|시작|예정|투여|내원|방문|완료|추적|보냄|하심|계심|다치심|\s중)$", local["v"]):
             if f.key == "glucose" and not re.match(r"(혈당|BST)", local["v"]):   # the frame is skipped: keep its subject
                 local["v"] = "혈당 " + local["v"]
             if style == "chart":
                 return _fmt("{v}.", local)
             return _finish(phrase_store.formal_from_chart(local["v"] + "."), {}, rng, style, force_close)
-        phrase = _choose(phrase_store.effective(ctx.get("_template", ""), f.key, "phrases", f.phrases), rng, style, force_close)
+        phrase = _choose(phrase_store.effective(ctx.get("_template", ""), f.key, "phrases", f.phrases), rng, style, force_close, no_questions)
         return _finish(phrase, local, rng, style, force_close)
     if f.kind == "bool":
         tk = ctx.get("_template", "")
         phrases = phrase_store.effective(tk, f.key, "phrases", f.phrases) if value else phrase_store.effective(tk, f.key, "false", f.false_phrases)
-        phrase = _choose(phrases, rng, style, force_close)
+        phrase = _choose(phrases, rng, style, force_close, no_questions)
         return _finish(phrase, local, rng, style, force_close)
     if f.kind == "vitals":
         if not isinstance(value, dict):
@@ -334,7 +337,7 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
         return realize_vitals(value, rng, verb_style=style) or None
     if f.kind in ("date", "time"):
         local["v"] = str(value)
-        phrase = _choose(f.phrases, rng, style, force_close)
+        phrase = _choose(f.phrases, rng, style, force_close, no_questions)
         return _fmt(phrase, local) if phrase else None
     return None
 
@@ -476,7 +479,7 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
         # Force the last fragment of a section to close its sentence.
         for idx, (f, v) in enumerate(spoken_fields):
             is_last = idx == len(spoken_fields) - 1
-            frag = realize_field(f, v, ctx, rng, style, force_close=is_last)
+            frag = realize_field(f, v, ctx, rng, style, force_close=is_last, no_questions=dialogue)
             if frag:
                 fragments.append(frag)
                 structured.setdefault(section.key, {})[f.key] = v

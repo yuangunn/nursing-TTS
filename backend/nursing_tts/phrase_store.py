@@ -220,8 +220,11 @@ def expand_styles(phrase: str) -> list[str]:
         stem = p[: m.start()]
         if casual == "@예요":
             prev = stem.rstrip()[-1] if stem.rstrip() else ""
+            unit = re.search(r"(kg|mg|cm|mm|cc|ml|mL|L|G|Fr|%)$", stem.rstrip())
             # digits/latin: decide by Korean reading of last char (digits mostly end with batchim except 2,4,5,9)
-            if prev.isdigit():
+            if unit:   # read as the unit: 킬로그램·밀리그램 end in ㅁ, 센티미터·씨씨·퍼센트… in a vowel (2026-10-18: "57kg예요")
+                b = unit.group(1) in ("kg", "mg")
+            elif prev.isdigit():
                 b = prev in "013678"
             elif _batchim(prev):
                 b = True

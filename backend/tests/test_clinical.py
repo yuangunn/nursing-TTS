@@ -93,12 +93,14 @@ def test_s1_admission_purpose_matches_surgery_or_chemo():
             assert chemo_toxicity(pi) == tox, (cc, pi)                     # 설사로 입원 ↔ "3차 예정" never together
             assert form["purpose"] == ("symptom" if tox else "chemo"), (cc, form["purpose"])
             assert ("onset" in form) == tox, (cc, form.get("onset"))
-            assert form["plan"] == (f"{p.regimen} {p.cycle}차 예정" if not tox else form["plan"]), form["plan"]
-            if tox:
-                assert "차 예정" not in form["plan"]
+            plan = form.get("plan", "")
+            if not tox:   # the plan, unless the present illness already says "… 예정" (2026-10-18: "N차 예정" twice)
+                assert plan == ("" if "예정" in pi else f"{p.regimen} {p.cycle}차 예정"), (pi, plan)
+            else:
+                assert "차 예정" not in plan
             sc = clinical.BY_KEY[p.scenario]
             assert 1 <= p.cycle <= sc.form["_cycles"], (p.regimen, p.cycle)
-            assert "{" not in cc + pi + form["plan"], (cc, pi)              # every {cycle} placeholder filled
+            assert "{" not in cc + pi + plan, (cc, pi)              # every {cycle} placeholder filled
             if "1차 시작" in cc + pi:
                 assert p.cycle == 1, (cc, pi, p.cycle)
             if "차 위해 입원" in cc:
