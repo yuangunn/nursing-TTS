@@ -53,11 +53,11 @@ TEXT_POOLS: dict[str, list[str]] = {
     "npo_meds": ["혈압약은 아침 6시 소량의 물로", "갑상선약은 아침 소량의 물로"],
     "prep_detail": ["오늘 저녁 8시 하제 복용 예정", "수술 당일 아침 관장 예정", "클리퍼 제모 시행함"],
     "duration": ["3~4시간", "2시간", "1시간 30분", "4~5시간"],
-    "blood_type": ["A형 Rh+", "B형 Rh+", "O형 Rh+", "AB형 Rh+", "A형 Rh-"],
+    "blood_type": ["A형 Rh+"] * 34 + ["O형 Rh+"] * 28 + ["B형 Rh+"] * 27 + ["AB형 Rh+"] * 11,   # Korea; Rh- is ~0.2% (was 18%)
     "question": ["수술 후 식사 시작 시점 질문하여 가스 배출 후 물부터 단계적으로 진행한다고 설명함", "통증이 얼마나 심한지 질문하여 PCA로 조절 가능하다고 설명함",
                  "입원 기간 질문하여 수술 후 경과 보고 결정된다고 설명함", "수술 후 언제부터 걸을 수 있는지 질문하여 다음 날부터 보행 시작한다고 설명함"],
     "arrival_time": ["12시 30분", "오후 2시", "오전 11시 50분", "오후 4시 20분"],
-    "vs_lead": ["도착 당시", "병실 도착 후", "오후 2시"],
+    "vs_lead": ["도착 당시", "올라오신 직후", "오후 2시"],
     "iv": ["Lt arm 20G line", "Rt hand 22G line", "Lt forearm 22G IV line", "Rt arm 20G IV line", "Lt hand 24G line", "Rt forearm 20G line"],
     "p_iv_site": ["Lt arm", "Rt hand", "Lt forearm", "Rt arm", "왼팔", "오른손등"],
     "found_time": ["오전 10시", "오후 2시", "오후 6시", "새벽 3시", "오후 9시 30분"],
@@ -946,7 +946,8 @@ def _derive_s2(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
     form.pop("prep_detail", None)         # the 전처치 item already reads "저녁 8시 하제 복용 예정"
     big = (sc.los[1] if sc else 5) >= 4
     form["consents"] = ["op", "anes"] + (["tf"] if rng.random() < (0.7 if big else 0.2) else [])
-    lateral = any(w in patient.diagnosis for w in _SIDES) or patient.department == "정형외과" or "유방" in patient.diagnosis
+    lateral = bool(re.search(r"우측|좌측", patient.diagnosis)) or patient.department == "정형외과" or "유방" in patient.diagnosis or \
+        (sc is not None and sc.key == "Hernioplasty")   # "양측 성대·갑상선·난소" is not a site to mark
     if lateral:
         form["marking"] = rng.random() < 0.95
     else:
@@ -961,16 +962,21 @@ def _derive_s2(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
     form["removables"] = rem or ["jewelry"]
     icu = sc is not None and sc.key in ("Tracheostomy", "Staging laparotomy", "MRND") and rng.random() < 0.2
     form["after_route"] = "icu" if icu else "rr"
-    form["understanding"] = rng.choices(["both", "patient", "re_edu"], weights=[70, 25, 5])[0]
     form["waiting"] = "absent" if rng.random() < 0.15 else "done"
+    # nobody "환자분과 보호자분 모두 이해" when the guardian is not there (2026-10-18)
+    form["understanding"] = rng.choices(["patient", "re_edu"], weights=[9, 1])[0] if form["waiting"] == "absent" else \
+        rng.choices(["both", "patient", "re_edu"], weights=[70, 25, 5])[0]
     abdominal = sc is not None and sc.form.get("abdomen", 1) is not None
-    qs = [q for q in TEXT_POOLS["question"] if abdominal or "가스" not in q]
+    qs = [q for q in TEXT_POOLS["question"] if (abdominal or "가스" not in q) and ("PCA" not in q or "pca" in (form.get("attachments") or []))
+          and ("걸을 수 있는지" not in q or (sc is None or sc.key != "BKA") and not form.get("ambulation"))]   # no answer that contradicts the plan
     if rng.random() < 0.7:
         form["question"] = rng.choice(qs)
     else:
         form.pop("question", None)
     if sc is not None and sc.key == "BKA":
         form["ambulation"], form["leg"] = False, False
+    if sc is not None and sc.key == "Tracheostomy":
+        form["inspirometer"] = False             # useless through a tracheostomy
 
 
 def _derive_s3_1(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -> None:
@@ -982,7 +988,7 @@ def _derive_s3_1(form: dict[str, Any], patient: Patient, sc, rng: random.Random)
     form["timing"] = {0: "day0", 1: "pod1", 2: "pod2"}[pod]
     if day0:
         form["arrival_time"] = rng.choice(TEXT_POOLS["arrival_time"])
-        form["vs_lead"] = rng.choice(["도착 당시", "병실 도착 후", "도착 직후"])
+        form["vs_lead"] = rng.choice(["도착 당시", "올라오신 직후", "도착 직후"])   # "병실 도착" is said once, in the arrival sentence
     else:
         form.pop("arrival_time", None)
         form["vs_lead"] = rng.choice(["오전 9시", "오전 10시 30분", "오후 2시", "오후 6시"])
@@ -993,15 +999,17 @@ def _derive_s3_1(form: dict[str, Any], patient: Patient, sc, rng: random.Random)
     v["spo2"] = v["spo2"] or rng.randint(95, 99)
     minor = (sc.los[1] if sc else 5) <= 3
     o2 = "nasal" if (day0 and rng.random() < (0.25 if minor else 0.6)) or (not day0 and rng.random() < 0.08) else "none"
-    if sc is not None and sc.key == "Tracheostomy":
-        o2 = rng.choice(["mask", "nasal"])
     forced = (sc.form.get("s3_1.o2") or sc.form.get("o2")) if sc else None
     if forced and o2 not in forced:
         o2 = forced[0]
+    if sc is not None and sc.key == "Tracheostomy":
+        o2 = "trach"
     form["o2"] = o2
-    v["o2"] = {"none": "room air", "nasal": rng.choice(["O2 2L nasal", "O2 3L nasal"]), "mask": "O2 5L mask"}[o2]
+    v["o2"] = {"none": "room air", "nasal": rng.choice(["O2 2L nasal", "O2 3L nasal"]), "mask": "O2 5L mask", "trach": "trach mask 5L"}[o2]
     if rng.random() < 0.1:
-        v["bt"] = round(rng.uniform(37.6, 38.2), 1)   # low-grade post-op fever
+        v["bt"] = round(rng.uniform(37.6, 37.9), 1)   # low-grade post-op warmth; 38+ would need a noti line (2026-10-18)
+    if sc is not None and sc.key == "Tracheostomy":
+        v["o2"] = "trach mask 5L"                     # humidified O2 through the stoma, not a face mask
     form["vitals"] = v
     form["nrs"] = rng.randint(*{0: (3, 6), 1: (2, 5), 2: (1, 4)}[pod])
     if form.get("pain_med") == "none":
@@ -1016,7 +1024,10 @@ def _derive_s3_1(form: dict[str, Any], patient: Patient, sc, rng: random.Random)
     keep_only = sc is not None and set(sc.form.get("foley") or []) == {"keep"}
     if not day0 and form.get("foley") == "keep" and not keep_only:
         form["foley"] = rng.choice(["removed", "none"])
-    if day0 and form.get("foley") == "removed":
+    allowed_foley = list(sc.form.get("s3_1.foley") or sc.form.get("foley") or []) if sc is not None else []
+    if day0 and "keep" in allowed_foley:
+        form["foley"] = "keep"            # C-sec, TURB, LAR, TAH … come up with their catheter (2026-10-18: half arrived "소변줄 없이")
+    elif day0 and form.get("foley") == "removed":
         form["foley"] = "none"            # "소변줄 제거하고 자가배뇨 확인" minutes after the ward arrival is not a POD 0 fact
     if form.get("foley") != "keep" and any(w in form.get("special_edu", "") for w in ("소변줄", "세척", "방광 내")):
         alt = [x for x in _pool(sc, "special_edu", "s3_1") if not any(w in x for w in ("소변줄", "세척", "방광 내"))]
@@ -1044,9 +1055,13 @@ def _derive_s3_1(form: dict[str, Any], patient: Patient, sc, rng: random.Random)
         form.pop("drain_note", None)
     if keep_only and form.get("foley") == "keep" and not re.search(r"1~2주|외래에서 제거", form.get("foley_note") or ""):
         long = [x for x in _pool(sc, "special_edu", "s3_1") if "1~2주" in x or "외래에서 제거" in x]
-        line = long[0] if long else "소변줄은 1~2주 유지 후 외래에서 제거 예정이며 당겨지지 않게 고정 교육함"
+        line = long[0] if long else "소변줄은 1~2주 유지 후 외래에서 제거 예정이며 고정 상태 잘 유지하도록 교육함"
         form["foley_note"] = f"{line}. {form['foley_note']}" if form.get("foley_note") else line   # RALRP: how long it stays
     form["foley_edu"] = form.get("foley") == "keep" and rng.random() < 0.9
+    if sc is not None and sc.key in ("TURB", "LAR") and form.get("foley") == "keep":
+        form["foley_edu"] = False         # "소변줄은 다음날 아침 제거 예정" is wrong on CBI / after LAR
+        form.setdefault("foley_note", "방광 세척 중이며 소변 색 짙어지거나 덩어리 나오면 즉시 알리도록 교육함" if sc.key == "TURB"
+                        else "소변줄은 배뇨 기능 회복 확인 후 수일 내 제거 예정임")
     if form.get("foley_note") and re.search(r"당겨|소변백|제거 예정|관리", form["foley_note"]):
         form["foley_edu"] = False         # the surgery's own line says it (RALRP: "1~2주 유지 후 외래에서 제거", not "내일 아침")
     if form.get("foley") != "keep":
@@ -1059,6 +1074,8 @@ def _derive_s3_1(form: dict[str, Any], patient: Patient, sc, rng: random.Random)
         meds.append(rng.choice(["온단세트론 4mg IV", "메토클로프라미드 10mg IV"]))
     if sc is not None and (sc.key in ("TKA", "THA", "BKA") or (sc.key == "ORIF" and not _upper_limb(patient.diagnosis))):
         meds.append("에녹사파린 40mg 피하 주사")   # VTE prophylaxis after major lower-limb surgery, not after an arthroscopy
+    if len(meds) > 1:
+        meds = [m.replace("예방적 항생제 ", "") for m in meds]   # the prefix read as if every drug were an antibiotic
     if meds:
         form["meds_given"] = ", ".join(meds)
     else:
@@ -1071,22 +1088,43 @@ def _derive_s3_1(form: dict[str, Any], patient: Patient, sc, rng: random.Random)
         care = ["icebag"]
     elif key == "BKA":
         care = ["elevation", "compression"]
+    elif key == "Breast reconstruction":
+        care = []                          # a flap or implant must not be compressed (its own teaching says so)
     elif patient.department == "유방외과" or "mastectomy" in key.lower() or "Breast" in key:
         care = ["compression"]
     else:
-        care = ["warming"] if rng.random() < 0.3 else []
+        care = ["warming"] if rng.random() < 0.3 and float(v.get("bt") or 36.5) < 37.6 else []   # no warming blanket on a warm patient
+    if key == "ESS":
+        care = ["icebag_nose"]
     form["postop_care"] = care
     abdominal_open = sc is not None and sc.form.get("abdomen", 1) is not None and sc.los[1] >= 4
     if day0 and abdominal_open and form.get("diet_status") in ("sow", "ld", "gd"):
         form["diet_status"] = "npo"       # nobody drinks on the evening of a colon/uterus operation
-    if day0 and form.get("ambulation_plan") == "walk_today":
+    # the diet line follows the patient (2026-10-18: "식이 제한 없이 일반식" to a vomiting or drowsy patient; gas-based NPO for a tracheostomy)
+    if day0 and form.get("diet_status") in ("sow", "ld", "gd"):
+        if form.get("nausea") in ("nausea", "vomit"):
+            form["diet_status"] = "npo_nausea"
+        elif form["consciousness"] == "drowsy":
+            form["diet_status"] = "npo_drowsy"
+    if key == "Tracheostomy" and form.get("diet_status") in ("npo", "ld", "sow", "gd"):
+        form["diet_status"] = "npo_trach"
+    if day0 and form.get("abdomen") == "gas_out":
+        form["abdomen"] = "soft"          # no flatus an hour after the OR
+    if day0 and form.get("pain_med") == "prn_po" and (form.get("nausea") in ("nausea", "vomit") or form["consciousness"] == "drowsy"):
+        form["pain_med"] = "prn_iv"
+    if form.get("pain_med") == "prn_iv":
+        form["nrs"] = max(form["nrs"], 4)  # "아파하셔서 PRN" at NRS 3
+    forced_walk = sc is not None and (sc.form.get("ambulation_plan") or []) == ["walk_today"]
+    if day0 and form.get("ambulation_plan") == "walk_today" and not forced_walk:
         form["ambulation_plan"] = rng.choice(["evening_sit", "bedrest"])
+    elif forced_walk:
+        form["ambulation_plan"] = "walk_today"   # arthroscopy walks the same day (its own pool says so)
     if day0 and sc is not None and sc.key in ("BKA", "ORIF") and not _upper_limb(patient.diagnosis):
         form["ambulation_plan"] = "bedrest"
     if not day0:
         form["ambulation_plan"] = "bedrest" if (sc is not None and sc.key == "BKA") else "walk_today"
-    lower = (patient.department in ("정형외과", "비뇨의학과") and not _upper_limb(patient.diagnosis)) or \
-            (sc is not None and sc.key in ("C-sec", "Hernioplasty", "Hemorrhoidectomy", "Rectal prolapse OP"))
+    lower = (patient.department == "정형외과" and not _upper_limb(patient.diagnosis)) or \
+            (sc is not None and sc.key in ("TURB", "C-sec", "Hernioplasty", "Hemorrhoidectomy", "Rectal prolapse OP"))   # spinal only, not RALRP/nephrectomy
     if lower:
         form["leg_check"] = rng.random() < 0.8     # spinal anaesthesia / lower-limb surgery
     else:
@@ -1099,10 +1137,43 @@ def _derive_s3_1(form: dict[str, Any], patient: Patient, sc, rng: random.Random)
     if "dressing" in form:
         form["dressing"] = rng.choices(["clean", "oozing", "bleeding"], weights=[85, 12, 3])[0]
     form["report_edu"] = rng.random() < 0.8
+    if "dressing" not in form and form["report_edu"]:   # TURB/ESS: no dressing to soak (2026-10-18: "드레싱 젖거나 피 비칠 때")
+        form["report_edu"] = False
+        form.setdefault("report_note", "38도 이상 발열, 숨참, 심한 통증, 출혈 있으면 바로 호출하도록 교육함")
+    if form.get("dressing") == "bleeding" and "에녹사파린" in str(form.get("meds_given") or ""):
+        form["meds_given"] = ", ".join(m for m in form["meds_given"].split(", ") if "에녹사파린" not in m)   # no LMWH right after a bleeding noti
+        if not form["meds_given"]:
+            form.pop("meds_given")
     form["understanding"] = "caregiver" if form["consciousness"] == "drowsy" else rng.choices(["both", "patient", "re_edu"], weights=[70, 25, 5])[0]
     if "drain_amount" in form:
         hi_amt = 150 if patient.department == "정형외과" else 90
         form["drain_amount"] = rng.randint(10, 60) if day0 else rng.randint(20, hi_amt)
+        if key in ("Bilateral total thyroidectomy", "MRND"):
+            form["drain_amount"] = rng.randint(5, 30)   # a neck drain at 60cc would be a noti
+    # IV on the other arm after breast or shoulder surgery (its own teaching forbids the operated side)
+    side = "우측" if "우측" in patient.diagnosis else "좌측" if "좌측" in patient.diagnosis else ""
+    if side and (patient.department == "유방외과" or "유방" in patient.diagnosis or _upper_limb(patient.diagnosis)):
+        other = [x for x in TEXT_POOLS["iv"] if (("Lt" in x or "왼" in x) if side == "우측" else ("Rt" in x or "오른" in x))]
+        if other:
+            form["iv"] = rng.choice(other)
+    if key == "Tracheostomy":   # a fresh cuffed tracheostomy cannot speak, and blows into no spirometer
+        form["responds"] = False
+        form.pop("breathing", None)
+        said = " ".join(str(form.get(k) or "") for k in ("special_edu", "report_note", "drain_note"))
+        if "필담" not in said:
+            form["special_edu"] = form.get("special_edu") or "고개 끄덕여 반응하시고 필담판으로 의사소통함"
+    # the same teaching twice (ice bag + 냉찜질, IPC/항응고 + 혈전 예방, 거상·압박, 침상 머리, 가스 배출 후 식이)
+    sp = str(form.get("special_edu") or "")
+    clash = [(r"냉찜질|얼음찜질|ice", any(c.startswith("icebag") for c in care)), (r"IPC|항응고|혈전 예방", "에녹사파린" in str(form.get("meds_given") or "") or "ipc" in care),
+             (r"거상|압박 드레싱", "elevation" in care or "compression" in care), (r"침상 머리", form.get("hob") in ("30", "semi")),
+             (r"가스 배출", str(form.get("diet_status") or "").startswith("npo"))]
+    if sp and any(on and re.search(pat, sp) for pat, on in clash):
+        alt = [x for x in _pool(sc, "special_edu", "s3_1") if not any(on and re.search(pat, x) for pat, on in clash)
+               and not re.search(r"소변줄|소변백|방광|자가배뇨|배액|JP|Hemovac|헤모박|알리도록|알리시|호출벨", x)]
+        if alt:
+            form["special_edu"] = _fill(rng.choice(alt), patient, sc)
+        else:
+            form.pop("special_edu", None)
     form["exam_care"] = "na"
 
 

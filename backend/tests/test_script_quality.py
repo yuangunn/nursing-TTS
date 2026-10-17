@@ -3,6 +3,7 @@ import random
 import re
 import zlib
 
+from nursing_tts import clinical
 from nursing_tts.fake import random_datetime, random_form, random_patient
 from nursing_tts.generator import build_script
 
@@ -549,3 +550,38 @@ def test_handover_fits_its_shift_and_its_patient():
         if m[0] and m[1]:
             hours = 24 if w.hour == 7 else 8
             assert abs(int(m[1].group(1)) - int(m[0].group(1)) * hours) <= int(m[0].group(1)) * hours * 0.15 + 50, (f["fluid"], f["io"], w)
+
+
+def test_preop_and_postop_review_2026_10_18():
+    """대량 검수(수술 전·후): "병실 도착" 두 번(100%), 도착 직후 "자가배뇨 중", 소변줄 남기는 수술이 소변줄 없이 옴, "…예정이고 설명",
+    A형 Rh- 18%, 보호자 없는데 둘 다 이해, 구토·기면 환자에게 "식이 제한 없이 일반식", 재건 부위 압박 드레싱, 수술 쪽 팔에 IV,
+    기관절개 환자 "질문에 적절히 대답"·가스 기준 금식, 사물·증상 존대."""
+    rng = random.Random(1021)
+    rh_neg = 0
+    for i in range(300):
+        t = "s3_1" if i % 2 else "s2"
+        p = random_patient(rng, t)
+        f = random_form(t, rng, p)
+        s = build_script(t, f, p, random_datetime(rng), style=rng.choice(["formal", "mixed", "casual", "chart"]), seed=i).spoken_text
+        assert not re.search(r"(배액관|드레인|소변줄|이상|구토|오심|팽만|제한|장신구|틀니)(은|는|이|가)?\s?없으(시|십)", s), s
+        if t == "s2":
+            rh_neg += "Rh-" in s
+            assert "예정이고 설명" not in s and "교수님임" not in s, s
+            if f.get("waiting") == "absent":
+                assert f.get("understanding") != "both"
+            continue
+        assert s.count("병실 도착") + s.count("병실 올라오") <= 1, s
+        assert "자가배뇨 중" not in s and "가스 배출 확인되어" not in s, s
+        sc = clinical.BY_KEY.get(p.scenario)
+        if sc is not None and "keep" in (sc.form.get("s3_1.foley") or sc.form.get("foley") or []):
+            assert f.get("foley") == "keep", (p.scenario, f.get("foley"))
+        if f.get("nausea") in ("nausea", "vomit") or f.get("consciousness") == "drowsy":
+            assert "식이 제한 없이" not in s and "식사 가능" not in s, s
+        if p.scenario == "Breast reconstruction":
+            assert "compression" not in (f.get("postop_care") or [])
+        if p.scenario == "Tracheostomy":
+            assert "질문에 적절히 대답" not in s and "가스" not in s, s
+        side = "우측" if "우측" in p.diagnosis else "좌측" if "좌측" in p.diagnosis else ""
+        if side and ("유방" in p.diagnosis or p.department == "유방외과"):
+            assert ("Rt" not in f["iv"] and "오른" not in f["iv"]) if side == "우측" else ("Lt" not in f["iv"] and "왼" not in f["iv"]), (p.diagnosis, f["iv"])
+    assert rh_neg == 0
