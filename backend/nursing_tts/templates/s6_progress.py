@@ -20,6 +20,7 @@ TEMPLATE = RecordTemplate(
                 opt("slept", "잘 잤음", "환자 밤 동안 특이사항 없이 잘 잤다고 함.", "밤새 특이사항 없이 수면 취함.", "밤 동안 잘 주무셨다고 함."),
                 opt("pain_wake", "통증으로 깸", "밤 동안 통증으로 두세 번 깼다고 함.", "통증 때문에 수면 불량했다고 함."),
                 opt("restless", "뒤척임", "밤 동안 뒤척이며 깊게 못 잤다고 함.", "새벽에 잠들기 어려웠다고 함."),
+                opt("slept_obs", "관찰상 수면 양호", "밤 동안 깨지 않고 수면 취함.", "밤새 수면 양호함."),   # 말 못 하는 환자(기관절개): 관찰로
             ], default="slept"),
             txt("pain_desc", "통증 호소", placeholder="예: 수술 부위 복부 쪽 쑤시는 느낌",
                 phrases=["{v}으로 아프다고 하고,", "{v}으로 통증 호소함.", "{v}으로 아프다고 표현함."], default="수술 부위 복부 쪽 쑤시는 느낌"),
@@ -35,7 +36,7 @@ TEMPLATE = RecordTemplate(
             txt("fluid", "수액", placeholder="예: 하트만 덱스 주사액 1리터 컨트롤 세트로 40cc per hour",
                 phrases=["현재 {v} 들어가고 있고,", "{v} 주입 중이고,", "수액 {v} 유지 중."], default="하트만 덱스 주사액 1리터 컨트롤 세트로 40cc/hr"),
             txt("line", "라인", placeholder="예: Lt arm 22G, 왼팔 22게이지",
-                phrases=["{v}로 정맥 잘 주입되고 있음. 혈액 역류 잘 확인됨.", "{v} 라인 개방성 확인됨.", "{v} 통해 수액 잘 들어감. 역류 확인됨."], default="왼팔 22게이지"),
+                phrases=["{v}(으)로 정맥 잘 주입되고 있음. 혈액 역류 잘 확인됨.", "{v} 라인 개방성 확인됨.", "{v} 통해 수액 잘 들어감. 역류 확인됨."], default="왼팔 22게이지"),
             txt("wound", "상처", placeholder="예: 복부 단일공, 소독 잘 되어 있음",
                 phrases=["{v} 소독 잘 되어 있으며 상처 치유 상태 문제 없고 건조함.", "{v} 드레싱 깨끗하고 건조함.",
                          "{v} 상처 발적, 삼출물 없음."], default="복부 단일공 수술 부위"),
@@ -55,6 +56,7 @@ TEMPLATE = RecordTemplate(
                 opt("little", "소량", "식사 소량만 섭취함. 식욕 저하 호소.", "아침 거의 못 드심."),
                 opt("sow", "물(SOW)", "SOW 유지 중, 물 조금씩 드심.", "물 소량씩 섭취 중, 복부 불편감 없음."),
                 opt("npo", "금식", "금식 유지 중.", "NPO 유지함."),
+                opt("tf", "경관식", "경관식 주입함, 역류 없음.", "경관식 주입 중, 복부 불편감 없음."),
             ], default="all"),
         ]),
         Section("d_noon", "점심·중재 (12:30) — 이벤트", fields=[
@@ -64,6 +66,7 @@ TEMPLATE = RecordTemplate(
                 opt("half", "절반", "점심 절반 정도 섭취함.", "점심 반 정도 드심."),
                 opt("sow", "물(SOW)", "물 섭취 중, 오심 없음.", "SOW 유지하며 복부 팽만 없음."),
                 opt("npo", "금식", "점심도 금식 유지함.", "계속 NPO 유지 중, 입마름 호소 없음."),   # 세 끼 모두 "금식 유지 중"이면 같은 문장 반복
+                opt("tf", "경관식", "점심 경관식 주입함.", "점심 경관식 주입하고 역류 없음."),
             ], default="all"),
             sel("pca_remove", "PCA", [
                 opt("removed", "전량 주입 후 제거", "PCA 들어가고 있는 것 전량 주입됨 설명하고 제거함. IV PCA 리필 원하지 않음.",
@@ -90,6 +93,7 @@ TEMPLATE = RecordTemplate(
                 opt("walk_assist", "보호자 동반 보행", "보호자 동반하여 복도 보행 1회 시행함.", "보호자 부축 하에 병동 한 바퀴 보행함. 어지럼 없음."),
                 opt("walk_self", "혼자 보행", "혼자 복도 보행 2회 시행함.", "병동 복도 스스로 보행하며 지내심."),
                 opt("bedrest", "침상 안정", "침상 안정 유지 중. 체위 변경 시행함.", "침상 안정 유지하며 2시간마다 체위 변경함."),
+                opt("wheelchair", "휠체어 이동", "휠체어로 병동 이동 연습함, 어지럼 없음.", "휠체어 타고 보호자와 병동 한 바퀴 이동함."),   # BKA (의족 전)
                 opt("chemo_infusion", "항암제 주입 중", "항암제 주입 중이며 오심, 발진 등 특이 반응 없음.", "항암제 주입 중, 주입 부위 통증·발적 없음. 부작용 관찰 중."),
             ], default="walk_assist"),
             txt("drain_note", "배액/배뇨", placeholder="예: JP 배액 serosanguineous하게 30cc 비움", phrases=["{v}.", "{v}."]),
@@ -101,6 +105,7 @@ TEMPLATE = RecordTemplate(
                 opt("half", "절반", "저녁 절반 정도 섭취함.", "저녁 반 정도 드심."),
                 opt("sow", "물(SOW)", "SOW 유지하며 물 섭취 양호함.", "물 조금씩 드시고 오심 없음."),
                 opt("npo", "금식", "저녁까지 금식 유지함.", "금식 지속 중, 수액 유지함."),
+                opt("tf", "경관식", "저녁 경관식 주입함.", "저녁 경관식 주입하고 복부 팽만 없음."),
             ], default="all"),
         ]),
         Section("e_event", "저녁 이벤트 (20:00)", fields=[
@@ -115,13 +120,14 @@ TEMPLATE = RecordTemplate(
         Section("n_round", "Night 라운딩 (23:00) — 정규 사정", hint="V/S, 수면 상태, 통증, 라인", fields=[
             _T("t8", "오후 11시"),
             Field(key="vitals_night", label="밤 활력징후", kind="vitals", default={"sbp": 115, "dbp": 72, "hr": 70, "rr": 16, "bt": 36.6, "spo2": "", "o2": ""}),
+            num("nrs_n", "NRS", min=0, max=10, default=1, phrases=["밤 통증 {v}점.", "NRS {v}점 확인됨.", "통증 {v}점 정도로 조절됨."]),   # not the 07:00 wording again;
+            # 2026-10-18 2차 검수: 잠든 환자에게는 점수가 없다(무작위 폼은 asleep·hypnotic이면 nrs_n을 뺌), 점수가 수면 상태 앞
             sel("night_onset", "수면 상태", [
                 opt("asleep", "수면 중", "수면 중임. 호흡 규칙적임.", "잠들어 있음, 특이 호소 없음."),
                 opt("resting", "안정", "침상에서 안정 취하고 있음.", "누워서 안정 중, 불편감 호소 없음."),
-                opt("awake_pain", "통증으로 못 잠", "통증으로 잠들지 못한다고 함.", "통증 호소하며 깨어 있음."),
+                opt("awake_pain", "통증으로 못 잠", "통증으로 잠들지 못한다고 하여 PRN 진통제 투여함.", "통증 호소하며 깨어 있어 PRN 진통제 투여함."),
                 opt("hypnotic", "수면제 투여", "처방된 수면제 투여 후 수면 유도함.", "수면제 투여함. 이후 잠듦."),
             ], default="asleep"),
-            num("nrs_n", "NRS", min=0, max=10, default=1, phrases=["밤 통증 {v}점.", "NRS {v}점 확인됨.", "통증 {v}점 정도로 조절됨."]),   # not the 07:00 wording again
             boolean("night_line", "라인·수액 확인", phrases=["수액 주입 속도 확인하고 라인 개방성 확인함.", "라인 역류 확인되고 수액 잘 들어감.", "IV 삽입 부위 이상 없음."], default=True),
         ]),
     ],

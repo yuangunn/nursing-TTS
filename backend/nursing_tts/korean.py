@@ -199,7 +199,7 @@ ABBREVIATIONS: dict[str, list[str]] = {
     "oozing": ["우징"], "pus": ["퍼스"], "bile": ["바일"], "purulent": ["퓨룰런트"],
     "dressing": ["드레싱"], "stapler": ["스테플러"], "steri-strip": ["스테리스트립"],
     # respiratory
-    "O2": ["오투"], "nasal": ["나잘", "네이잘"], "trach mask": ["트라키 마스크", "트랙 마스크"], "portable": ["포터블"], "mask": ["마스크"], "room air": ["룸 에어"], "RA": ["룸 에어"],
+    "O2": ["오투"], "nasal": ["나잘", "네이잘"], "trach mask": ["트라키 마스크", "트랙 마스크"], "portable": ["포터블"], "3-way": ["쓰리웨이"], "mask": ["마스크"], "room air": ["룸 에어"], "RA": ["룸 에어"],
     "inspirometer": ["인스피로미터"], "Inspirometer": ["인스피로미터"], "nebulizer": ["네뷸라이저"],
     "lung care": ["렁 케어"], "ambulation": ["앰뷸레이션"], "chest PA": ["체스트 피에이"],
     "CXR": ["씨엑스알"], "CT": ["씨티"], "MRI": ["엠알아이"], "EKG": ["이케이지"], "ECG": ["이씨지"],

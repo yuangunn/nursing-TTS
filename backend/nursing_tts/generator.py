@@ -187,13 +187,15 @@ def realize_vitals(value: dict[str, Any], rng: random.Random, verb_style: str = 
     if not parts:
         return ""
     lead = rng.choice(_vf("lead"))
+    no_check = "체크" in lead                  # "활력징후 체크하니 … 체크되었습니다" (2026-10-18 2차 검수)
     if lead.endswith(("은 ", "는 ")):   # "바이탈은 혈압은 …" — one topic marker is enough
         parts[0] = re.sub(r"^(\S+?)(은|는) ", r"\1 ", parts[0])
     joiner = rng.choice([", ", ", ", " "])
     if verb_style == "chart":
-        ending = rng.choice(["측정됨.", "체크됨.", "확인됨.", "임."])
+        endings = ["측정됨.", "체크됨.", "확인됨.", "임."]
     else:
-        ending = rng.choice(_vf("ending_formal") if verb_style == "formal" else _vf("ending"))
+        endings = _vf("ending_formal") if verb_style == "formal" else _vf("ending")
+    ending = rng.choice([e for e in endings if not (no_check and "체크" in e)] or endings)
     body = joiner.join(parts)
     sep = "" if ending.startswith(("입니다", "이고", "임")) else " "   # "체온 37.0입니다", not "37.0 입니다"
     return f"{lead}{body}{sep}{ending}".replace("  ", " ")
@@ -234,7 +236,11 @@ def _finish(phrase: str | None, local: dict[str, Any], rng: random.Random, style
 _PAREN = re.compile(r"\((?!.\))")
 
 
-def _choose(variants: list[str], rng: random.Random, style: str, force_close: bool, no_questions: bool = False) -> str | None:
+_QUOTED = re.compile(r"[다라]고 (하|함|표현|호소|말)")
+
+
+def _choose(variants: list[str], rng: random.Random, style: str, force_close: bool, no_questions: bool = False,
+            mute: bool = False) -> str | None:
     if not variants:
         return None
     pool = variants
@@ -247,6 +253,8 @@ def _choose(variants: list[str], rng: random.Random, style: str, force_close: bo
     # parenthetical checklist forms "사정함(부위, 점수)" read badly aloud in every style, 기록체 included (2026-10-17 대량 검수:
     # "수면양상을 관찰함(특이사항 없이 잘 잤다고 함)"); "(이)/(으)" particle markers are not parentheses
     pool = [v for v in pool if not _PAREN.search(v)] or pool
+    if mute:   # a fresh tracheostomy cannot say "아프다고 하십니다" (2026-10-18 2차 검수: 기관절개 POD 1 "통증 때문에 잠 못 잤다고 함")
+        pool = [v for v in pool if not _QUOTED.search(v)] or pool
     if force_close:
         closed = [v for v in pool if not _is_connective(v)]
         if closed:
@@ -272,7 +280,7 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
         option = next((o for o in f.options if o.value == value), None)
         if option is None:
             return None
-        phrase = _choose(phrase_store.effective(ctx.get("_template", ""), f.key, option.value, option.phrases), rng, style, force_close, no_questions)
+        phrase = _choose(phrase_store.effective(ctx.get("_template", ""), f.key, option.value, option.phrases), rng, style, force_close, no_questions, bool(ctx.get("_mute")))
         if phrase is None:
             return None
         local["v"] = option.label
@@ -281,7 +289,7 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
         values = [v for v in value if v not in f.skip_values]
         tk = ctx.get("_template", "")
         if not values or values == ["none"]:
-            phrase = _choose(phrase_store.effective(tk, f.key, "none", f.none_phrases), rng, style, force_close, no_questions)
+            phrase = _choose(phrase_store.effective(tk, f.key, "none", f.none_phrases), rng, style, force_close, no_questions, bool(ctx.get("_mute")))
             return _finish(phrase, local, rng, style, force_close)
         options = [o for o in f.options if o.value in values and o.value != "none"]
         # Each option may have its own full phrase; otherwise use the list form.
@@ -298,7 +306,7 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
         else:
             local["v"] = nouns[0] if nouns else ""
         local["count"] = len(nouns)
-        phrase = _choose(phrase_store.effective(tk, f.key, "phrases", f.phrases), rng, style, force_close, no_questions)
+        phrase = _choose(phrase_store.effective(tk, f.key, "phrases", f.phrases), rng, style, force_close, no_questions, bool(ctx.get("_mute")))
         return _finish(phrase, local, rng, style, force_close)
     if f.kind == "number":
         if rng.random() > f.speak_prob:
@@ -312,7 +320,7 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
             pool = [p for p in pool if "호소" not in p and "아픈 정도" not in p and "정도" not in p] or pool
         if f.key.startswith("nrs") and isinstance(v, int) and v >= 4:   # "NRS 6점으로 조절되고 있습니다" is not controlled
             pool = [p for p in pool if "조절" not in p] or pool
-        phrase = _choose(pool, rng, style, force_close, no_questions)
+        phrase = _choose(pool, rng, style, force_close, no_questions, bool(ctx.get("_mute")))
         return _finish(phrase, local, rng, style, force_close)
     if f.kind == "text":
         if rng.random() > f.speak_prob:
@@ -326,12 +334,12 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
             if style == "chart":
                 return _fmt("{v}.", local)
             return _finish(phrase_store.formal_from_chart(local["v"] + "."), {}, rng, style, force_close)
-        phrase = _choose(phrase_store.effective(ctx.get("_template", ""), f.key, "phrases", f.phrases), rng, style, force_close, no_questions)
+        phrase = _choose(phrase_store.effective(ctx.get("_template", ""), f.key, "phrases", f.phrases), rng, style, force_close, no_questions, bool(ctx.get("_mute")))
         return _finish(phrase, local, rng, style, force_close)
     if f.kind == "bool":
         tk = ctx.get("_template", "")
         phrases = phrase_store.effective(tk, f.key, "phrases", f.phrases) if value else phrase_store.effective(tk, f.key, "false", f.false_phrases)
-        phrase = _choose(phrases, rng, style, force_close, no_questions)
+        phrase = _choose(phrases, rng, style, force_close, no_questions, bool(ctx.get("_mute")))
         return _finish(phrase, local, rng, style, force_close)
     if f.kind == "vitals":
         if not isinstance(value, dict):
@@ -339,7 +347,7 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
         return realize_vitals(value, rng, verb_style=style) or None
     if f.kind in ("date", "time"):
         local["v"] = str(value)
-        phrase = _choose(f.phrases, rng, style, force_close, no_questions)
+        phrase = _choose(f.phrases, rng, style, force_close, no_questions, bool(ctx.get("_mute")))
         return _fmt(phrase, local) if phrase else None
     return None
 
@@ -394,6 +402,7 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
     ctx["earlier"] = "새벽에" if hour < 12 else "오전에" if hour < 20 else "데이 때"
     if patient.kind != "chemo" and patient.pod == 0:
         ctx["earlier"] = "병실 올라온 뒤"         # the op day: the patient was in the OR during the day
+    ctx["_mute"] = patient.scenario == "Tracheostomy" and template_key in ("s3_1", "s3_2", "s5", "s6") and (patient.pod or 0) <= 6
     # Scalar form values are available as placeholders too ({event}, {bt_peak}, ...).
     # Select values map to their option label; multi values to a comma list of nouns.
     fmap = template.field_map()
