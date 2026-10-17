@@ -44,6 +44,13 @@ export default function ResultsPage() {
 
   useEffect(() => { get<NoiseCatalogItem[]>("/api/noises").then((c) => setNoiseLabels(Object.fromEntries(c.map((n) => [n.key, n.label])))).catch(() => undefined); }, []);
 
+  const [events, setEvents] = useState<{ type: string; start: number; duration: number }[]>([]);
+  useEffect(() => {
+    if (!sel) { setEvents([]); return; }
+    get<{ noise?: { events?: { type: string; start: number; duration: number }[] } }>(`/api/output/meta?rel=${encodeURIComponent(sel.rel)}`)
+      .then((m) => setEvents(m.noise?.events || [])).catch(() => setEvents([]));
+  }, [sel?.rel]);
+  const eventLabel = (t: string) => t.startsWith("voice:") ? `회진 대화 (${t.slice(6)})` : (noiseLabels[t] || t);
   const noiseText = (it: RecordingItem) => it.noise ? `${(it.noise_types || []).map((k) => noiseLabels[k] || k).join("·") || "소음"}${it.noise_level !== undefined && it.noise_level !== null ? ` ${it.noise_level}` : ""}` : "";
   const REASONS = ["발음 오류", "잡음 과다", "끊김·반복", "대본 오류", "목소리 다름", "기타"];
   const shown = useMemo(() => {
@@ -267,6 +274,11 @@ export default function ResultsPage() {
             <div className="muted" style={{ margin: "8px 0" }}>
               {sel.record_kind} · {sel.voice_name || "목소리 없음"} · {sel.engine} · {sel.duration}s · 소음 {sel.noise ? `O (${noiseText(sel)}${sel.noise_events ? `, 이벤트 ${sel.noise_events}개` : ""})` : "X"} · 장비 {sel.channel || "-"} · 흐트러짐 {sel.disfluency ?? 0} · 시그널 {sel.signal_format || "-"}
             </div>
+            {events.length > 0 && (
+              <div className="muted" style={{ margin: "0 0 8px" }} title="json의 noise.events (시작 초, 길이)">
+                소음 이벤트: {events.map((e, i) => <span key={i} style={{ marginRight: 10 }}>{eventLabel(e.type)} <b>{Math.round(e.start)}–{Math.round(e.start + e.duration)}초</b></span>)}
+              </div>
+            )}
             <div className="preview" style={{ minHeight: 120 }}>
               <span className="signal">{(sel.spoken_text || "").split("\n")[0]}</span>{"\n" + (sel.spoken_text || "").split("\n").slice(1).join("\n")}
             </div>

@@ -120,31 +120,53 @@ def mix(speech: np.ndarray, sr: int, cfg: NoiseConfig, custom: list[NoiseClip] |
     event_types = [t for t in types if not (t in noise_mod.BUILTIN and noise_mod.BUILTIN[t].continuous)
                    and not (t in custom_map and custom_map[t].continuous)]
     if event_types:
-        count = max(1, int(round(cfg.density * dur / 60.0 * float(rng.uniform(0.7, 1.3)))))
-        for _ in range(count):
-            t = str(rng.choice(event_types))
+        # One alarm at a time (user 2026-10-17: "소리가 들쭉날쭉"): a long recording plays as 8–20 s episodes, the same
+        # clip never overlaps itself, episodes avoid piling onto another event, and together they cover at most about a
+        # third of the recording. density 4 ≈ one episode per minute per clip.
+        scale = max(0.25, float(cfg.density) / 4.0)
+        for t in event_types:
             if t in noise_mod.BUILTIN:
-                nt = noise_mod.BUILTIN[t]
-                d = float(rng.uniform(nt.min_dur, nt.max_dur))
-                d = min(d, dur)
-                start = float(rng.uniform(0, max(0.01, dur - d)))
-                clip = noise_mod.render(t, d, sr, rng) * nt.gain * float(rng.uniform(0.6, 1.0))
+                nt, raw, c = noise_mod.BUILTIN[t], None, None
+                ep = float(rng.uniform(nt.min_dur, nt.max_dur))
             else:
                 c = custom_map[t]
                 raw, _ = read_audio(c.path, sr)
-                d = min(len(raw) / sr, dur)
-                start = float(rng.uniform(0, max(0.01, dur - d)))
-                clip = _fit(raw, int(d * sr), rng) * c.gain * float(rng.uniform(0.6, 1.0))
-            i = int(start * sr)
-            seg = clip[: max(0, n - i)]
-            # fade edges so events don't click
-            fade = min(len(seg) // 4, int(0.3 * sr))
-            if fade > 0:
-                seg = seg.copy()
-                seg[:fade] *= np.linspace(0, 1, fade, dtype=np.float32)
-                seg[-fade:] *= np.linspace(1, 0, fade, dtype=np.float32)
-            layer[i:i + len(seg)] += seg
-            events.append({"type": t, "start": round(start, 2), "duration": round(len(seg) / sr, 2)})
+                clip_len = len(raw) / sr
+                ep = clip_len if clip_len <= 20 else float(rng.uniform(8, 20))
+            ep = max(0.5, min(ep, dur))
+            budget = max(1, int(0.35 * dur / ep))
+            k = max(1, min(budget, int(round(dur / 60.0 * scale * float(rng.uniform(0.7, 1.3))))))
+            placed: list[tuple[float, float]] = []
+            for _ in range(k):
+                if raw is None:
+                    clip = noise_mod.render(t, ep, sr, rng) * nt.gain * float(rng.uniform(0.6, 1.0))
+                else:
+                    clip = _fit(raw, int(ep * sr), rng) * c.gain * float(rng.uniform(0.6, 1.0))
+                c_rms = rms(clip)
+                start = None
+                for _try in range(12):
+                    cand = float(rng.uniform(0, max(0.01, dur - ep)))
+                    if any(cand < s0 + d0 and cand + ep > s0 for s0, d0 in placed):
+                        continue
+                    i0, j0 = int(cand * sr), min(n, int(cand * sr) + len(clip))
+                    if j0 > i0 and rms(layer[i0:j0]) > 0.5 * c_rms:
+                        continue
+                    start = cand
+                    break
+                if start is None:
+                    continue
+                i = int(start * sr)
+                seg = clip[: max(0, n - i)]
+                # fade edges so events don't click
+                fade = min(len(seg) // 4, int(0.3 * sr))
+                if fade > 0:
+                    seg = seg.copy()
+                    seg[:fade] *= np.linspace(0, 1, fade, dtype=np.float32)
+                    seg[-fade:] *= np.linspace(1, 0, fade, dtype=np.float32)
+                layer[i:i + len(seg)] += seg
+                placed.append((start, len(seg) / sr))
+                events.append({"type": t, "start": round(start, 2), "duration": round(len(seg) / sr, 2)})
+        events.sort(key=lambda e: e["start"])
 
     # --- other voices (doctor rounds etc.) rendered by TTS and placed far away
     for clip, label in extra_voices or []:

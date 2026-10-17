@@ -19,7 +19,9 @@ def test_mix_snr():
     sr = 24000
     t = np.arange(int(6 * sr)) / sr
     speech = (0.3 * np.sin(2 * np.pi * 220 * t)).astype(np.float32)
-    cfg = NoiseConfig(enabled=True, level=50, types=["room_tone", "monitor_pulse", "crowd_babble"], each_prob=1.0, seed=1, head_pad=0, tail_pad=0)
+    # the SNR mapping is measured on the ambience alone (the always-on room reverb of the speech and the room-tone floor
+    # would otherwise count as "noise" in mixed - speech)
+    cfg = NoiseConfig(enabled=True, level=50, types=["room_tone", "monitor_pulse", "crowd_babble"], each_prob=1.0, seed=1, head_pad=0, tail_pad=0, room_wet=0.0, floor_dbfs=0)
     mixed, events = mix(speech, sr, cfg)
     assert len(mixed) == len(speech)
     assert events
