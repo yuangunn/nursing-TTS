@@ -305,6 +305,8 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
         pool = phrase_store.effective(ctx.get("_template", ""), f.key, "phrases", f.phrases)
         if f.key.startswith("nrs") and v == 0:
             pool = [p for p in pool if "호소" not in p and "아픈 정도" not in p and "정도" not in p] or pool
+        if f.key.startswith("nrs") and isinstance(v, int) and v >= 4:   # "NRS 6점으로 조절되고 있습니다" is not controlled
+            pool = [p for p in pool if "조절" not in p] or pool
         phrase = _choose(pool, rng, style, force_close)
         return _finish(phrase, local, rng, style, force_close)
     if f.kind == "text":
@@ -314,6 +316,8 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
         # Nominalised free text ("…옅어지고 있음", "…시행함") must not get "입니다" glued on: chart style keeps
         # it as is, spoken styles say it ("…있습니다", "…하였습니다") and then follow the register.
         if re.search(r"(음|됨|함|임|없음|있음|입원|시작|예정|투여|내원|방문|완료|추적|보냄|하심|계심|\s중)$", local["v"]):
+            if f.key == "glucose" and not re.match(r"(혈당|BST)", local["v"]):   # the frame is skipped: keep its subject
+                local["v"] = "혈당 " + local["v"]
             if style == "chart":
                 return _fmt("{v}.", local)
             return _finish(phrase_store.formal_from_chart(local["v"] + "."), {}, rng, style, force_close)
@@ -380,6 +384,11 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
     ctx = patient.context(rng)
     ctx["style"] = style
     ctx["_template"] = template.key
+    # the earlier part of the day as the handover shift says it (2026-10-18 검수: "데이 때 열 났었고" at the 07:00 handover)
+    hour = when.hour if when else 15
+    ctx["earlier"] = "새벽에" if hour < 12 else "오전에" if hour < 20 else "데이 때"
+    if patient.kind != "chemo" and patient.pod == 0:
+        ctx["earlier"] = "병실 올라온 뒤"         # the op day: the patient was in the OR during the day
     # Scalar form values are available as placeholders too ({event}, {bt_peak}, ...).
     # Select values map to their option label; multi values to a comma list of nouns.
     fmap = template.field_map()

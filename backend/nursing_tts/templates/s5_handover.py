@@ -21,7 +21,7 @@ TEMPLATE = RecordTemplate(
                 opt("lung", "폐질환", nouns=["COPD"]),
                 opt("ckd", "만성신질환", nouns=["CKD"]),
                 opt("none", "없음"),
-            ], phrases=["과거력 {v} 있고,", "{v} 있으시고,", "{v}, ", "과거력은 {v} 있습니다."],
+            ], phrases=["과거력 {v} 있고,", "{v} 있으시고,", "과거력은 {v} 있습니다."],   # "{v}, " read "HTN, 알레르기 없어요" (= HTN 없음)
                none_phrases=["과거력 특이사항 없고,", "기저질환 없으시고,"], default=["htn", "dm"]),
             txt("allergy", "알레르기", placeholder="예: 조영제", phrases=["{v} 알레르기 있습니다.", "{v} 알러지 있고,", "알레르기는 {v}이구요,"], default="조영제"),
             boolean("allergy_none", "알레르기 없음", phrases=["알레르기 없습니다.", "알러지 없고,"], default=False),
@@ -33,8 +33,8 @@ TEMPLATE = RecordTemplate(
             sel("consciousness", "의식", CONSCIOUSNESS, default="alert"),
             sel("vs_summary", "활력징후 요약", [
                 opt("stable", "안정적", "활력징후 안정적입니다.", "바이탈 안정적이고,", "V/S stable 하구요,"),
-                opt("fever_resolved", "발열 있다가 호전", "오후 체온 {bt_peak}까지 올랐다가 현재 {bt_now}입니다.", "체온 {bt_peak}까지 올랐다가 지금은 {bt_now}(이)고,",
-                    "데이 때 열 {bt_peak} 있었는데 지금 {bt_now}(으)로 떨어졌구요,"),
+                opt("fever_resolved", "발열 있다가 호전", "{earlier} 체온 {bt_peak}까지 올랐다가 현재 {bt_now}입니다.", "체온 {bt_peak}까지 올랐다가 지금은 {bt_now}(이)고,",
+                    "{earlier} 열 {bt_peak} 있었는데 지금 {bt_now}(으)로 떨어졌구요,"),   # {earlier}: 인계 시각에 맞는 때(새벽에/오전에/데이 때)
                 opt("fever", "발열 지속", "체온 {bt_now}(으)로 발열 지속되어 담당의 noti 한 상태입니다.", "열 {bt_now} 계속 있어서 noti 했고,"),
                 opt("hypotension", "저혈압", "혈압 {sbp}에 {dbp}(으)로 낮아 수액 로딩 중입니다.", "혈압 낮아서 수액 로딩하고 있고,"),
                 opt("tachy", "빈맥", "맥박 {hr}(으)로 빈맥 있어 관찰 중입니다.", "HR {hr}(으)로 좀 빠르고,"),
@@ -47,14 +47,14 @@ TEMPLATE = RecordTemplate(
             PAIN_NRS,
             sel("pain_mgmt", "통증 조절", [
                 opt("pca", "PCA 유지", "PCA 유지 중입니다.", "PCA 유지 중이고,", "PCA 달고 계시구요,"),
-                opt("pca_prn", "PCA 유지 + PRN 1회", "PCA 유지 중이고 데이 때 PRN 트라마돌 한 번 들어갔습니다.", "PCA 유지에 PRN 트라마돌 1회 들어갔고,",
+                opt("pca_prn", "PCA 유지 + PRN 1회", "PCA 유지 중이고 {earlier} PRN 트라마돌 한 번 들어갔습니다.", "PCA 유지에 PRN 트라마돌 1회 들어갔고,",
                     "PCA 유지 중이고 PRN 한 번 썼구요,"),
                 opt("po", "경구 진통제", "경구 진통제로 조절 중입니다.", "경구 진통제 드시고 계시고,"),
                 opt("none", "진통제 없음", "진통제 없이 지내십니다.", "진통제 안 쓰고 있고,"),
             ], default="pca_prn"),
             sel("diet", "식이", DIET, default="sow"),
             boolean("gas_out", "가스 배출", phrases=["금일 가스 아웃 확인되어 저녁부터 물 시작했고 잘 드셨습니다.", "가스 아웃 확인됐고,", "오늘 gas out 됐구요,"],
-                    false_phrases=["아직 가스 배출 안 되어 금식 유지 중입니다.", "gas out 아직 안 됐고,"], default=True),
+                    false_phrases=["아직 가스 배출 안 됐습니다.", "gas out 아직 안 됐고,"], default=True),   # 금식은 식이 문장이 이미 말함
             txt("io", "I/O", placeholder="예: 수액 2000, 소변 1800, JP 60",
                 phrases=["I/O는 {v}cc입니다.", "I/O {v}이고,", "인아웃은 {v}이구요,"], default="수액 2000, 소변 1800, JP 60"),
             sel("voiding", "배뇨", [
@@ -99,9 +99,9 @@ TEMPLATE = RecordTemplate(
         ]),
         Section("lab", "검사 결과", hint="Lab, 영상, 배양 특이 수치 및 noti 여부", fields=[
             txt("lab", "Lab", placeholder="예: WBC 11.2, CRP 8.5 어제보다 약간 상승",
-                phrases=["금일 랩 {v}입니다.", "오늘 랩은 {v}이고,", "랩은 {v} 소견이구요,"], default="WBC 11.2, CRP 8.5로 어제보다 약간 상승"),
+                phrases=["금일 랩 {v}입니다.", "오늘 랩은 {v}이고,", "랩은 {v}이구요,"], default="WBC 11.2, CRP 8.5로 어제보다 약간 상승한 상태"),
             txt("glucose", "혈당", placeholder="예: 식전 150~180, 슬라이딩 스케일",
-                phrases=["혈당은 {v} 적용 중입니다.", "혈당 {v}이고,", "BST {v}이구요,"], default="식전 150~180으로 슬라이딩 스케일"),
+                phrases=["혈당은 {v}입니다.", "혈당 {v}이고,", "BST {v}이구요,"], default="식전 150~180으로 슬라이딩 스케일 적용 중"),
             txt("imaging", "영상/배양", placeholder="예: chest PA 특이 소견 없음",
                 phrases=["{v}.", "{v}이고,"], speak_prob=0.8),
         ]),
@@ -119,8 +119,8 @@ TEMPLATE = RecordTemplate(
         ]),
         Section("pending", "미완료/확인 필요", hint="대기 중 검사·협진·처방, 보호자 요청, 의사 noti 필요", fields=[
             txt("pending", "확인 필요 사항", placeholder="예: 내일 아침 랩 결과 확인 후 미음 진행 여부 담당의 확인",
-                phrases=["확인 필요 사항은 {v}입니다.", "확인하실 건 {v}이고,", "미결 사항은 {v}이구요,"],
-                default="내일 아침 랩 결과 확인 후 미음 진행 여부 담당의 확인"),
+                phrases=["{v} 확인 필요합니다.", "확인하실 건 {v}(이)고,", "미결 사항은 {v}(이)구요,"],   # 값은 명사구 ("협진 회신")
+                default="내일 아침 랩 결과 보고 미음 진행 여부"),
         ]),
         Section("plan", "다음 근무 계획", hint="예정 검사·시술, 수술 준비, 퇴원 예정, 교육", fields=[
             txt("plan", "다음 근무 계획", placeholder="예: 오전에 강화폐활량계 교육 재확인",
