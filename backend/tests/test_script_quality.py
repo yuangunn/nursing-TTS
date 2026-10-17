@@ -281,3 +281,18 @@ def test_postop_record_keeps_observation_and_management_apart():
         if f.get("meds_given"):
             assert "투여" in s
     assert {"ipc", "icebag", "compression"} <= care_seen, care_seen
+
+
+def test_admission_record_says_each_fact_once():
+    """user 2026-10-17 (범주별로 나누고 겹치는 부분은 없애라): the admission record no longer repeats sleep, mobility, intake
+    and weight change through the separate screening fields."""
+    rng = random.Random(66)
+    for i in range(80):
+        p = random_patient(rng, "s1")
+        f = random_form("s1", rng, p)
+        assert "sleep_screen" not in f
+        sents = re.split(r"(?<=[.])\s+", build_script("s1", f, p, random_datetime(rng), style="formal", seed=9500 + i).spoken_text)
+        body = [x for x in sents if not re.search(r"주호소|주증상|호소로|오셨|기록입니다", x)]   # the complaint may mention sleep or walking
+        assert sum(bool(re.search(r"수면|주무|잠들|잠을|잠이", x)) for x in body) <= 1, sents
+        assert sum(bool(re.search(r"보행|걸으|보조기|휠체어|워커|부축|거동", x)) and not re.search(r"낙상|교육|간호 문제|간호진단", x) for x in body) <= 1, sents
+        assert sum(bool(re.search(r"식사량|식욕|입맛", x)) for x in sents) <= 1, sents

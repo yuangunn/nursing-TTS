@@ -20,7 +20,7 @@ BANMAL_AGE = 80
 
 # fields whose content the patient already says in an answer: not narrated again by the nurse
 SKIP_IN_DIALOGUE = {"history_detail", "allergy_reaction", "medications", "supplements", "weight_screen", "intake_screen",
-                    "sleep_screen", "depression_screen", "adl", "weakness_note", "symptom_note", "intake_note", "pain_site", "pain_char",
+                    "depression_screen", "adl", "weakness_note", "symptom_note", "intake_note", "pain_site", "pain_char",
                     "mood_days", "interest_days", "smoking_edu", "alcohol_edu"}   # the last four are spoken inside the dialogue instead
 
 # 정서평가 (user 2026-10-17): when the patient is worried, two "최근 2주 동안 며칠이나" questions (PHQ-2 style, 4 levels)

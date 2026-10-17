@@ -573,8 +573,6 @@ def _derive_s1(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
         form["voiding"] = "normal"
     if "voiding" in form and age < 60 and rng.random() < 0.92:
         form["voiding"] = "normal"
-    if "sleep" in form and "sleep_screen" in form:
-        form["sleep_screen"] = "neg" if form["sleep"] == "good" else ("pos" if rng.random() < 0.6 else "neg")
     if "nrs" in form:
         if chemo:
             nrs = rng.randint(2, 4) if (tox and any(w in cc for w in ("복통", "설사", "통증"))) else rng.choice([0, 0, 0, 1])
