@@ -9,33 +9,6 @@
     "created": 1792012102.053153
   },
   {
-    "id": "custom_7d436e34",
-    "label": "네뷸라이저 작동음 (실제 녹음)",
-    "file": "custom_7d436e34.wav",
-    "continuous": true,
-    "gain": 0.5,
-    "duration": 60.0,
-    "created": 1792016680.231779
-  },
-  {
-    "id": "custom_d046b2d9",
-    "label": "중환자실 배경음 (실제 녹음: 모니터·펌프·인공호흡기)",
-    "file": "custom_d046b2d9.wav",
-    "continuous": true,
-    "gain": 0.5,
-    "duration": 120.0,
-    "created": 1792016680.280141
-  },
-  {
-    "id": "custom_b75bb01b",
-    "label": "환자 모니터 알람 Mindray (실제 녹음)",
-    "file": "custom_b75bb01b.wav",
-    "continuous": false,
-    "gain": 0.6,
-    "duration": 10.0,
-    "created": 1792016680.292747
-  },
-  {
     "id": "custom_c4184ae2",
     "label": "회진 대화 (간호사8(가명 녹음) 톤 변조, 멀리서)",
     "file": "custom_c4184ae2.wav",
@@ -43,5 +16,77 @@
     "gain": 0.6,
     "duration": 27.6,
     "created": 1792018286.732309
+  },
+  {
+    "id": "custom_a31bfb2f",
+    "label": "네뷸라이저 소음 (병동 녹음)",
+    "file": "custom_a31bfb2f.wav",
+    "continuous": true,
+    "gain": 0.5,
+    "duration": 10.24,
+    "created": 1792227793.489688
+  },
+  {
+    "id": "custom_485a79a3",
+    "label": "주입 펌프 알람 (병동 녹음)",
+    "file": "custom_485a79a3.wav",
+    "continuous": false,
+    "gain": 0.6,
+    "duration": 20.22,
+    "created": 1792227793.491489
+  },
+  {
+    "id": "custom_2cecffac",
+    "label": "환자 모니터 알람 (병동 녹음)",
+    "file": "custom_2cecffac.wav",
+    "continuous": false,
+    "gain": 0.6,
+    "duration": 40.53,
+    "created": 1792227793.494925
+  },
+  {
+    "id": "custom_f77ff4e4",
+    "label": "산소 3L 흐름음 (병동 녹음)",
+    "file": "custom_f77ff4e4.wav",
+    "continuous": true,
+    "gain": 0.5,
+    "duration": 20.99,
+    "created": 1792227793.497002
+  },
+  {
+    "id": "custom_9bd2e087",
+    "label": "산소 5L 흐름음 (병동 녹음)",
+    "file": "custom_9bd2e087.wav",
+    "continuous": true,
+    "gain": 0.5,
+    "duration": 20.57,
+    "created": 1792227793.498863
+  },
+  {
+    "id": "custom_0905ca51",
+    "label": "산소 9L 흐름음 (병동 녹음)",
+    "file": "custom_0905ca51.wav",
+    "continuous": true,
+    "gain": 0.5,
+    "duration": 20.39,
+    "created": 1792227793.501176
+  },
+  {
+    "id": "custom_c6040421",
+    "label": "병실 배경음 1 (네뷸라이저+보행 소음, 병동 녹음)",
+    "file": "custom_c6040421.wav",
+    "continuous": true,
+    "gain": 0.5,
+    "duration": 23.38,
+    "created": 1792227793.503348
+  },
+  {
+    "id": "custom_6f668e54",
+    "label": "병실 배경음 2 (네뷸라이저+보행 소음, 병동 녹음)",
+    "file": "custom_6f668e54.wav",
+    "continuous": true,
+    "gain": 0.5,
+    "duration": 18.77,
+    "created": 1792227793.506891
   }
 ]
