@@ -421,9 +421,10 @@ def test_demo_read_through_context_rules():
         p = random_patient(rng, "s5")
         f = random_form("s5", rng, p)
         drain = f.get("drain") or ""
-        m, d = re.search(r"(?:Hemovac|JP) (\d+)", f.get("io") or ""), re.search(r"(\d+)\s*cc", drain)
-        if m and d and "각" not in drain:
-            assert m.group(1) == d.group(1), (f["io"], drain)
+        m, amounts = re.search(r"(?:Hemovac|JP) (\d+)", f.get("io") or ""), [int(x) for x in re.findall(r"(\d+)\s*cc", drain)]
+        if m and amounts:   # every drain counts (2026-10-18: "유방 JP 40cc, 복부 JP 30cc" → I/O "JP 40")
+            want = amounts[0] * 2 if "각" in drain and len(amounts) == 1 else sum(amounts)
+            assert int(m.group(1)) == want, (f["io"], drain)
         if drain and "제거" not in drain:
             assert not re.search(r"(Hemovac|JP|헤모박|배액관)[^.]*제거", f.get("special") or ""), (drain, f.get("special"))
     for i in range(80):
@@ -514,3 +515,37 @@ def test_progress_record_day_is_coherent():
             assert txt.index("노티") < txt.index("acetaminophen"), txt
         if "아침 식사 전량" in txt or "일반식 전량" in txt:
             assert "금식" not in txt.split("일반식 전량")[-1], txt
+
+
+def test_handover_fits_its_shift_and_its_patient():
+    """2026-10-18 대량 검수(인계): POD 0·항암 D1을 07시에(수술 전·주입 전), "데이 때 열"을 07·15시에, 15시에 "오전 외래 CT 이송",
+    23시에 "퇴원 교육", PCA·미음·발열 환자에게 퇴원 처방, 보호자 없는데 "보호자 면담", 17세 "배우자 상주", "HTN, 알레르기 없어요",
+    40cc/hr인데 수액 1900."""
+    from nursing_tts.fake import record_datetime
+    rng = random.Random(1019)
+    for i in range(200):
+        p = random_patient(rng, "s5")
+        f = random_form("s5", rng, p)
+        w = record_datetime("s5", p, f, rng)
+        s = build_script("s5", f, p, w, style=rng.choice(["casual", "mixed", "formal"]), seed=i)
+        txt = s.spoken_text
+        if p.kind == "chemo" or p.pod == 0:
+            assert w.hour != 7, (p.surgery or p.regimen, w)
+        if w.hour < 20:
+            assert "데이 때" not in txt, txt
+        plan = f.get("plan", "")
+        if w.hour == 15:
+            assert not re.search(r"(?<!내일 )(오전|아침)|내일 (아침|오전)", plan), plan
+        if w.hour == 23:
+            assert "퇴원 교육" not in plan, plan
+        if f.get("pain_mgmt") in ("pca", "pca_prn") or f.get("diet") in ("npo", "sow", "ld") or f.get("vs_summary") == "fever":
+            assert "퇴원" not in plan + f.get("pending", ""), (f.get("pain_mgmt"), f.get("diet"), plan, f.get("pending"))
+        if f.get("caregiver") == "none":
+            assert "보호자 동행" not in txt and "보호자 면담" not in txt, txt
+        if (p.age or 50) < 20:
+            assert f["caregiver"] == "parent"
+        assert not re.search(r"(HTN|DM|고혈압|당뇨|COPD|CKD), 알(레르기|러지) 없", txt), txt
+        m = re.search(r"(\d+)\s*cc/hr", f.get("fluid", "")), re.search(r"수액 (\d+)", f.get("io", ""))
+        if m[0] and m[1]:
+            hours = 24 if w.hour == 7 else 8
+            assert abs(int(m[1].group(1)) - int(m[0].group(1)) * hours) <= int(m[0].group(1)) * hours * 0.15 + 50, (f["fluid"], f["io"], w)
