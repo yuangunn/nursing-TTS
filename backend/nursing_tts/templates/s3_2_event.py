@@ -51,7 +51,7 @@ TEMPLATE = RecordTemplate(
                 opt("normal", "정상", "복부 팽만 없고 장음 정상입니다.", "복부 특이사항 없고,"),
             ], default="soft"),
             txt("drain", "배액 양상/양", placeholder="예: JP serosanguineous 40cc, 변화 없음",
-                phrases=["{v}, 특이 변화 없습니다.", "{v} 입니다.", "배액은 {v}이고,"], default="JP 배액 serosanguineous 양상 40cc"),
+                phrases=["{v}, 특이 변화 없습니다.", "{v}입니다.", "배액은 {v}이고,"], default="JP 배액 serosanguineous 양상 40cc"),
             sel("urine", "배뇨", [
                 opt("clear", "맑은 노란색, 불편감 없음", "소변 노란색으로 맑고 배뇨 시 불편감 없습니다.", "소변 clear하게 나오고 배뇨 불편감 없으시고,"),
                 opt("cloudy", "혼탁", "소변 turbid하게 나오고 배뇨 시 불편감 호소합니다.", "소변 탁하고 배뇨통 있으시고,"),

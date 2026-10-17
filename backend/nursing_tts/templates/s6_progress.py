@@ -41,21 +41,29 @@ TEMPLATE = RecordTemplate(
                          "{v} 상처 발적, 삼출물 없음."], default="복부 단일공 수술 부위"),
             VITALS_FIELD,
         ]),
+        Section("d_prn", "PRN 재사정 (07:30) — 이벤트", hint="아침 라운딩에 PRN을 줬을 때 30분 뒤", fields=[
+            _T("t1p", "오전 7시 40분"),
+            num("nrs_prn", "재사정 NRS", min=0, max=10, default=2, phrases=["PRN 투여 30분 후 통증 재사정함, NRS {v}점으로 감소함.",
+                "진통제 투여 30분 후 통증 {v}점으로 호전됨.", "통증 재사정 결과 {v}점으로 감소함."]),
+        ]),
         Section("d_morning", "아침 식사 (08:00) — 이벤트", fields=[
             _T("t2", "오전 8시"),
+            txt("meal_kind", "식이 종류", placeholder="예: 일반식, 죽, 미음", phrases=[], default="일반식", speak_prob=0.0),
             sel("meal1", "식사", [
-                opt("all", "전량 섭취", "일반식 상식 전량 섭취함.", "아침 식사 전량 드심.", "식사 전량 섭취함."),
-                opt("half", "절반", "일반식 절반 정도 섭취함.", "아침 반 정도 드심."),
+                opt("all", "전량 섭취", "{meal_kind} 전량 섭취함.", "아침 식사 전량 드심.", "아침 {meal_kind} 전량 드심."),
+                opt("half", "절반", "{meal_kind} 절반 정도 섭취함.", "아침 반 정도 드심."),
                 opt("little", "소량", "식사 소량만 섭취함. 식욕 저하 호소.", "아침 거의 못 드심."),
+                opt("sow", "물(SOW)", "SOW 유지 중, 물 조금씩 드심.", "물 소량씩 섭취 중, 복부 불편감 없음."),
                 opt("npo", "금식", "금식 유지 중.", "NPO 유지함."),
             ], default="all"),
         ]),
         Section("d_noon", "점심·중재 (12:30) — 이벤트", fields=[
             _T("t3", "오후 12시 30분"),
             sel("meal2", "점심", [
-                opt("all", "전량 섭취", "일반식 상식 점심 전량 섭취함.", "점심 전량 드심."),
-                opt("half", "절반", "점심 절반 정도 섭취함."),
-                opt("npo", "금식", "금식 유지 중."),
+                opt("all", "전량 섭취", "점심 {meal_kind} 전량 섭취함.", "점심 전량 드심."),
+                opt("half", "절반", "점심 절반 정도 섭취함.", "점심 반 정도 드심."),
+                opt("sow", "물(SOW)", "물 섭취 중, 오심 없음.", "SOW 유지하며 복부 팽만 없음."),
+                opt("npo", "금식", "점심도 금식 유지함.", "계속 NPO 유지 중, 입마름 호소 없음."),   # 세 끼 모두 "금식 유지 중"이면 같은 문장 반복
             ], default="all"),
             sel("pca_remove", "PCA", [
                 opt("removed", "전량 주입 후 제거", "PCA 들어가고 있는 것 전량 주입됨 설명하고 제거함. IV PCA 리필 원하지 않음.",
@@ -67,11 +75,11 @@ TEMPLATE = RecordTemplate(
         ]),
         Section("d_reassess", "재사정 (13:30) — 이벤트", fields=[
             _T("t4", "오후 1시 30분"),
-            num("nrs4", "NRS", min=0, max=10, default=1, phrases=["수술 부위 통증 {v}점 정도.", "통증 {v}점으로 사정됨.", "NRS {v}점."]),
+            num("nrs4", "NRS", min=0, max=10, default=1, phrases=["통증 {v}점 정도.", "통증 {v}점으로 사정됨.", "NRS {v}점."]),   # 항암 환자에게 "수술 부위" 금지
             sel("reassess", "재사정 내용", [
-                opt("after_pca", "PCA 제거 후 통증 사정", "PCA 제거 후 통증 사정함. 추가적인 중재 원하지 않음.", "PCA 제거 후 통증 재사정함, 추가 중재 원치 않음."),
+                opt("after_pca", "PCA 제거 후 통증 사정", "PCA 제거 후에도 통증 조절 잘 됨, 추가 중재 원하지 않음.", "PCA 제거 후 추가 중재 원치 않음."),   # 점수 문장 뒤라 "통증 사정함" 반복 안 함
                 opt("after_prn", "PRN 후 재사정", "PRN 투여 후 통증 호전됨.", "진통제 투여 후 통증 감소함."),
-                opt("stable", "안정", "특이사항 없이 안정적임.", "변화 없이 안정됨."),
+                opt("stable", "안정", "통증 외 특이 호소 없음.", "변화 없이 안정됨."),   # 20시 "특이사항 없이 안정적임"과 겹치지 않게
             ], default="after_pca"),
         ]),
         Section("e_round", "Evening 라운딩 (15:00) — 정규 사정", hint="V/S, 활동, 배액/배뇨", fields=[
@@ -91,7 +99,8 @@ TEMPLATE = RecordTemplate(
             sel("meal3", "저녁", [
                 opt("all", "전량 섭취", "저녁 식사 전량 섭취함.", "저녁 전량 드심."),
                 opt("half", "절반", "저녁 절반 정도 섭취함.", "저녁 반 정도 드심."),
-                opt("npo", "금식", "금식 유지 중."),
+                opt("sow", "물(SOW)", "SOW 유지하며 물 섭취 양호함.", "물 조금씩 드시고 오심 없음."),
+                opt("npo", "금식", "저녁까지 금식 유지함.", "금식 지속 중, 수액 유지함."),
             ], default="all"),
         ]),
         Section("e_event", "저녁 이벤트 (20:00)", fields=[
@@ -100,7 +109,7 @@ TEMPLATE = RecordTemplate(
                 opt("stable", "특이사항 없음", "특이사항 없이 안정적임.", "별다른 호소 없이 안정적으로 지내심."),
                 opt("visit", "보호자 면회", "보호자 면회 중이며 환자 안정적임.", "보호자 면회 중. 특이 호소 없음."),
                 opt("edu", "내일 일정 설명", "내일 검사 및 처치 일정 설명함.", "다음 날 일정 설명하고 질문에 답함."),
-                opt("pain_prn", "통증 PRN", "통증 호소하여 PRN 진통제 투여함. 30분 후 재사정 예정.", "통증 4점 호소하여 PRN 투여함."),
+                opt("pain_prn", "통증 PRN", "통증 호소하여 PRN 진통제 투여함.", "통증 4점 호소하여 PRN 투여함."),   # 재사정은 23시 라운딩 NRS
             ], default="stable"),
         ]),
         Section("n_round", "Night 라운딩 (23:00) — 정규 사정", hint="V/S, 수면 상태, 통증, 라인", fields=[
@@ -109,7 +118,7 @@ TEMPLATE = RecordTemplate(
             sel("night_onset", "수면 상태", [
                 opt("asleep", "수면 중", "수면 중임. 호흡 규칙적임.", "잠들어 있음, 특이 호소 없음."),
                 opt("resting", "안정", "침상에서 안정 취하고 있음.", "누워서 안정 중, 불편감 호소 없음."),
-                opt("awake_pain", "통증으로 못 잠", "통증으로 잠들지 못한다고 함.", "수술 부위 통증 호소하며 깨어 있음."),
+                opt("awake_pain", "통증으로 못 잠", "통증으로 잠들지 못한다고 함.", "통증 호소하며 깨어 있음."),
                 opt("hypnotic", "수면제 투여", "처방된 수면제 투여 후 수면 유도함.", "수면제 투여함. 이후 잠듦."),
             ], default="asleep"),
             num("nrs_n", "NRS", min=0, max=10, default=1, phrases=["통증 {v}점.", "NRS {v}점으로 사정됨.", "통증 {v}점 정도로 조절됨."]),

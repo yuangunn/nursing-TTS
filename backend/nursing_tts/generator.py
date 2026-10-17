@@ -187,13 +187,16 @@ def realize_vitals(value: dict[str, Any], rng: random.Random, verb_style: str = 
     if not parts:
         return ""
     lead = rng.choice(_vf("lead"))
+    if lead.endswith(("은 ", "는 ")):   # "바이탈은 혈압은 …" — one topic marker is enough
+        parts[0] = re.sub(r"^(\S+?)(은|는) ", r"\1 ", parts[0])
     joiner = rng.choice([", ", ", ", " "])
     if verb_style == "chart":
         ending = rng.choice(["측정됨.", "체크됨.", "확인됨.", "임."])
     else:
         ending = rng.choice(_vf("ending_formal") if verb_style == "formal" else _vf("ending"))
     body = joiner.join(parts)
-    return f"{lead}{body} {ending}".replace("  ", " ")
+    sep = "" if ending.startswith(("입니다", "이고", "임")) else " "   # "체온 37.0입니다", not "37.0 입니다"
+    return f"{lead}{body}{sep}{ending}".replace("  ", " ")
 
 
 # ---------------------------------------------------------------------------
@@ -228,6 +231,9 @@ def _finish(phrase: str | None, local: dict[str, Any], rng: random.Random, style
     return text
 
 
+_PAREN = re.compile(r"\((?!.\))")
+
+
 def _choose(variants: list[str], rng: random.Random, style: str, force_close: bool) -> str | None:
     if not variants:
         return None
@@ -235,11 +241,9 @@ def _choose(variants: list[str], rng: random.Random, style: str, force_close: bo
     if style in ("formal", "chart"):
         pool = [v for v in variants if not _is_connective(v)] or variants
         pool = [v for v in pool if "?" not in v] or pool   # interview questions ("…있을까요?") belong to 현장 말투 only
-    if style != "chart":
-        # parenthetical chart forms "사정함(부위, 점수)" read badly aloud; prefer spoken variants
-        pool = [v for v in pool if "(" not in v] or pool
-    elif style == "casual":
-        pool = [v for v in variants if _is_connective(v) or "셨" in v or "시고" in v] or variants
+    # parenthetical checklist forms "사정함(부위, 점수)" read badly aloud in every style, 기록체 included (2026-10-17 대량 검수:
+    # "수면양상을 관찰함(특이사항 없이 잘 잤다고 함)"); "(이)/(으)" particle markers are not parentheses
+    pool = [v for v in pool if not _PAREN.search(v)] or pool
     if force_close:
         closed = [v for v in pool if not _is_connective(v)]
         if closed:
@@ -481,6 +485,8 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
                 run = 0
         if fragments and section.group == "protocol" and template.key == "s6":
             # 경과기록 = 그날의 기록을 시간대별로 (user 2026-10-17): each checklist entry gets its own clock time after the evening round
+            if section.key == "prot_glucose":   # "식후 2시간" BST: two hours after the 08:00 breakfast
+                prot_i = max(prot_i, _PROT_TIMES.index("오전 10시 15분"))
             fragments.insert(0, f"{_PROT_TIMES[min(prot_i, len(_PROT_TIMES) - 1)]} 환자명 {patient.name}.")
             prot_i += 1
         if fragments and dialogue:

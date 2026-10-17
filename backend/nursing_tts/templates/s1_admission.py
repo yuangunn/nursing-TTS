@@ -119,7 +119,7 @@ TEMPLATE = RecordTemplate(
             num("height", "신장", unit="cm", min=100, max=220, default=170,
                 phrases=["신장 {v}cm,", "키 {v}cm,", "신장 {v}cm이고,"]),
             num("weight", "체중", unit="kg", min=20, max=200, default=62,
-                phrases=["체중 {v}kg입니다.", "몸무게 {v}kg이고,", "체중은 {v}kg 입니다.", "체중 {v}kg 측정되었습니다."]),
+                phrases=["체중 {v}kg입니다.", "몸무게 {v}kg이고,", "체중은 {v}kg입니다.", "체중 {v}kg 측정되었습니다."]),
             num("bmi", "BMI", min=10, max=60, step=0.1, phrases=["BMI {v}입니다.", "BMI는 {v}이고,"], speak_prob=0.7),
         ]),
         Section("mental", "의식/인지/정서", fields=[

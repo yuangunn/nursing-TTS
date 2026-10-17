@@ -128,41 +128,82 @@ def _batchim(ch: str) -> bool:
 
 
 _CHART_RULES: list[tuple[re.Pattern[str], str]] = [
+    # requests to the next shift first (2026-10-17 대량 검수: "해주시면 되었음", "부탁드림")
+    (re.compile(r"부탁드립니다\.$"), "요함."), (re.compile(r"\s?해\s?주세요\.$"), " 요함."),
+    (re.compile(r"\s?해\s?주시면 (됩니다|돼요)\.$"), " 요함."),
     (re.compile(r"하였습니다\.$"), "함."), (re.compile(r"하셨습니다\.$"), "하심."), (re.compile(r"되었습니다\.$"), "됨."),
+    (re.compile(r"됐습니다\.$"), "됨."),
     (re.compile(r"였습니다\.$"), "임."), (re.compile(r"했습니다\.$"), "함."), (re.compile(r"셨습니다\.$"), "심."),
     (re.compile(r"있습니다\.$"), "있음."), (re.compile(r"없습니다\.$"), "없음."), (re.compile(r"됩니다\.$"), "됨."),
     (re.compile(r"합니다\.$"), "함."), (re.compile(r"십니다\.$"), "심."), (re.compile(r"갑니다\.$"), "감."),
     (re.compile(r"옵니다\.$"), "옴."), (re.compile(r"듭니다\.$"), "듦."), (re.compile(r"입니다\.$"), "임."),
     (re.compile(r"고 있습니다\.$"), "고 있음."),
+    # 2026-10-17 대량 검수: 기록체인데 "소변 맑습니다", "구토 1회 있었습니다", "격리 아닙니다"가 그대로 남았다
+    (re.compile(r"(노랗|빨갛|하얗|파랗|까맣)습니다\.$"), "@color"),
+    (re.compile(r"(럽|렵|겁|갑|깝|롭|쉽|덥|춥|맵|볍)습니다\.$"), "@b_irregular"),
 ]
+_COLOR = {"노랗": "노란색임.", "빨갛": "빨간색임.", "하얗": "하얀색임.", "파랗": "파란색임.", "까맣": "까만색임."}
+_B_IRREGULAR = {"럽": "러움.", "렵": "려움.", "겁": "거움.", "갑": "가움.", "깝": "까움.", "롭": "로움.", "쉽": "쉬움.", "덥": "더움.",
+                "춥": "추움.", "맵": "매움.", "볍": "벼움."}
+
+
+def _chart_sentence(p: str) -> str:
+    for rx, rep in _CHART_RULES:
+        m = rx.search(p)
+        if not m:
+            continue
+        if rep == "@color":
+            return p[: m.start()] + _COLOR[m.group(1)]
+        if rep == "@b_irregular":
+            return p[: m.start()] + _B_IRREGULAR[m.group(1)]
+        return rx.sub(rep, p)
+    m = re.search(r"([가-힣])습니다\.$", p)            # 맑습니다 → 맑음, 있었습니다 → 있었음, 들어갔습니다 → 들어갔음
+    if m:
+        return p[: m.start()] + m.group(1) + "음."
+    m = re.search(r"([가-힣])니다\.$", p)              # 아닙니다 → 아님, 들립니다 → 들림 (받침 ㅂ → ㅁ)
+    if m and (ord(m.group(1)) - 0xAC00) % 28 == 17:
+        return p[: m.start()] + chr(ord(m.group(1)) - 1) + "."
+    return p
 
 
 def chart_form(phrase: str) -> str:
-    """Nursing-chart register: '교육하였습니다.' -> '교육함.', '유지 중입니다.' -> '유지 중임.'"""
-    p = phrase.strip()
-    for rx, rep in _CHART_RULES:
-        if rx.search(p):
-            return rx.sub(rep, p)
-    return p
+    """Nursing-chart register: '교육하였습니다.' -> '교육함.', '유지 중입니다.' -> '유지 중임.' — every sentence of the phrase."""
+    parts = re.split(r"(?<=\.)\s+", phrase.strip())
+    return " ".join(_chart_sentence(x) for x in parts)
 
 
 _FROM_CHART: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"입원\.$"), "입원하셨습니다."), (re.compile(r"시작\.$"), "시작하셨습니다."), (re.compile(r"예정\.$"), "예정입니다."),
     (re.compile(r"투여\.$"), "투여 중입니다."), (re.compile(r"내원\.$"), "내원하셨습니다."), (re.compile(r"방문\.$"), "방문하셨습니다."),
     (re.compile(r"완료\.$"), "완료하였습니다."), (re.compile(r"추적\.$"), "추적 중입니다."), (re.compile(r"진행 중\.$"), "진행 중입니다."),
-    (re.compile(r" 중\.$"), " 중입니다."), (re.compile(r"필요\.$"), "필요합니다."),
+    (re.compile(r" 중\.$"), " 중입니다."), (re.compile(r"필요\.$"), "필요합니다."), (re.compile(r"호소\.$"), "호소하였습니다."), (re.compile(r"의심\.$"), "의심됩니다."),
     (re.compile(r"보냄\.$"), "보냈습니다."), (re.compile(r"계심\.$"), "계십니다."), (re.compile(r"하심\.$"), "하셨습니다."),
-    (re.compile(r"있었음\.$"), "있었습니다."), (re.compile(r"없었음\.$"), "없었습니다."), (re.compile(r"나옴\.$"), "나옵니다."), (re.compile(r"보임\.$"), "보입니다."),
+    (re.compile(r"(었|았|였|했|됐|웠|렸|켰|쳤|졌|셨)음\.$"), r"\1습니다."),   # 있었음 → 있었습니다, 하였음 → 하였습니다
+    (re.compile(r"나옴\.$"), "나옵니다."), (re.compile(r"보임\.$"), "보입니다."), (re.compile(r"들림\.$"), "들립니다."), (re.compile(r"들어감\.$"), "들어갑니다."),
+    (re.compile(r"않음\.$"), "않습니다."), (re.compile(r"잠듦\.$"), "잠들었습니다."), (re.compile(r"낮춤\.$"), "낮췄습니다."),
+    (re.compile(r"(?<=\s)둠\.$"), "두었습니다."), (re.compile(r"(?<=[려어와해\s])줌\.$"), "주었습니다."),
+    (re.compile(r"(해|아|어|여)짐\.$"), r"\1집니다."),
     (re.compile(r"(가능|필요|양호|깨끗|경미|불량|중요|심|동일|정상|적절)함\.$"), r"\1합니다."),   # state, not an action
     (re.compile(r"고 있음\.$"), "고 있습니다."), (re.compile(r"있음\.$"), "있습니다."),
-    (re.compile(r"없음\.$"), "없습니다."), (re.compile(r"됨\.$"), "되었습니다."), (re.compile(r"함\.$"), "하였습니다."),
-    (re.compile(r"임\.$"), "입니다."), (re.compile(r"심\.$"), "셨습니다."),
+    (re.compile(r"없음\.$"), "없습니다."), (re.compile(r"됨\.$"), "되었습니다."), (re.compile(r"(?<!포)함\.$"), "하였습니다."),
+    (re.compile(r"임\.$"), "입니다."), (re.compile(r"(?<![오의관중안결])심\.$"), "셨습니다."),   # 오심(구역)·의심은 명사
+]
+# A chart clause inside a sentence ("잠들어 있음, 특이 호소 없음." / "식사량 확인함, 절반 정도 섭취함.") reads as a spoken
+# connective; only the sentence end was converted before (2026-10-17 대량 검수: "잠들어 있음, 특이 호소 없습니다.").
+_CLAUSE_FROM_CHART: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(r"있음, "), "있고, "), (re.compile(r"없음, "), "없고, "), (re.compile(r"않음, "), "않고, "),
+    (re.compile(r"(드|내|무|계|하|으|보이)심, "), r"\1셨고, "),
+    (re.compile(r"(?<!포)함, "), "했고, "), (re.compile(r"됨, "), "됐고, "), (re.compile(r"(?<![책모])임, "), "이고, "),
+    (re.compile(r"(?<=\s)둠, "), "두었고, "), (re.compile(r"(?<=[려어와해\s])줌, "), "주었고, "), (re.compile(r"낮춤, "), "낮췄고, "),
+    (re.compile(r"(해|아|어|여)짐, "), r"\1지고, "), (re.compile(r"들어감, "), "들어가고, "), (re.compile(r"나옴, "), "나오고, "),
 ]
 
 
 def formal_from_chart(phrase: str) -> str:
     """'수면양상을 관찰함.' -> '수면양상을 관찰하였습니다.' (used for spoken styles)."""
     p = phrase.strip()
+    for rx, rep in _CLAUSE_FROM_CHART:
+        p = rx.sub(rep, p)
     for rx, rep in _FROM_CHART:
         if rx.search(p):
             return rx.sub(rep, p)
@@ -206,6 +247,7 @@ _FORMAL_ALT: list[tuple[re.Pattern[str], list[str]]] = [
     (re.compile(r"하였습니다\.$"), ["했습니다."]),
     (re.compile(r"되었습니다\.$"), ["됐습니다."]),
 ]
+_CHART_STATE = re.compile(r"(필요|요|가능|양호|깨끗|경미|불량|중요|동일|정상|적절|편안|면) ?(함|됨)\.$")
 _CHART_ALT: list[tuple[re.Pattern[str], str]] = [(re.compile(r"함\.$"), "하였음."), (re.compile(r"됨\.$"), "되었음."), (re.compile(r"음\.$"), "음.")]
 
 
@@ -218,6 +260,8 @@ def vary_ending(text: str, rng: random.Random, register: str) -> str:
     elif register == "connective" and text.endswith("고요,") and rng.random() < 0.4:
         return text[:-3] + "구요,"
     elif register == "chart" and rng.random() < 0.3:
+        if _CHART_STATE.search(text):    # "필요함/요함/…하시면 됨" are states, not past actions ("요하였음", "되었음")
+            return text
         for rx, rep in _CHART_ALT:
             if rx.search(text):
                 return rx.sub(rep, text)
@@ -232,8 +276,8 @@ def stylize(text: str, rng: random.Random, style: str = "mixed", allow_connectiv
     if not expand or not text:
         return text
     if style == "chart":
-        # 기록체: "~함/~됨/~임". Connectives stay as they are ("~하고,").
-        return vary_ending(chart_form(text), rng, "chart")
+        # 기록체: "~함/~됨/~임" on every sentence. Connectives stay as they are ("~하고,").
+        return " ".join(vary_ending(x, rng, "chart") for x in re.split(r"(?<=\.)\s+", chart_form(text)))
     parts = re.split(r"(?<=\.)\s+", text.strip())
     if len(parts) > 1:   # multi-sentence 기록체 phrase: every sentence but the last here, the last one below (2026-10-17)
         text = " ".join([formal_from_chart(p) for p in parts[:-1]] + [parts[-1]])

@@ -115,6 +115,7 @@ def test_fall_and_pressure_scores_match_their_risk_bands():
 
 def test_admission_forms_are_coherent_and_formal_scripts_have_no_questions():
     import random
+    from nursing_tts.grammar import has_batchim
     from nursing_tts.fake import audit, random_datetime, random_form, random_patient
     from nursing_tts.generator import build_script
     rng = random.Random(13)
@@ -130,7 +131,8 @@ def test_admission_forms_are_coherent_and_formal_scripts_have_no_questions():
             assert "htn" in hist
         s = build_script("s1", f, p, random_datetime(rng), style="formal", seed=i)
         assert "?" not in s.spoken_text, s.spoken_text          # 격식체 문진에 질문 문장 없음
-        assert "이었다고" not in s.spoken_text
+        for word, cop in re.findall(r"반응은 (\S+?)(이었|였)다고", s.spoken_text):   # 호흡곤란이었다고 / 두드러기였다고
+            assert (cop == "이었") == bool(has_batchim(word)), s.spoken_text
         assert not any(k.startswith("p_") for k in f)
         if int(f.get("nrs") or 0) == 0:
             assert "더 아프다" not in s.spoken_text and "통증 양상" not in s.spoken_text
@@ -313,7 +315,7 @@ def test_progress_record_has_three_duty_roundings_and_its_own_kind():
         lines = s.spoken_text.splitlines()
         for t in ("오전 7시", "오후 3시", "오후 11시"):
             assert any(l.startswith(t) for l in lines), (t, lines)
-        rounds = [l for l in lines if l.startswith(("오전 7시", "오후 3시", "오후 11시"))]
+        rounds = [next(l for l in lines if l.startswith(t)) for t in ("오전 7시", "오후 3시", "오후 11시")]   # 07:40 PRN 재사정은 라운딩 아님
         assert all(re.search(r"혈압|BP|활력|V/S|VS|바이탈", l) for l in rounds), rounds
         assert not re.search(r"장액혈성|(?<!무)혈성", s.spoken_text) and "serosanguineous" not in s.tts_text and "bloody" not in s.tts_text
         assert s.spoken_text.splitlines()[-1].startswith(("이상", "여기까지"))
@@ -462,3 +464,53 @@ def test_demo_read_through_context_rules():
             f = random_form(t, rng, p)
             txt = build_script(t, f, p, random_datetime(rng), style="formal", seed=9700 + i).spoken_text
             assert not re.search(r"(함|됨)\. ", txt), re.findall(r"[^.]*(?:함|됨)\. ", txt)[:3]
+
+
+def test_styles_do_not_mix_chart_and_spoken_endings():
+    """2026-10-17 대량 검수: 격식체에 "잠들어 있음, 특이 호소 없습니다" / "추가적인 중재 원하지 않음." / "수액 잘 들어감.",
+    기록체에 "소변 색 맑습니다" / "격리 아닙니다" / "구토 1회 있었습니다" / 체크리스트 괄호 "관찰함(…)"이 남았다."""
+    from nursing_tts.phrase_store import chart_form, formal_from_chart
+    assert chart_form("소변 색 맑습니다. 격리 아닙니다.") == "소변 색 맑음. 격리 아님."
+    assert chart_form("구토 1회 있었습니다.") == "구토 1회 있었음." and chart_form("복부 부드럽습니다.") == "복부 부드러움."
+    assert chart_form("다음 근무 때 퇴원 처방 확인 해주시면 됩니다.").endswith("확인 요함.")
+    assert formal_from_chart("잠들어 있음, 특이 호소 없음.") == "잠들어 있고, 특이 호소 없습니다."
+    assert formal_from_chart("오심 호소함, 식후 오심.") == "오심 호소했고, 식후 오심."      # 오심(구역)은 "오셨습니다"가 아님
+    leak = re.compile(r"(않음|들어감|잠듦|낮춤|있음,|없음,|(?<!포)함,|됨,)(?=\s|$)")
+    rng = random.Random(1017)
+    for t in ("s3_1", "s5", "s6"):
+        for style in ("formal", "mixed", "casual", "chart"):
+            for i in range(25):
+                p = random_patient(rng, t)
+                f = random_form(t, rng, p)
+                s = build_script(t, f, p, random_datetime(rng), style=style, seed=rng.randrange(1 << 30))
+                body = "\n".join(s.spoken_text.splitlines()[2:-1])
+                assert not re.search(r"\((?!.\))[^)]*\)", body), body                  # no spoken parentheses
+                assert not re.search(r"[0-9%] (입니다|임\.)|room air 에", body), body   # "37.0입니다", "room air에"
+                if style == "chart":
+                    assert not re.search(r"(습니다|어요|세요)\.(?=\s|$)", body), body
+                else:
+                    assert not leak.search(body), (style, body)
+
+
+def test_progress_record_day_is_coherent():
+    """2026-10-17 대량 검수(경과기록): 아침 전량 섭취 → 점심 금식, NRS 2에 PRN, "30분 뒤 재사정 예정" 뒤 13:30에야 재사정,
+    Routine 체크리스트가 라운딩을 되풀이하며 모순, 해열제 뒤에 노티, 380 혈당을 교육만, 아침 제거한 배액관을 오후에 비움."""
+    rng = random.Random(1018)
+    for i in range(150):
+        p = random_patient(rng, "s6")
+        f = random_form("s6", rng, p)
+        meals = [f.get(k) for k in ("meal1", "meal2", "meal3")]
+        assert all(m in ("npo", "sow") for m in meals) or not any(m in ("npo", "sow") for m in meals), meals
+        assert f.get("pain_plan") != "prn" or f["nrs1"] >= 4
+        assert ("nrs_prn" in f) == (f.get("pain_plan") == "prn")
+        assert not any(k.startswith(("p_sleep", "p_status", "p_meal_check", "p_vs_routine", "p_env_", "p_apain_")) and f[k] is True for k in f)
+        if f.get("p_drain_remove"):
+            assert "제거" in f.get("drain_note", "")
+        if f.get("p_bst"):
+            assert f["p_bst_time"] == "식후 2시간" and bool(f.get("p_insulin_give")) == (f["p_bst_value"] >= 200)
+        s = build_script("s6", f, p, random_datetime(rng), style="formal", seed=i)
+        txt = s.spoken_text
+        if "노티" in txt and "해열제" in txt and f.get("p_fever_noti") and f.get("p_antipyretic_give"):
+            assert txt.index("노티") < txt.index("acetaminophen"), txt
+        if "아침 식사 전량" in txt or "일반식 전량" in txt:
+            assert "금식" not in txt.split("일반식 전량")[-1], txt

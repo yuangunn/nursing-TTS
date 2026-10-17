@@ -60,8 +60,9 @@ def routine() -> Section:
 
 def fall_high() -> Section:
     return Section("prot_fall_high", "낙상 예방 (낙상 고위험군)", hint="존스홉킨스 낙상 평가 14점 이상 고위험군", fields=[
+        _b("fall_reassess", "낙상 위험도 재사정함", "낙상 위험도 재사정함, {p_jhfrat}점 고위험군.", "낙상 재사정 {p_jhfrat}점으로 고위험군 유지됨."),
         _b("fall_edu", "낙상 예방지침에 대해 교육함", "낙상 예방지침에 대해 교육함.", "환자와 보호자분께 낙상 예방지침 교육함.", "낙상 고위험군으로 낙상 예방 교육 시행함."),
-        _b("fall_intervene", "낙상예방 중재함", "낙상예방 중재함({p_fall_items}).", "낙상 예방 위해 {p_fall_items} 시행함.", "{p_fall_items}."),
+        _b("fall_intervene", "낙상예방 중재함", "낙상예방 중재함({p_fall_items}).", "낙상 예방 위해 {p_fall_items}.", "{p_fall_items}."),
         multi("p_fall_items", "중재 항목", [
             opt("near", "자주 쓰는 물건을 침상 옆에 둠", nouns=["자주 쓰는 물건을 침상 옆에 둠"]),
             opt("low", "침상 높이를 낮춤", nouns=["침상 높이를 낮춤"]),
@@ -72,7 +73,6 @@ def fall_high() -> Section:
         ], phrases=[], default=["near", "low", "rail", "wheel"], speak_prob=0.0),
         _b("call_bell", "call bell 제공함", "call bell 제공함.", "콜벨 손 닿는 곳에 두고 사용법 설명함.", "콜벨 제공하고 필요 시 호출하도록 교육함."),
         _b("fall_bracelet", "낙상 고위험 팔찌/표식 적용함", "낙상 고위험 팔찌 적용함.", "낙상 고위험 표식 부착함."),
-        _b("fall_reassess", "낙상 위험도 재사정함", "낙상 위험도 재사정함, {p_jhfrat}점 고위험군.", "낙상 재사정 {p_jhfrat}점으로 고위험군 유지됨."),
         _n("jhfrat", "낙상 점수 (존스홉킨스)", 16, 0, 35, 1),
     ])
 
@@ -142,7 +142,7 @@ def wound() -> Section:
         _b("dressing_check", "Dressing 상태를 확인함", "Dressing 상태를 확인함({p_dsg_site}, {p_dsg_state}).", "{p_dsg_site} 드레싱 {p_dsg_state}.", "드레싱 {p_dsg_state} 확인함."),
         _t("dsg_site", "드레싱 부위", "예: 복부", "복부"),
         _s("dsg_state", "드레싱 상태", [opt("clean", "깨끗하고 건조함"), opt("intact", "고정 양호함"), opt("wet", "소량 젖어 있음"), opt("blood", "혈액 비침 소량 있음"), opt("off", "일부 떨어져 보강함")], "clean"),
-        _b("dressing_do", "상처 Dressing함", "상처 Dressing함({p_dsg_site2}, 시행자 {p_dsg_by}).", "{p_dsg_site2} 드레싱 교환함, 시행자 {p_dsg_by}.", "{p_dsg_by} {p_dsg_site2} 소독 및 드레싱 시행함."),
+        _b("dressing_do", "상처 Dressing함", "상처 Dressing함({p_dsg_site2}, 시행자 {p_dsg_by}).", "{p_dsg_by}(이)가 {p_dsg_site2} 드레싱 교환함.", "{p_dsg_by} {p_dsg_site2} 소독 및 드레싱 시행함."),
         _t("dsg_site2", "시행 부위", "예: 복부 수술 부위", "복부 수술 부위"),
         _s("dsg_by", "시행자", [opt("주치의", "주치의"), opt("담당 간호사", "담당 간호사"), opt("외과 전공의", "외과 전공의"), opt("상처 전문 간호사", "상처 전문 간호사")], "주치의"),
         _b("wound_edu", "상처 관리 교육함", "상처 관리 교육함(드레싱 젖거나 출혈 시 알리도록).", "상처 부위 청결 유지와 이상 증상 시 알리도록 교육함."),
@@ -159,7 +159,7 @@ def medication() -> Section:
         _t("iv_site", "부위", "예: Lt arm, Rt hand", "Lt arm"),
         _s("iv_dsg", "Dressing 상태", [opt("깨끗함", "깨끗함"), opt("고정 양호함", "고정 양호함"), opt("젖어 교환함", "젖어 교환함"), opt("들떠 재고정함", "들떠 재고정함")], "깨끗함"),
         _s("iv_patency", "patency", [opt("양호함", "양호함"), opt("혈액 역류 확인됨", "혈액 역류 확인됨"), opt("불량하여 재삽입함", "불량하여 재삽입함")], "양호함"),
-        _b("med_edu", "약물에 대해 교육함", "약물에 대해 교육함({p_med_name}: 효능, 투여 방법, 주의사항).", "{p_med_name} 효능과 부작용에 대해 교육함.", "투여 약물 {p_med_name}에 대해 설명하고 이해함 확인함."),
+        _b("med_edu", "약물에 대해 교육함", "약물에 대해 교육함({p_med_name}: 효능, 투여 방법, 주의사항).", "{p_med_name} 효능과 부작용에 대해 교육함.", "투여 약물 {p_med_name}에 대해 설명하고 이해 여부 확인함."),
         _t("med_name", "약물명", "예: 세파졸린 1g", "세파졸린 1g"),
         _b("med_side", "투여한 약물 부작용 사정함", "투여한 약물 부작용 사정함({p_med_side_note}).", "{p_med_name} 투여 후 부작용 사정함, {p_med_side_note}.", "약물 부작용 {p_med_side_note}."),
         _s("med_side_note", "부작용", [opt("특이 반응 없음", "특이 반응 없음"), opt("오심 호소하여 관찰 중", "오심 호소하여 관찰 중"), opt("발진 없음", "발진 없음"),
@@ -195,7 +195,7 @@ def drain() -> Section:
         _s("drain_type", "종류", [opt("JP", "JP"), opt("Hemovac", "Hemovac"), opt("PCD", "PCD"), opt("PTBD", "PTBD"), opt("chest tube", "chest tube"), opt("Penrose", "Penrose")], "JP"),
         _t("drain_site", "부위", "예: 우측 복부", "우측 복부"), _t("drain_date", "삽입일", "예: 10월 14일", "10월 14일"),
         _b("drain_output", "배액 양상·양 확인함", "배액 양상·양 확인함({p_drain_color} {p_drain_amount}cc).", "배액 {p_drain_color} 양상으로 {p_drain_amount}cc 배액됨.", "{p_drain_type} {p_drain_amount}cc, {p_drain_color}."),
-        _s("drain_color", "양상", [opt("sanguineous", "sanguineous"), opt("serosanguineous", "serosanguineous"), opt("serous", "serous"), opt("bilious", "bilious"), opt("purulent", "purulent")], "serosanguineous"),
+        _s("drain_color", "양상", [opt("bloody", "bloody"), opt("serosanguineous", "serosanguineous"), opt("serous", "serous"), opt("bilious", "bilious"), opt("purulent", "purulent")], "serosanguineous"),
         _n("drain_amount", "양 (cc)", 40, 0, 2000, 5),
         _b("drain_fix", "배액관 고정 상태 확인함 / milking 시행함", "배액관 고정 상태 확인하고 milking 시행함.", "배액관 꺾임·당김 없이 고정 양호함, milking 함.", "배액관 개방성 확인하고 음압 유지함."),
         _b("drain_edu", "배액관 관리 교육함", "배액관 관리 교육함(당겨지지 않도록 주의, 비우는 방법, 양상 변화 시 알리기).", "배액관 당겨지지 않도록 주의하고 혈액색 짙어지거나 양 늘면 알리도록 교육함."),
@@ -232,16 +232,16 @@ def fever() -> Section:
         _b("fever_assess", "발열 원인 사정함", "발열 원인 사정함({p_fever_sx}).", "발열 관련 증상 사정함, {p_fever_sx}.", "오한, 수술 부위, 호흡기, 요로 증상 사정함, {p_fever_sx}."),
         _s("fever_sx", "동반 증상", [opt("오한 없음", "오한 없음, 수술 부위 발적 없음"), opt("오한 있음", "오한 동반함"), opt("기침·객담", "기침과 객담 있음"), opt("배뇨통", "배뇨 시 통증 있음"),
                                    opt("수술 부위 발적", "수술 부위 발적·열감 있음"), opt("특이 증상 없음", "특이 증상 없음")], "오한 없음"),
+        _b("fever_noti", "주치의 노티함", "발열 주치의 노티함.", "BT {p_temp}도 주치의 노티하고 처방 확인함."),
+        _b("culture_do", "배양 검사 시행함", "배양 검사 시행함({p_culture}).", "{p_culture} 검체 채취하여 검사실 보냄."),
+        _s("culture", "검체", [opt("blood culture 2쌍", "blood culture 2쌍"), opt("urine culture", "urine culture"), opt("sputum culture", "sputum culture"), opt("wound culture", "wound culture")], "blood culture 2쌍"),
         _b("antipyretic_give", "해열제 투여함", "해열제 투여함({p_antipyretic} {p_antipyretic_route}).", "{p_antipyretic} {p_antipyretic_route} 투여함.", "처방에 따라 {p_antipyretic} {p_antipyretic_route} 투여함."),
         _t("antipyretic", "약명", "예: acetaminophen 1g", "acetaminophen 1g"),
         _s("antipyretic_route", "경로", [opt("IV", "IV"), opt("PO", "PO")], "IV"),
         _b("tepid", "미온수 마사지/ice pack 적용함", "미온수 마사지 적용함.", "ice pack 적용하고 얇은 이불로 교체함.", "미온수 마사지 시행하고 보온 조절함."),
         _b("fluid_encourage", "수분 섭취 격려함", "수분 섭취 격려함.", "탈수 예방 위해 수분 섭취 격려함."),
-        _b("temp_recheck", "체온 재측정함", "체온 재측정함({p_recheck_time}, {p_recheck_temp}도).", "{p_recheck_time} 재측정 BT {p_recheck_temp}도로 하강함.", "해열제 투여 후 {p_recheck_temp}도 확인됨."),
+        _b("temp_recheck", "체온 재측정함", "체온 재측정함({p_recheck_time}, {p_recheck_temp}도).", "{p_recheck_time} 재측정 BT {p_recheck_temp}도로 하강함.", "해열제 투여 {p_recheck_time} {p_recheck_temp}도 확인됨."),
         _t("recheck_time", "재측정 시각", "예: 1시간 후", "1시간 후"), _n("recheck_temp", "재측정 체온", 37.3, 35.0, 42.0, 0.1),
-        _b("fever_noti", "주치의 노티함", "발열 주치의 노티함.", "BT {p_temp}도 주치의 노티하고 처방 확인함."),
-        _b("culture_do", "배양 검사 시행함", "배양 검사 시행함({p_culture}).", "{p_culture} 검체 채취하여 검사실 보냄."),
-        _s("culture", "검체", [opt("blood culture 2쌍", "blood culture 2쌍"), opt("urine culture", "urine culture"), opt("sputum culture", "sputum culture"), opt("wound culture", "wound culture")], "blood culture 2쌍"),
     ])
 
 
@@ -249,12 +249,12 @@ def nausea() -> Section:
     return Section("prot_nausea", "오심", hint="사정, 항구토제, 식이 조절, 구강 간호, 체위, 재사정", fields=[
         _b("nausea_assess", "오심/구토 사정함", "오심/구토 사정함({p_nv_note}).", "오심 호소함, {p_nv_note}.", "오심·구토 양상 사정함, {p_nv_note}."),
         _s("nv_note", "양상", [opt("오심만 있고 구토 없음", "오심만 있고 구토 없음"), opt("구토 1회", "구토 1회, 소화된 음식물"), opt("구토 2회 이상", "구토 2회 이상"),
-                               opt("식후 오심", "식후 오심"), opt("PCA 관련 오심", "PCA 관련 오심 의심")], "오심만 있고 구토 없음"),
+                               opt("식후 오심", "식후에 심해짐"), opt("PCA 관련 오심", "PCA 관련 오심 의심")], "오심만 있고 구토 없음"),
         _b("antiemetic_give", "항구토제 투여함", "항구토제 투여함({p_antiemetic} {p_antiemetic_route}).", "{p_antiemetic} {p_antiemetic_route} 투여함.", "처방에 따라 {p_antiemetic} 투여하고 반응 관찰함."),
         _t("antiemetic", "약명", "예: 메토클로프라미드 10mg", "메토클로프라미드 10mg"),
         _s("antiemetic_route", "경로", [opt("IV", "IV"), opt("PO", "PO"), opt("IM", "IM")], "IV"),
-        _b("diet_adjust", "금식/소량 식이 조절함", "구토 지속되어 금식 유지함.", "소량씩 자주 섭취하도록 식이 조절함.", "오심 호전될 때까지 식사 보류함."),
-        _b("oral_care", "구강 간호 시행함", "구토 후 구강 간호 시행함.", "구강 헹굼 돕고 구강 간호함."),
+        _b("diet_adjust", "금식/소량 식이 조절함", "소량씩 자주 섭취하도록 식이 조절함.", "오심 호전될 때까지 식사 보류함."),
+        _b("oral_care", "구강 간호 시행함", "구강 간호 시행함.", "구강 헹굼 돕고 구강 간호함."),
         _b("nv_position", "체위 조정함", "흡인 예방 위해 머리 올리고 측위 유지함.", "침상 머리 올려 편안한 체위 취해 줌."),
         _b("nv_edu", "구토 시 흡인 예방 교육함", "구토 시 고개 옆으로 돌리도록 흡인 예방 교육함.", "구토 시 즉시 알리고 고개 옆으로 돌리도록 교육함."),
         _b("nv_reassess", "재사정함", "중재 후 오심 재사정함, {p_nv_re}.", "항구토제 투여 후 {p_nv_re}."),
@@ -284,7 +284,7 @@ def pressure_injury() -> Section:
     return Section("prot_skin", "피부 통합성 장애 위험 (욕창 예방)", hint="Braden, 체위변경, 피부 사정, 압력 완화", fields=[
         _b("braden_check", "욕창 위험도 사정함", "욕창 위험도 사정함, {p_braden}점 {p_braden_risk}.", "욕창 {p_braden}점으로 {p_braden_risk} 확인함."),
         _n("braden", "욕창 점수 (Braden)", 18, 6, 23, 1),
-        _s("braden_risk", "위험도", [opt("위험 없음", "위험 없음 (19~23)"), opt("저위험", "저위험 (15~18)"), opt("중등도 위험", "중등도 위험 (13~14)"), opt("고위험", "고위험 (10~12)"), opt("최고위험", "최고위험 (9 이하)")], "저위험"),
+        _s("braden_risk", "위험도", [opt("위험 없음", "위험 없음"), opt("저위험", "저위험"), opt("중등도 위험", "중등도 위험"), opt("고위험", "고위험"), opt("최고위험", "최고위험")], "저위험"),
         _b("skin_assess", "피부 상태 사정함", "피부 상태 사정함({p_skin_note}).", "천골·발뒤꿈치 등 압박 부위 피부 사정함, {p_skin_note}."),
         _s("skin_note", "피부 상태", [opt("발적 없음", "발적 없음"), opt("천골 부위 발적 있음", "천골 부위 발적 있음"), opt("피부 건조함", "피부 건조하여 보습제 적용함")], "발적 없음"),
         _b("reposition", "체위 변경함", "2시간마다 체위 변경함.", "체위 변경 시행하고 압박 부위 확인함."),
