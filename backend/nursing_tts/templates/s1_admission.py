@@ -99,9 +99,11 @@ TEMPLATE = RecordTemplate(
                          "따로 드시고 계신 약 있으실까요? {v} 드시고 계시고,", "드시는 약은 {v}, 아침 식후에 하나씩 드시고,"]),
             sel("antiplatelet", "항응고/항혈소판제", [
                 opt("na", "해당 없음", "항응고제, 항혈소판제 복용 안 하십니다.", "항혈소판제 복용력 없으시고,"),
-                opt("stopped", "중단함", "아스피린은 외래에서 1주 전 중단한 상태입니다.", "항혈소판제는 1주 전 중단하셨고,", "아스피린 중단 확인했습니다."),
+                opt("stopped", "중단함", "{apt_drug}(은)는 외래에서 {apt_hold} 중단한 상태입니다.", "{apt_drug}(은)는 {apt_hold} 중단하셨고,", "{apt_drug} 중단 확인했습니다."),
                 opt("taking", "복용 중", "항혈소판제 아직 복용 중이라 담당의 확인 필요합니다.", "항응고제 복용 중이라 주치의 noti 했습니다."),
             ], default="na"),
+            txt("apt_drug", "중단한 약", placeholder="예: 아스피린", phrases=[], default="아스피린", speak_prob=0.0),
+            txt("apt_hold", "중단 시점", placeholder="예: 1주 전", phrases=[], default="1주 전", speak_prob=0.0),
             txt("supplements", "건강식품/일반약", placeholder="예: 오메가3, 홍삼",
                 phrases=["{v} 드시고 계십니다.", "건강식품으로 {v} 드시고,", "건강식품이나 따로 드시는 영양제 있으세요? {v} 드신다고 하시고,"], speak_prob=0.8),
         ]),
@@ -273,7 +275,7 @@ TEMPLATE = RecordTemplate(
                 opt("neg", "없음", "최근 일주일 식사량 변화 없으시고,", "최근 일주일 동안 식사량이 변했거나 편식하는 것 없고요,",
                     "식사할 때 따로 준비하거나 알아야 되는 거 있을까요? 없으시고,"),
                 opt("decreased", "감소", "최근 일주일 식사량 절반 정도로 줄었다고 하십니다.", "식사량 줄어서 영양 상담 필요합니다."),
-                opt("special", "편식/특이식", "{intake_note} 때문에 식사 준비 시 주의 필요합니다.", "편식이 있어서 식사 시 {intake_note} 피하도록 되어 있습니다."),
+                opt("special", "편식/특이식", "{intake_note}(으)로 식사 준비 시 주의 필요합니다.", "식사 관련해서는 {intake_note}(이)라고 하셔서 식사 준비 시 주의 필요합니다."),
             ], default="neg", skip_values=("neg", "decreased")),
             txt("intake_note", "식이 특이사항", placeholder="예: 해산물 알레르기, 채식", phrases=[], speak_prob=0.0),
             sel("adl", "일상생활/보행", [   # data only: the same fact is spoken by `mobility` (2026-10-17 겹침 제거)
@@ -297,7 +299,7 @@ TEMPLATE = RecordTemplate(
             ], default="neg", speak_prob=0.8),
             sel("marital", "결혼 상태", [
                 opt("married", "기혼", "결혼하셨고,", "기혼이시고,", "결혼하셨고 배우자분 계시고,"),
-                opt("single", "미혼", "현재 결혼은 아직 안 하신 미혼 상태이시고,", "미혼이시고,"),
+                opt("single", "미혼", "미혼이시고,", "현재 미혼이시고,"),
                 opt("other", "기타(사별/이혼)", "배우자분은 사별하셨고,", "혼자 지내시고,"),
             ], default="married", speak_prob=0.6),
             txt("lmp", "마지막 월경일 (여성)", placeholder="예: 2026년 9월 30일",

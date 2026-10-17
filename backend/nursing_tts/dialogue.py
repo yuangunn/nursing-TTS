@@ -105,7 +105,8 @@ def _a_meds(f: dict[str, Any], p: Patient, rng: random.Random) -> str:
 def _a_antiplatelet(f: dict[str, Any], p: Patient, rng: random.Random) -> str | None:
     v = f.get("antiplatelet")
     if v == "stopped":
-        return rng.choice(["네, 일주일 전부터 안 먹었어요.", "네, 끊고 왔어요."])
+        hold = "이틀 전" if f.get("apt_hold") == "이틀 전" else "일주일 전"
+        return rng.choice([f"네, {hold}부터 안 먹었어요.", "네, 끊고 왔어요."])
     if v == "taking":
         return "아직 먹고 있어요."
     return None
@@ -138,7 +139,9 @@ def _a_allergy(f: dict[str, Any], p: Patient, rng: random.Random) -> str:
     reaction = str(f.get("allergy_reaction") or "두드러기")
     a = al[0]
     if a == "food":
-        return f"{str(f.get('intake_note') or '해산물').replace(' 알레르기', '')} 먹으면 {reaction} 나요."
+        food = str(f.get("intake_note") or "")
+        food = food.replace(" 알레르기", "") if "알레르기" in food else "해산물"     # the note may be a diet preference, not the allergen
+        return f"{food} 먹으면 {reaction} 나요."
     return {"contrast": "조영제 맞고 안 좋았던 적 있어요.", "penicillin": f"페니실린 맞으면 {reaction} 나요.", "nsaid": f"진통제 먹으면 {reaction} 나요.",
             "antibiotic": f"항생제에 {reaction} 난 적 있어요."}.get(a, "네, 좀 있어요.")
 

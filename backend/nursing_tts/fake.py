@@ -33,7 +33,7 @@ TEXT_POOLS: dict[str, list[str]] = {
     "medications": ["암로디핀 5mg, 메트포르민 500mg bid", "로사르탄 50mg qd", "메트포르민 500mg bid, 아토르바스타틴 20mg", "없음",
                     "아스피린 100mg, 클로피도그렐 75mg", "레보티록신 50mcg qd", "혈압약 트윈스타 40/5mg 하나씩 아침 식후",
                     "고지혈증약 로수바스타틴 10mg 저녁", "혈압약 하나 아침 식후, 당뇨약 메트포르민 아침저녁"],
-    "intake_note": ["해산물 알레르기", "채식", "매운 음식 못 드심", "유제품 피함"],
+    "intake_note": ["해산물 알레르기", "채식 식단", "매운 음식 섭취 어려움", "유제품 불내증"],
     "weakness_note": ["오른쪽 다리", "왼쪽 팔", "환측 다리"],
     "symptom_note": ["식후 더부룩함", "다리 부종", "가끔 두근거림", "계단 오를 때 숨참"],
     "lmp": ["2026년 9월 30일", "2026년 10월 2일", "폐경"],
@@ -242,6 +242,8 @@ def record_datetime(template_key: str, patient: Patient, form: dict[str, Any], r
         day, mins = day_n, rng.randint(8 * 60 + 30, 10 * 60 + 40)  # discharge morning, before the 오전 11시 discharge
     elif t == "s5":
         shift = 23 if form.get("gas_out") else rng.choice([7, 15, 23])   # "금일 가스 아웃 … 저녁부터 물 시작했고" is a night handover
+        if shift != 7:
+            form.pop("sleep", None)       # "밤에 잘 주무셨습니다" belongs to the 07:00 handover
         day, mins = day_n, shift * 60 + rng.randint(0, 40)
     elif t == "s6":
         last = _parse_clock(str(form.get("t8") or "")) or 23 * 60
@@ -482,6 +484,9 @@ def _consistency(form: dict[str, Any], template_key: str, t, rng: random.Random,
             form[k] = round(rng.uniform(37.8, 39.2), 1)
     if "p_temp" in form and "p_recheck_temp" in form and form["p_recheck_temp"] >= form["p_temp"]:
         form["p_recheck_temp"] = round(form["p_temp"] - rng.uniform(0.3, 1.0), 1)
+    # S3-1: 금식(물도 금지)인데 경구 PRN을 드셨다고 하지 않음 — the diet may have become NPO in the post-op day logic above
+    if template_key == "s3_1" and form.get("diet_status") == "npo" and form.get("pain_med") == "prn_po":
+        form["pain_med"] = "prn_iv"
     # the rules above may change score inputs (의식·보행·배뇨…) after the score was set: keep score, level and problems in sync
     if template_key == "s1" and "jhfrat" in form and "fall" in form and forced not in ({"high"}, {"low"}):
         score = jhfrat_score(form, patient)
@@ -606,15 +611,23 @@ def _derive_s1(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
             form.pop("history_detail", None)
     if "medications" in form:
         meds = [rng.choice(_MEDS[h]) for h in hist if h in _MEDS]
+        if "심방세동" in form.get("history_detail", ""):   # AF (2026-10-17: "심방세동으로 약 복용 중" + "항응고제 복용 안 하십니다")
+            meds = [m for m in meds if "아스피린" not in m and "비소프롤롤" not in m] + ["비소프롤롤 5mg qd", "아픽사반 5mg bid"]
         if "dm" in hist and "인슐린" in form.get("history_detail", ""):
             meds = [m for m in meds if "메트포르민" not in m and "글리메피리드" not in m] + ["인슐린 자가 주사 (란투스 14단위)"]
         if meds:
             form["medications"] = ", ".join(meds)
         else:
             form.pop("medications", None)
+    if "심방세동" in form.get("history_detail", "") and "아픽사반" not in str(form.get("medications") or ""):
+        # the med list may not have been drawn at all — an AF patient is still on rate control and a NOAC
+        kept = [m for m in str(form.get("medications") or "").split(", ") if m and "아스피린" not in m and "비소프롤롤" not in m]
+        form["medications"] = ", ".join(kept + ["비소프롤롤 5mg qd", "아픽사반 5mg bid"])
     if "antiplatelet" in form:
-        on_apt = any(w in form.get("medications", "") for w in ("아스피린", "클로피도그렐"))
-        form["antiplatelet"] = ("stopped" if not chemo else "taking") if on_apt else "na"
+        held = next((w for w in ("아픽사반", "리바록사반", "에독사반", "와파린", "클로피도그렐", "아스피린") if w in form.get("medications", "")), "")
+        form["antiplatelet"] = ("stopped" if not chemo else "taking") if held else "na"
+        if held:   # NOACs stop 2 days before, antiplatelets a week
+            form["apt_drug"], form["apt_hold"] = held, ("이틀 전" if held in ("아픽사반", "리바록사반", "에독사반") else "1주 전")
     if "route" in form:
         form["route"] = "er" if "응급실" in cc else "transfer" if "전원" in cc else "opd"
     if "vitals" in form:
@@ -735,6 +748,22 @@ def _derive_s1(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
     # 금연·금주 교육은 해당 환자에게만 (user 2026-10-17); set unconditionally so the bool never lags the habit field
     form["smoking_edu"] = form.get("smoking") == "current"
     form["alcohol_edu"] = form.get("alcohol") in ("social", "heavy")
+    if "height" in form or "weight" in form:
+        # 2026-10-17: "150 cm, 43 kg" for a 64-year-old man, "164 cm, 92 kg, BMI 20.2" — sex-aware build, BMI from the numbers
+        male = patient.sex.startswith("남")
+        h = rng.randint(162, 182) if male else rng.randint(150, 168)
+        if age >= 70:
+            h -= rng.randint(2, 5)
+        bmi = rng.uniform(19.0, 29.0) if not (chemo or "체중" in cc) else rng.uniform(17.5, 24.0)
+        form["height"], form["weight"] = h, int(round(bmi * (h / 100) ** 2))
+        form["bmi"] = round(form["weight"] / (h / 100) ** 2, 1)
+    if "marital" in form:
+        if age < 30:
+            form["marital"] = rng.choices(["single", "married"], weights=[75, 25])[0]
+        elif age < 60:
+            form["marital"] = rng.choices(["married", "single", "other"], weights=[80, 12, 8])[0]
+        else:
+            form["marital"] = rng.choices(["married", "other", "single"], weights=[70, 25, 5])[0]
     if "weight_screen" in form:
         cancer = any(w in cc for w in ("암", "종양", "전이")) or chemo
         form["weight_screen"] = "loss" if (cancer and rng.random() < 0.3) else ("gain" if rng.random() < 0.08 else "neg")
@@ -753,7 +782,10 @@ def _derive_s1_problems(form: dict[str, Any], patient: Patient, rng: random.Rand
         probs.append("infection")
         probs.append("knowledge")
     else:
-        probs += ["anxiety", "knowledge"]
+        probs.append("knowledge")
+    # 불안 only when the patient said so (2026-10-17: "별로 걱정은 안 돼요" followed by 간호 문제 "불안")
+    if any(e in (form.get("emotion") or []) for e in ("anxiety", "depression")):
+        probs.insert(0, "anxiety")
     if int(form.get("nrs") or 0) >= 3:
         probs.append("pain")
     if form.get("fall") in ("moderate", "high"):
@@ -909,6 +941,8 @@ def _derive_s3_1(form: dict[str, Any], patient: Patient, sc, rng: random.Random)
     keep_only = sc is not None and set(sc.form.get("foley") or []) == {"keep"}
     if not day0 and form.get("foley") == "keep" and not keep_only:
         form["foley"] = rng.choice(["removed", "none"])
+    if day0 and form.get("foley") == "removed":
+        form["foley"] = "none"            # "소변줄 제거하고 자가배뇨 확인" minutes after the ward arrival is not a POD 0 fact
     if form.get("foley") != "keep" and any(w in form.get("special_edu", "") for w in ("소변줄", "세척", "방광 내")):
         alt = [x for x in _pool(sc, "special_edu", "s3_1") if not any(w in x for w in ("소변줄", "세척", "방광 내"))]
         if alt:
@@ -933,9 +967,13 @@ def _derive_s3_1(form: dict[str, Any], patient: Patient, sc, rng: random.Random)
         form["drain_edu"] = False                               # the surgery-specific line already says it
     if not has_drain:
         form.pop("drain_note", None)
+    if keep_only and form.get("foley") == "keep" and not re.search(r"1~2주|외래에서 제거", form.get("foley_note") or ""):
+        long = [x for x in _pool(sc, "special_edu", "s3_1") if "1~2주" in x or "외래에서 제거" in x]
+        line = long[0] if long else "소변줄은 1~2주 유지 후 외래에서 제거 예정이며 당겨지지 않게 고정 교육함"
+        form["foley_note"] = f"{line}. {form['foley_note']}" if form.get("foley_note") else line   # RALRP: how long it stays
     form["foley_edu"] = form.get("foley") == "keep" and rng.random() < 0.9
     if form.get("foley_note") and re.search(r"당겨|소변백|제거 예정|관리", form["foley_note"]):
-        form["foley_edu"] = False
+        form["foley_edu"] = False         # the surgery's own line says it (RALRP: "1~2주 유지 후 외래에서 제거", not "내일 아침")
     if form.get("foley") != "keep":
         form.pop("foley_note", None)
     # 약물 투여: what actually went in after the operation
@@ -944,8 +982,8 @@ def _derive_s3_1(form: dict[str, Any], patient: Patient, sc, rng: random.Random)
         meds.append(rng.choice(["예방적 항생제 세파졸린 1g IV", "세파졸린 1g IV", "세프트리악손 2g IV"]))
     if form.get("nausea") in ("nausea", "vomit"):
         meds.append(rng.choice(["온단세트론 4mg IV", "메토클로프라미드 10mg IV"]))
-    if patient.department == "정형외과" and not _upper_limb(patient.diagnosis):
-        meds.append("에녹사파린 40mg 피하 주사")
+    if sc is not None and (sc.key in ("TKA", "THA", "BKA") or (sc.key == "ORIF" and not _upper_limb(patient.diagnosis))):
+        meds.append("에녹사파린 40mg 피하 주사")   # VTE prophylaxis after major lower-limb surgery, not after an arthroscopy
     if meds:
         form["meds_given"] = ", ".join(meds)
     else:
@@ -1196,11 +1234,15 @@ def _derive_s4(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
     else:
         form["home_meds"] = rng.choices(["continue", "none", "continue_aspirin_later", "changed"], weights=[50, 30, 0 if chemo else 10, 10])[0]
     form["teachback"] = rng.choices(["both", "patient", "caregiver", "re_edu"], weights=[70, 20, 5, 5])[0]
+    if "없음" in str(form.get("discharge_meds") or ""):
+        form["side_effect_edu"] = False   # 복약지도문 without a prescription (2026-10-17)
     m = re.match(r"(\d+)월 (\d+)일", patient.op_date or "")
     if m:
         offset = rng.randint(12, 21)
         if not chemo and patient.pod:
             offset = max(offset, patient.pod + rng.randint(5, 9))   # a 21-day BKA stay still has its clinic after discharge
+        if chemo:   # D1 = op_date for chemo; clinic the day before the next cycle ("3주 후 외래" must match the next admission)
+            offset = (14 if "FOLF" in (patient.regimen or "") else 21) - 1
         visit = datetime(2026, int(m.group(1)), int(m.group(2))) + timedelta(days=offset)
         form["opd"] = f"{visit.month}월 {visit.day}일 {rng.choice(['오전 9시', '오전 10시 30분', '오전 11시', '오후 2시', '오후 3시'])}"
         if chemo:                                            # 다음 입원 일자: the cycle after the clinic check (user 2026-10-17)
@@ -1320,7 +1362,9 @@ def _derive_s5(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
         form.pop("drain", None)
     io = f"수액 {rng.randrange(1200, 2200, 100)}, 소변 {rng.randrange(1200, 2400, 100)}"
     if ("JP" in drain or "Hemovac" in drain) and "제거" not in drain:
-        io += f", {'Hemovac' if 'Hemovac' in drain else 'JP'} {rng.randrange(20, 120, 10)}"
+        am = re.search(r"(\d+)\s*cc", drain)
+        amount = (int(am.group(1)) * (2 if "각" in drain else 1)) if am else rng.randrange(20, 120, 10)
+        io += f", {'Hemovac' if 'Hemovac' in drain else 'JP'} {amount}"   # same number as the drain line (2026-10-17)
     if chemo or d in ("sd", "gd", "soft", "dm"):
         io = f"경구 {rng.randrange(800, 1800, 100)} " + io
     form["io"] = io
@@ -1334,6 +1378,9 @@ def _derive_s5(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
         prn = rng.choice([["트라마돌 1회"], ["항구토제 1회"], ["트라마돌 1회, 항구토제 1회"], []])
     else:
         prn = ["트라마돌 1회"] if rng.random() < 0.3 else []
+    if prn and form.get("pain_mgmt") == "pca_prn":
+        rest = [x.strip() for x in prn[0].split(",") if "트라마돌" not in x]
+        prn = [", ".join(rest)] if rest else []
     if prn:
         form["prn"] = prn[0]
     else:
@@ -1349,6 +1396,8 @@ def _derive_s5(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
     if pod == 0 and not chemo:
         sp = [x for x in sp if not any(w in x for w in ("보행", "어제", "제거"))]
     sp = [x for x in sp if ("미음" not in x or d == "ld") and ("죽식 진행 여부" not in x or d == "ld") and ("제거" not in x or "제거" not in drain)]
+    if drain and "제거" not in drain:   # a drain is being reported: no line saying it was taken out yesterday
+        sp = [x for x in sp if not re.search(r"(Hemovac|JP|헤모박|배액관)[^.]*제거", x)]
     sp = coherent_pool(patient.diagnosis, tuple(sp), trauma=False) or sp
     if sp and rng.random() < 0.8:
         form["special"] = _fill(rng.choice(sp), patient, sc)
@@ -1529,7 +1578,12 @@ def _derive_s6(form: dict[str, Any], patient: Patient, sc, rng: random.Random, t
     if rng.random() < 0.8:
         form["p_status_note"] = "stable"
     if _section_on(form, t, "prot_fever"):
-        form["bt3"] = form.get("p_temp", form.get("bt3"))
+        # 2026-10-17: "38.7도로 발열 확인" then nothing, and still 38.7 at noon
+        form["p_temp_measure"] = form["p_antipyretic_give"] = form["p_temp_recheck"] = True
+        if rng.random() < 0.7:
+            form["p_fever_noti"] = True
+        recheck = float(form.get("p_recheck_temp") or 37.3)
+        form["bt3"] = round(rng.uniform(36.6, max(36.7, min(37.4, recheck))), 1)
     else:
         form["bt3"] = round(rng.uniform(36.3, 37.4), 1)
     # dinner follows the final lunch state (the 오심 protocol may have made lunch 금식 above)

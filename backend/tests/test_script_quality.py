@@ -382,3 +382,83 @@ def test_record_time_follows_the_patient_timeline():
                 assert w.hour in (7, 15, 23), w
             if t == "s6":
                 assert mins >= _parse_clock(f["t8"]) + 5, (f["t8"], w)
+
+
+def test_demo_read_through_context_rules():
+    """Context errors found by reading the 21 lab-demo scripts end to end (2026-10-17)."""
+    from datetime import date
+    from nursing_tts.templates import get_template
+    # a record-scoped variant stays in its record (common.py options are shared objects)
+    s1_alert = next(o for o in get_template("s1").field_map()["consciousness"].options if o.value == "alert").phrases
+    s5_alert = next(o for o in get_template("s5").field_map()["consciousness"].options if o.value == "alert").phrases
+    assert "멘탈 클리어합니다." in s5_alert and "멘탈 클리어합니다." not in s1_alert
+    rng = random.Random(321)
+    for i in range(60):
+        p = random_patient(rng, "s1")
+        f = random_form("s1", rng, p)
+        txt = build_script("s1", f, p, random_datetime(rng), style="formal", seed=9600 + i, signal_format="strict").spoken_text
+        assert txt.count("지남력") + txt.count("오리엔테이션") <= 1, txt
+        assert not re.search(r"(불안|우울)하고 ", txt) and "동의서하고" not in txt, txt     # a noun list, not an adjective
+        if "anxiety" in (f.get("nursing_problems") or []):
+            assert any(e in (f.get("emotion") or []) for e in ("anxiety", "depression")), (f.get("emotion"), f.get("nursing_problems"))
+        if f.get("height") and f.get("weight") and f.get("bmi"):
+            assert abs(f["bmi"] - f["weight"] / (f["height"] / 100) ** 2) < 0.15, (f["height"], f["weight"], f["bmi"])
+            assert f["height"] >= 157 if p.sex.startswith("남") else f["height"] <= 168, (p.sex, f["height"])
+        assert "못 드심 피하도록" not in txt and "아직 안 하신" not in txt, txt
+    for i in range(80):
+        p = random_patient(rng, "s3_1")
+        f = random_form("s3_1", rng, p)
+        if f.get("diet_status") == "npo":
+            assert f.get("pain_med") != "prn_po", f.get("pain_med")         # 금식(물도 금지)인데 경구 진통제
+        assert f.get("foley") != "removed"
+        if p.surgery == "RALRP" and f.get("foley") == "keep":
+            assert not f.get("foley_edu") and "1~2주" in (f.get("foley_note") or ""), (f.get("foley_edu"), f.get("foley_note"))
+        if "에녹사파린" in (f.get("meds_given") or ""):
+            assert p.surgery in ("TKA", "THA", "BKA", "ORIF"), p.surgery
+    for i in range(80):
+        p = random_patient(rng, "s5")
+        f = random_form("s5", rng, p)
+        drain = f.get("drain") or ""
+        m, d = re.search(r"(?:Hemovac|JP) (\d+)", f.get("io") or ""), re.search(r"(\d+)\s*cc", drain)
+        if m and d and "각" not in drain:
+            assert m.group(1) == d.group(1), (f["io"], drain)
+        if drain and "제거" not in drain:
+            assert not re.search(r"(Hemovac|JP|헤모박|배액관)[^.]*제거", f.get("special") or ""), (drain, f.get("special"))
+    for i in range(80):
+        p = random_patient(rng, "s4")
+        f = random_form("s4", rng, p)
+        if p.kind == "chemo" and f.get("next_admission"):
+            (om, od), (nm, nd) = [tuple(int(x) for x in re.match(r"(\d+)월 (\d+)일", v).groups()) for v in (p.op_date, f["next_admission"])]
+            gap = (date(2026 + (nm < om), nm, nd) - date(2026, om, od)).days
+            assert gap == (14 if "FOLF" in p.regimen else 21), (p.regimen, p.op_date, f["next_admission"])
+    for i in range(30):
+        p = random_patient(rng, "s2", scenario="ESS")
+        f = random_form("s2", rng, p)
+        assert not {"shave", "skin_prep"} & set(f.get("prep") or []), f.get("prep")
+    for i in range(150):
+        p = random_patient(rng, "s1")
+        f = random_form("s1", rng, p)
+        if "심방세동" in (f.get("history_detail") or ""):
+            assert "아픽사반" in f.get("medications", "") and f.get("antiplatelet") in ("stopped", "taking"), (f.get("medications"), f.get("antiplatelet"))
+            assert f.get("antiplatelet") != "stopped" or f.get("apt_hold") == "이틀 전"
+    for i in range(80):
+        p = random_patient(rng, "s4")
+        f = random_form("s4", rng, p)
+        if "없음" in str(f.get("discharge_meds") or ""):
+            assert not f.get("side_effect_edu")
+    for i in range(80):
+        p = random_patient(rng, "s5")
+        f = random_form("s5", rng, p)
+        if f.get("pain_mgmt") == "pca_prn":
+            assert "트라마돌" not in (f.get("prn") or ""), f.get("prn")
+    for i in range(120):
+        p = random_patient(rng, "s6")
+        f = random_form("s6", rng, p)
+        if any(k.startswith("p_temp") for k in f) and f.get("p_temp_measure"):
+            assert f.get("p_antipyretic_give") and f.get("p_temp_recheck") and f["bt3"] < 37.5, (f.get("p_temp"), f.get("bt3"))
+    for t in ("s6", "s3_2", "s4"):                                              # 격식체 lines carry no 기록체 sentence inside
+        for i in range(25):
+            p = random_patient(rng, t)
+            f = random_form(t, rng, p)
+            txt = build_script(t, f, p, random_datetime(rng), style="formal", seed=9700 + i).spoken_text
+            assert not re.search(r"(함|됨)\. ", txt), re.findall(r"[^.]*(?:함|됨)\. ", txt)[:3]
