@@ -1,12 +1,12 @@
-"""S3-1. 수술/검사 직후 교육."""
+"""S3-1. 수술 후 기록: POD 0, 회복실에서 병실로 올라온 직후 (user 2026-10-17). 다음 날부터의 하루는 S6 경과기록."""
 from .base import RecordTemplate, Section, opt, sel, multi, num, txt, boolean
 from .common import VITALS_FIELD, CONSCIOUSNESS, PAIN_NRS, PAIN_MED
 
 TEMPLATE = RecordTemplate(
     key="s3_1",
-    title="S3-1. 수술/검사 직후 설명",
+    title="S3-1. 수술 후 기록 (POD 0, 병실 도착 직후)",
     signal_kind="수술후설명",
-    description="수술 직후~POD 1-2 또는 검사 직후, 환자 상태·수술기록·처방을 보면서 구술합니다.",
+    description="수술 당일(POD 0) 회복실 거쳐 병실에 도착한 직후, 환자 상태·수술기록·처방을 보면서 구술합니다. 다음 날부터의 하루 경과는 S6 경과기록으로. 검사 직후 기록도 여기서.",
     intros=["{name}님 진단명 {dx}, {surgery} 수술후 간호기록 시작합니다.",
             "진단명 {dx}, {surgery} 환자분 수술 후 간호기록입니다.",
             "{dx}(으)로 {surgery} 시행하신 {name}님 수술 후 간호기록 시작합니다."],
@@ -16,8 +16,6 @@ TEMPLATE = RecordTemplate(
             sel("timing", "시점", [
                 opt("day0", "수술 당일", "{op_date} 수술 당일 {surgery_en} 시행하고 회복실 거쳐 병실 도착하였습니다.",
                     "수술 당일로 {surgery} 시행 후 회복실 거쳐 병실 올라오셨고,", "오늘 {surgery} 하시고 회복실 경유해서 병실 도착하셨구요,"),
-                opt("pod1", "POD 1", "{surgery} POD 1 입니다.", "수술 다음날 POD 1 이고,", "{surgery_abbr} POD 1 환자분이구요,"),
-                opt("pod2", "POD 2", "{surgery} POD 2 입니다.", "{surgery_abbr} POD 2 이고,"),
                 opt("post_exam", "검사 직후", "검사 마치고 병실 도착하였습니다.", "검사 끝나고 올라오셨고,"),
             ], default="day0"),
             txt("arrival_time", "병실 도착 시각", placeholder="예: 12시 30분",

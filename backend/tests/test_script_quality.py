@@ -226,3 +226,31 @@ def test_fall_history_follows_the_admission_and_each_register_has_several_ending
         endings[style] = {phrase_store.stylize("보호자분께 수술 대기실 위치 설명하였습니다.", random.Random(i), style, expand=True).rsplit(" ", 1)[-1] for i in range(200)}
     assert len(endings["formal"]) >= 3 and len(endings["casual"]) >= 4 and len(endings["chart"]) >= 2, endings
     assert "설명드렸습니다." in endings["formal"] and "설명했구요," in endings["casual"] and "설명하였음." in endings["chart"]
+
+
+def test_progress_record_is_a_timeline_and_postop_record_is_day_zero():
+    """user 2026-10-17: 경과기록 reads the day's records in clock order (every entry, checklist items included, starts with a
+    time); 수술 후 기록 is always POD 0, right after the patient comes up from the recovery room."""
+    rng = random.Random(44)
+    for i in range(40):
+        p = random_patient(rng, "s6")
+        f = random_form("s6", rng, p)
+        s = build_script("s6", f, p, random_datetime(rng), style="chart", seed=7000 + i)
+        lines = s.spoken_text.splitlines()[1:]
+        timed = [l for l in lines if re.match(r"^(오전|오후) \d+시", l)]
+        assert len(timed) >= 4, lines
+        # every line between the intro and the closing is a timed entry, and the times do not go backwards
+        body = [l for l in lines if not l.startswith(("이상", "여기까지", "간호정보조사는")) and "경과기록" not in l]
+        assert all(re.match(r"^(오전|오후) \d+시", l) for l in body), body
+        def minutes(l):
+            m = re.match(r"^(오전|오후) (\d+)시(?: (\d+)분)?", l)
+            h = int(m.group(2)) % 12 + (12 if m.group(1) == "오후" else 0)
+            return h * 60 + int(m.group(3) or 0)
+        ts = [minutes(l) for l in timed]
+        assert ts == sorted(ts), timed
+    for i in range(30):
+        p = random_patient(rng, "s3_1")
+        f = random_form("s3_1", rng, p)
+        assert p.pod == 0 and f["timing"] == "day0" and f.get("arrival_time")
+        s = build_script("s3_1", f, p, random_datetime(rng), style="formal", seed=8000 + i)
+        assert "POD 1" not in s.spoken_text and "POD 2" not in s.spoken_text and "병실 도착" in s.spoken_text

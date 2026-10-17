@@ -127,6 +127,7 @@ class BatchRequest(BaseModel):
     seed: int | None = None
     dialogue_s1: bool = False          # 간호정보조사 items as nurse/patient dialogue
     dialogue_prob: float = 1.0
+    nursing_dx: bool = True            # 간호정보조사 "간호진단은 …입니다" 문장 포함 여부 (user 2026-10-17)
     patient_voice_id: str = "auto"
 
 

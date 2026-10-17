@@ -130,7 +130,7 @@ def random_patient(rng: random.Random, template_key: str | None = None, scenario
         return Patient(**common, surgery="", kind="chemo", regimen=sc.key, pod=None,
                        cycle=rng.randint(1, int(sc.form.get("_cycles") or 8)), day=rng.choice(sc.form.get("_days") or [1]))
     lo, hi = sc.los
-    pod = {"s1": None, "s2": None, "s3_1": rng.choice([0, 1, 2]), "s3_2": rng.choice([1, 2, 3]),
+    pod = {"s1": None, "s2": None, "s3_1": 0, "s3_2": rng.choice([1, 2, 3]),
            "s4": rng.randint(max(0, lo), max(lo, hi)), "s5": rng.randint(0, max(1, hi))}.get(template_key or "", rng.choice([1, 2, 3]))
     return Patient(**common, surgery=sc.key, pod=pod)
 
@@ -279,8 +279,16 @@ def _consistency(form: dict[str, Any], template_key: str, t, rng: random.Random,
         score = jhfrat_score(form, patient)
         if forced == {"high"}:
             score = max(score, 14 + rng.randint(0, 4))
-        elif forced == {"low"}:
-            score = min(score, 5)
+        elif forced == {"low"} and score > 5:      # make the facts low-risk instead of faking the number (score must match the form)
+            for k, v in (("sense", ["none"]), ("voiding", "normal"), ("mobility", "independent"), ("adl", "independent"),
+                         ("fall_history", "no"), ("consciousness", "alert")):
+                if k in form:
+                    form[k] = v
+            if form.get("sleep") == "hypnotic":
+                form["sleep"] = "good"
+            if form.get("devices"):
+                form["devices"] = ""
+            score = jhfrat_score(form, patient)
         form["jhfrat"], form["fall"] = score, fall_level(score)
     elif "fall" in form and "moderate" in opts.get("fall", set()) and not forced and patient is not None:
         age = patient.age or 50
@@ -404,6 +412,13 @@ def _consistency(form: dict[str, Any], template_key: str, t, rng: random.Random,
             form[k] = round(rng.uniform(37.8, 39.2), 1)
     if "p_temp" in form and "p_recheck_temp" in form and form["p_recheck_temp"] >= form["p_temp"]:
         form["p_recheck_temp"] = round(form["p_temp"] - rng.uniform(0.3, 1.0), 1)
+    # the rules above may change score inputs (의식·보행·배뇨…) after the score was set: keep score, level and problems in sync
+    if template_key == "s1" and "jhfrat" in form and "fall" in form and forced not in ({"high"}, {"low"}):
+        score = jhfrat_score(form, patient)
+        if score != int(form["jhfrat"]):
+            form["jhfrat"], form["fall"] = score, fall_level(score)
+            if patient is not None:
+                _derive_s1_problems(form, patient, rng)
 
 
 _SIDES = ("우측", "좌측", "양측")
@@ -640,9 +655,16 @@ def _derive_s1(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
         if form["intake_screen"] != "special":
             form.pop("intake_note", None)
     if "depression_screen" in form:
-        form["depression_screen"] = "pos" if rng.random() < 0.08 else "neg"
+        # 정서평가 (user 2026-10-17): the 2-week day counts follow whether the patient is worried about the admission
+        worried = any(e in (form.get("emotion") or []) for e in ("anxiety", "depression"))
+        form["mood_days"] = rng.choices(["none", "few", "week", "daily"], weights=[25, 50, 15, 10])[0] if worried else rng.choices(["none", "few"], weights=[9, 1])[0]
+        form["interest_days"] = rng.choices(["none", "few", "week", "daily"], weights=[45, 35, 12, 8])[0] if worried else "none"
+        form["depression_screen"] = "pos" if form["mood_days"] in ("week", "daily") or form["interest_days"] in ("week", "daily") else "neg"
         if "selfharm" in form and form["depression_screen"] == "neg":
             form["selfharm"] = "none"
+    # 금연·금주 교육은 해당 환자에게만 (user 2026-10-17); set unconditionally so the bool never lags the habit field
+    form["smoking_edu"] = form.get("smoking") == "current"
+    form["alcohol_edu"] = form.get("alcohol") in ("social", "heavy")
     if "weight_screen" in form:
         cancer = any(w in cc for w in ("암", "종양", "전이")) or chemo
         form["weight_screen"] = "loss" if (cancer and rng.random() < 0.3) else ("gain" if rng.random() < 0.08 else "neg")
@@ -775,9 +797,9 @@ def _derive_s2(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
 
 
 def _derive_s3_1(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -> None:
-    """Immediate post-op record: the time point is the patient's POD, and consciousness, oxygen, diet,
-    drains and education all follow that time point."""
-    pod = patient.pod if patient.pod in (0, 1, 2) else 0
+    """Immediate post-op record = POD 0, right after the patient comes up from the recovery room (user 2026-10-17:
+    "수술 후 기록은 POD#0 수술 나왔을 때 바로 하는 기록"); the next days belong to the progress record (S6)."""
+    pod = 0
     patient.pod = pod
     day0 = pod == 0
     form["timing"] = {0: "day0", 1: "pod1", 2: "pod2"}[pod]
@@ -1270,6 +1292,25 @@ def _derive_s6(form: dict[str, Any], patient: Patient, sc, rng: random.Random, t
     if pod >= 1 or chemo:
         form["vitals"]["o2"] = "room air"
     form["fall"] = rng.random() < 0.8
+    # --- afternoon / evening entries (user 2026-10-17: 그날 있었던 기록을 시간대별로) ---
+    if chemo:
+        form["afternoon_activity"] = "chemo_infusion"
+    elif sc is not None and sc.key == "BKA":
+        form["afternoon_activity"] = "bedrest" if pod <= 1 else "walk_assist"
+    else:
+        form["afternoon_activity"] = "sit" if pod == 0 else ("walk_assist" if pod == 1 else rng.choice(["walk_assist", "walk_self"]))
+    if not chemo and _scenario_drains(sc) and pod <= 3:
+        form["drain_note"] = f"{'Hemovac' if patient.department == '정형외과' else 'JP'} 배액 {rng.choice(['serosanguineous', 'serous'])} {rng.randint(10, 80)}cc 비우고 양상 관찰함"
+    elif not chemo and pod <= 1 and sc is not None and "keep" in (sc.form.get("foley") or []):
+        form["drain_note"] = "소변줄 통해 소변 맑고 시간당 50cc 이상 나옴"
+    elif rng.random() < 0.5:
+        form["drain_note"] = rng.choice(["자가배뇨 양호함", "배뇨 불편감 없음"])
+    else:
+        form.pop("drain_note", None)
+    form["vitals_evening"] = random_vitals(rng, "normal", with_spo2=False)
+    form["evening_note"] = rng.choices(["stable", "visit", "edu", "pain_prn"], weights=[55, 20, 15, 10])[0]
+    if form["evening_note"] == "pain_prn" and form["pain_plan"] == "pca" and form["pca_remove"] == "keep":
+        form["evening_note"] = "stable"               # a running PCA is not topped up with PRN
     # --- charting checklist: only protocols this patient can have, with details taken from the record ---
     hi_fall = age >= 70 or (patient.department == "정형외과" and age >= 60) or any(w in patient.diagnosis for w in _TRAUMA) \
         or (sc is not None and sc.key in ("THA", "TKA", "BKA"))

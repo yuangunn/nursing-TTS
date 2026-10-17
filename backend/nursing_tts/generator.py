@@ -330,6 +330,9 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
 # Narrative assembly
 # ---------------------------------------------------------------------------
 
+_PROT_TIMES = ["오후 5시 30분", "오후 6시", "오후 6시 30분", "오후 7시", "오후 7시 30분", "오후 8시", "오후 8시 30분", "오후 9시", "오후 9시 30분", "오후 10시"]
+
+
 def _join_fragments(fragments: list[str]) -> str:
     """Glue fragments: connective ones (ending with ',') continue the sentence."""
     out = ""
@@ -419,6 +422,7 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
             speakers.append(sp)
 
     structured: dict[str, Any] = {}
+    prot_i = 0
     for section in template.sections:
         fragments: list[str] = []
         spoken_fields = [(f, form.get(f.key)) for f in section.fields]
@@ -431,15 +435,13 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
                     if f.key in dialogue_mod.COVERED_BY_OPENING:
                         structured.setdefault(section.key, {})[f.key] = v
                     continue
-                pair = dialogue_mod.qa(f.key, form, patient, rng, asked)
-                if pair is None:
+                qa_turns = dialogue_mod.qa(f.key, form, patient, rng, asked)
+                if qa_turns is None:
                     narrated.append((f, v))
                     continue
-                turns_here += [("nurse", pair[0]), ("patient", pair[1])]
+                turns_here += qa_turns
                 structured.setdefault(section.key, {})[f.key] = v
-                if pair[2]:
-                    turns_here.append(("nurse", pair[2]))
-                else:
+                if qa_turns[-1][0] == "patient":              # no ack after an education / follow-up line
                     a = dialogue_mod.ack(rng)
                     if a:
                         turns_here.append(("nurse", a))
@@ -463,6 +465,10 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
                     run = 0
             else:
                 run = 0
+        if fragments and section.group == "protocol" and template.key == "s6":
+            # 경과기록 = 그날의 기록을 시간대별로 (user 2026-10-17): each checklist entry gets its own clock time after the evening round
+            fragments.insert(0, f"{_PROT_TIMES[min(prot_i, len(_PROT_TIMES) - 1)]} 환자명 {patient.name}.")
+            prot_i += 1
         if fragments:
             text = _join_fragments(fragments)
             if pending_ack:                                 # "네." answers the patient before the next chart line
