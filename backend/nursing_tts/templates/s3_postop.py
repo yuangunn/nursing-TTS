@@ -27,7 +27,7 @@ TEMPLATE = RecordTemplate(
                 hint="'수술 당일' 문장 안에서 읽힘"),
         ]),
         Section("status", "바이탈 사인·의식", hint="도착 시 V/S, 의식, 오심", fields=[
-            txt("vs_lead", "측정 시점", placeholder="예: 도착 당시", phrases=["{v} ", "{v} 측정한"], speak_prob=1.0),
+            txt("vs_lead", "측정 시점", placeholder="예: 도착 당시", phrases=["{v} ", "{v}에 "], speak_prob=1.0),   # "측정한 활력징후 체크하니"
             VITALS_FIELD,
             sel("consciousness", "의식", CONSCIOUSNESS, default="alert"),
             boolean("responds", "질문에 적절히 대답", phrases=["지남력 있으며 질문에 적절히 대답하였습니다.", "질문에 적절히 대답하시고,"], default=True),

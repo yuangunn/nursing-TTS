@@ -179,10 +179,10 @@ _FROM_CHART: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r" 중\.$"), " 중입니다."), (re.compile(r"필요\.$"), "필요합니다."), (re.compile(r"호소\.$"), "호소하였습니다."), (re.compile(r"의심\.$"), "의심됩니다."),
     (re.compile(r"보냄\.$"), "보냈습니다."), (re.compile(r"계심\.$"), "계십니다."), (re.compile(r"하심\.$"), "하셨습니다."),
     (re.compile(r"(었|았|였|했|됐|웠|렸|켰|쳤|졌|셨)음\.$"), r"\1습니다."),   # 있었음 → 있었습니다, 하였음 → 하였습니다
-    (re.compile(r"나옴\.$"), "나옵니다."), (re.compile(r"보임\.$"), "보입니다."), (re.compile(r"들림\.$"), "들립니다."), (re.compile(r"들어감\.$"), "들어갑니다."),
+    (re.compile(r"나옴\.$"), "나옵니다."), (re.compile(r"시범 보임\.$"), "시범 보였습니다."), (re.compile(r"보임\.$"), "보입니다."), (re.compile(r"들림\.$"), "들립니다."), (re.compile(r"들어감\.$"), "들어갑니다."),
     (re.compile(r"않음\.$"), "않습니다."), (re.compile(r"잠듦\.$"), "잠들었습니다."), (re.compile(r"낮춤\.$"), "낮췄습니다."),
     (re.compile(r"(?<=\s)둠\.$"), "두었습니다."), (re.compile(r"(?<=[려어와해\s])줌\.$"), "주었습니다."),
-    (re.compile(r"(해|아|어|여)짐\.$"), r"\1집니다."),
+    (re.compile(r"(해|아|어|여)짐\.$"), r"\1집니다."), (re.compile(r"(넣|먹|씻|닦|찍|읽)음\.$"), r"\1습니다."),   # "손으로 밀어 넣음."
     (re.compile(r"(가능|필요|양호|깨끗|경미|불량|중요|심|동일|정상|적절)함\.$"), r"\1합니다."),   # state, not an action
     (re.compile(r"고 있음\.$"), "고 있습니다."), (re.compile(r"있음\.$"), "있습니다."),
     (re.compile(r"없음\.$"), "없습니다."), (re.compile(r"됨\.$"), "되었습니다."), (re.compile(r"(?<!포)함\.$"), "하였습니다."),
@@ -199,9 +199,19 @@ _CLAUSE_FROM_CHART: list[tuple[re.Pattern[str], str]] = [
 ]
 
 
+_QUOTATIVE: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(r"(가능|필요)함? (설명|교육)함"), r"\1하다고 \2함"), (re.compile(r"결정됨 (설명|교육)함"), r"결정된다고 \1함"),
+    (re.compile(r"줄어듦 (설명|교육)함"), r"줄어든다고 \1함"), (re.compile(r"보냄 (설명|교육)함"), r"보낸다고 \1함"),
+    (re.compile(r"됨 (설명|교육)함"), r"된다고 \1함"), (re.compile(r"있음 (설명|교육)함"), r"있다고 \1함"),
+    (re.compile(r"없음 (설명|교육)함"), r"없다고 \1함"), (re.compile(r"(예정|금지) (설명|교육)함"), r"\1이라고 \2함"),
+]
+
+
 def formal_from_chart(phrase: str) -> str:
     """'수면양상을 관찰함.' -> '수면양상을 관찰하였습니다.' (used for spoken styles)."""
     p = phrase.strip()
+    for rx, rep in _QUOTATIVE:   # 2026-10-18 대량 검수: "통목욕은 … 두 달 뒤 가능 설명하였습니다"
+        p = rx.sub(rep, p)
     for rx, rep in _CLAUSE_FROM_CHART:
         p = rx.sub(rep, p)
     for rx, rep in _FROM_CHART:
