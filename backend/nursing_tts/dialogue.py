@@ -461,8 +461,11 @@ def opening(form: dict[str, Any], patient: Patient, rng: random.Random) -> list[
     elif "입원" in cc:
         confirm = rng.choice([f"네, 그러면 {cc}(이)시네요.", f"{cc}(이)시고요."])
     else:
-        confirm = rng.choice([f"네, 그러면 {onset} {cc}(으)로 {rl} 통해 {pl} 입원하신 거네요.", f"네, 주호소는 {onset} {cc}(이)고, {rl} 통해 {pl} 입원하셨고요.",
-                              f"네, {cc}(으)로 오셨고, {rl} 통해 {pl} 입원하셨네요."])
+        if re.search(r"(으로|로) ", cc):                   # "후두암으로 기도 폐쇄 위험" + "(으)로" would double the particle
+            confirm = rng.choice([f"네, 주호소는 {onset} {cc}(이)고, {rl} 통해 {pl} 입원하셨고요.", f"네, 그러면 {onset} {cc} 때문에 {rl} 통해 {pl} 입원하신 거네요."])
+        else:
+            confirm = rng.choice([f"네, 그러면 {onset} {cc}(으)로 {rl} 통해 {pl} 입원하신 거네요.", f"네, 주호소는 {onset} {cc}(이)고, {rl} 통해 {pl} 입원하셨고요.",
+                                  f"네, {cc}(으)로 오셨고, {rl} 통해 {pl} 입원하셨네요."])
     confirm = re.sub(r"\s{2,}", " ", confirm).replace(" ,", ",").strip()
     return [("nurse", rng.choice(OPENERS)), ("patient", _answer(story, patient)), ("nurse", fix_josa(confirm))]
 

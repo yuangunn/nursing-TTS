@@ -181,3 +181,23 @@ def test_narrated_admission_speaks_education_only_for_smokers_and_drinkers():
             assert "금주" in text, text
         if f.get("depression_screen") == "pos":
             assert "우울 선별 양성" in text
+
+
+CHART_ONLY = re.compile(r"점으로|활력징후|혈압|격리|자해|간호 문제|간호진단|피부 상태|의식 명료|BMI|지남력")
+
+
+def test_dialogue_keeps_chart_narration_after_the_interview():
+    """user 2026-10-17: the nurse must not switch to dictating chart facts between questions ("대화하다가 혼자 독백");
+    the interview runs first, then one bridge line, then the chart narration."""
+    rng = random.Random(77)
+    for i in range(60):
+        p = random_patient(rng, "s1")
+        f = random_form("s1", rng, p)
+        s = build_script("s1", f, p, random_datetime(rng), style="formal", seed=7000 + i, dialogue=True)
+        last_patient = max(k for k, t in enumerate(s.turns) if t["speaker"] == "patient")
+        first_q = next(k for k, t in enumerate(s.turns) if t["text"].endswith("?"))
+        between = [t["text"] for t in s.turns[first_q:last_patient] if t["speaker"] == "nurse" and not t["text"].endswith("?")]
+        assert not any(CHART_ONLY.search(x) for x in between), [x for x in between if CHART_ONLY.search(x)]
+        after = [t["text"] for t in s.turns[last_patient + 1:]]
+        assert after and re.search(r"기록하겠습니다|정리", after[0]) and all(t["speaker"] == "nurse" for t in s.turns[last_patient + 1:]), after[:2]
+        assert any(CHART_ONLY.search(x) for x in after), after

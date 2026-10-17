@@ -409,8 +409,16 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
     tts_paragraphs: list[str] = [sig_tts]
     speakers: list[str] = ["nurse"]
     dialogue = bool(dialogue) and template.key == "s1"
+    if dialogue:                                            # a patient who just answered every question is alert, oriented and speaks
+        form = dict(form)
+        form["consciousness"] = "alert"
+        if "orientation" in form:
+            form["orientation"] = "yes"
+        if any(x in (form.get("sense") or []) for x in ("speech", "foreign")):
+            form["sense"] = [x for x in form["sense"] if x not in ("speech", "foreign")] or ["none"]
     asked: set[str] = set()
     pending_ack = ""
+    deferred: list[str] = []          # dialogue: chart facts the nurse records after the interview, not between questions (user 2026-10-17)
 
     intros = phrase_store.effective(template.key, "intros", "phrases", template.intros)
     if intros:
@@ -471,7 +479,9 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
             # 경과기록 = 그날의 기록을 시간대별로 (user 2026-10-17): each checklist entry gets its own clock time after the evening round
             fragments.insert(0, f"{_PROT_TIMES[min(prot_i, len(_PROT_TIMES) - 1)]} 환자명 {patient.name}.")
             prot_i += 1
-        if fragments:
+        if fragments and dialogue:
+            deferred.append(_join_fragments(fragments))
+        elif fragments:
             text = _join_fragments(fragments)
             if pending_ack:                                 # "네." answers the patient before the next chart line
                 text, pending_ack = f"{pending_ack} {text}", ""
@@ -486,6 +496,12 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
             paragraphs.append(text)
             speakers.append(sp)
     pending_ack = ""
+    if deferred:                                            # the interview is over: thank the patient, then dictate the chart
+        paragraphs.append(rng.choice(["네, 말씀 감사합니다. 확인한 내용 정리해서 기록하겠습니다.", "네, 알겠습니다. 지금까지 확인한 내용 기록하겠습니다.",
+                                      "네, 감사합니다. 사정한 내용 정리하겠습니다."]))
+        speakers.append("nurse")
+        paragraphs += deferred
+        speakers += ["nurse"] * len(deferred)
 
     closings = phrase_store.effective(template.key, "closings", "phrases", template.closings)
     if include_closing and closings:

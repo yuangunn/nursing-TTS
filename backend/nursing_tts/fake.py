@@ -656,6 +656,8 @@ def _derive_s1(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
         form["mood_days"] = rng.choices(["none", "few", "week", "daily"], weights=[25, 50, 15, 10])[0] if worried else rng.choices(["none", "few"], weights=[9, 1])[0]
         form["interest_days"] = rng.choices(["none", "few", "week", "daily"], weights=[45, 35, 12, 8])[0] if worried else "none"
         form["depression_screen"] = "pos" if form["mood_days"] in ("week", "daily") or form["interest_days"] in ("week", "daily") else "neg"
+        _days = {"none": "없다고", "few": "며칠 있다고", "week": "일주일 넘게 있다고", "daily": "거의 매일 있다고"}
+        form["mood_summary"] = f"기분 가라앉은 날이 {_days[form['mood_days']].replace('다고', '고') if form['mood_days'] != 'none' else '없고'} 흥미 떨어진 날은 {_days[form['interest_days']]}"
         if "selfharm" in form and form["depression_screen"] == "neg":
             form["selfharm"] = "none"
     # 금연·금주 교육은 해당 환자에게만 (user 2026-10-17); set unconditionally so the bool never lags the habit field
