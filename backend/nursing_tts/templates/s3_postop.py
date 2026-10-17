@@ -15,7 +15,7 @@ TEMPLATE = RecordTemplate(
     intros=["{name}님 진단명 {dx}, {surgery} 수술후 간호기록 시작합니다.",
             "진단명 {dx}, {surgery} 환자분 수술 후 간호기록입니다.",
             "{dx}(으)로 {surgery} 시행하신 {name}님 수술 후 간호기록 시작합니다."],
-    closings=["여기까지 {name} 님 수술 후 간호기록 마치겠습니다.", "이상 {surgery_abbr} 수술후 간호기록 마치겠습니다.", "이상 수술 후 간호기록 마치겠습니다.", "수술후 간호기록 이상입니다."],
+    closings=["이상 수술후 간호기록 마치겠습니다.", "여기까지 {name} 님 수술 후 간호기록 마치겠습니다.", "이상 {surgery_abbr} 수술후 간호기록 마치겠습니다.", "이상 수술 후 간호기록 마치겠습니다.", "수술후 간호기록 이상입니다."],
     sections=[
         Section("op", "수술/검사 정보", hint="시행 수술명/검사명, 시행 일시, POD", fields=[
             sel("timing", "시점", [
@@ -49,17 +49,17 @@ TEMPLATE = RecordTemplate(
             sel("drain", "배액관", [
                 opt("jp_sang", "JP sanguineous", "수술 부위 JP 1개 있고 배액 sanguineous 양상으로 현재 {drain_amount}cc 배액되었습니다.",
                     "JP drain 1개 수술 부위에 가지고 오셨고 수술 직후 {drain_amount}cc sanguineous하게 배액되었습니다.",
-                    "JP 1개 sanguineous {drain_amount}cc 나왔고,", "JP drain 한 개 가지고 오셨고 {drain_amount}cc sanguineous하게 나오고 있구요,"),
+                    "JP 1개 bloody하게 {drain_amount}cc 나왔고,", "JP drain 한 개 가지고 오셨고 {drain_amount}cc sanguineous하게 나오고 있구요,", "JP 배액 bloody하게 {drain_amount}cc 나오고 있습니다."),
                 opt("jp_sero", "JP serosanguineous", "JP 배액 serosanguineous 양상 {drain_amount}cc 입니다.", "JP serosanguineous {drain_amount}cc 나왔고,",
                     "JP drain 1개 있고 serosanguineous하게 {drain_amount}cc 배액 중입니다.", "JP drain 가지고 계시고 serosanguineous {drain_amount}cc 나오고,"),
                 opt("hemovac", "Hemovac", "수술 부위 Hemovac 1개 있고 배액 sanguineous 양상으로 {drain_amount}cc 배액되었습니다.",
                     "Hemovac 1개 가지고 오셨고 수술 직후 {drain_amount}cc sanguineous하게 배액되었습니다.",
-                    "Hemovac sanguineous {drain_amount}cc 나왔고,", "헤모박 한 개 있고 {drain_amount}cc sanguineous하게 나오고 있구요,"),
+                    "Hemovac sanguineous {drain_amount}cc 나왔고,", "헤모박 한 개 있고 {drain_amount}cc bloody하게 나오고 있구요,"),
                 opt("none", "배액관 없음", "배액관 없습니다.", "배액관은 없으시고,"),
             ], default="jp_sang"),
             num("drain_amount", "배액량", unit="cc", min=0, max=2000, default=20, phrases=[], speak_prob=0.0),
             sel("foley", "도뇨관", [
-                opt("keep", "유지", "Foley catheter 16 Fr. 유지 중이며 소변 맑고 노란색으로 잘 나오고 있습니다.", "소변줄 유지 중이고 소변 맑게 잘 나오고 있고,",
+                opt("keep", "유지", "Foley catheter 16 Fr. 유지 중이며 소변 맑고 노란색으로 잘 나오고 있습니다.", "소변줄 유지 중이고 소변 clear하게 잘 나오고 있고,",
                     "폴리 유지 중이고 소변 노랗고 맑구요,"),
                 opt("removed", "제거됨, 자가배뇨", "소변줄 제거하고 자가배뇨 확인하였습니다.", "소변줄 빼고 self voiding 잘 하시고,"),
                 opt("none", "없음", "소변줄 없이 자가배뇨 중입니다.", "소변줄 없으시고,"),

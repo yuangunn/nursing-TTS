@@ -58,9 +58,9 @@ EXTRA: dict[tuple[str, str, str], list[str]] = {
     ("*", "foley", "removed"): ["소변줄 뺐고 소변 잘 보셨습니다.", "폴리 제거 후 자가배뇨 확인했습니다."],
     ("*", "urine", "clear"): ["소변 맑고 노랗습니다.", "소변 양상 괜찮습니다.", "소변 색 맑습니다."],
     # ---------------- drains / lines ----------------
-    ("*", "drain", "jp_sang"): ["JP sanguineous 양상으로 {drain_amount}cc 나왔습니다.", "제이피 배액 혈성 {drain_amount}cc입니다.", "JP {drain_amount}cc 혈액성으로 나오고 있습니다.",
+    ("*", "drain", "jp_sang"): ["JP sanguineous 양상으로 {drain_amount}cc 나왔습니다.", "제이피 배액 bloody하게 {drain_amount}cc 나왔습니다.", "JP {drain_amount}cc bloody하게 나오고 있습니다.",
                                 "JP drain 하나 가지고 오셨고 {drain_amount}cc sanguineous하게 배액됩니다."],
-    ("*", "drain", "jp_sero"): ["JP serosanguineous {drain_amount}cc입니다.", "제이피 장액혈성 {drain_amount}cc 나왔습니다.", "JP 색 옅어지면서 {drain_amount}cc 나왔습니다.",
+    ("*", "drain", "jp_sero"): ["JP serosanguineous {drain_amount}cc입니다.", "제이피 serosanguineous하게 {drain_amount}cc 나왔습니다.", "JP 색 옅어지면서 {drain_amount}cc 나왔습니다.",
                                 "JP drain serosanguineous하게 {drain_amount}cc 나오고 있습니다."],
     ("*", "drain", "none"): ["배액관은 없습니다.", "드레인 없으십니다."],
     ("*", "line", "phrases"): ["라인은 {v}입니다.", "IV는 {v}입니다."],

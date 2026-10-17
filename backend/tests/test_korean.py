@@ -103,7 +103,7 @@ def test_ward_readings_surgery_regimen_lines_variety():
             o = to_tts_text(s, random.Random(i))
             assert "포타슘" not in o and "플러스" not in o.replace("키트루다 플러스", ""), o
     o = to_tts_text("JP drain 20cc sanguineous하게 배액")
-    assert "드레인" in o and "생귀" in o and "drain" not in o, o
+    assert "드레인" in o and ("생귀" in o or "생기" in o) and "drain" not in o, o
     outs = {to_tts_text("A-FOLFIRI 3차", random.Random(i)) for i in range(20)}
     assert any("에이폴피리" in o for o in outs), outs
     outs = {to_tts_text("AC 항암 2차 위해 입원", random.Random(i)) for i in range(40)}

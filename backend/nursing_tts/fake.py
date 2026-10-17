@@ -63,7 +63,7 @@ TEXT_POOLS: dict[str, list[str]] = {
     "found_time": ["오전 10시", "오후 2시", "오후 6시", "새벽 3시", "오후 9시 30분"],
     "complaint": ["열감 조금 있다고 표현하고 오한은 없음", "오한 있다고 하심", "열감 없다고 하나 얼굴 붉어짐", "두통 호소"],
     "drain": ["JP 배액 serosanguineous 양상 40cc", "JP sanguineous 20cc", "JP serous 15cc", "배액관 없음",
-              "우측 복부 JP 배액은 장액성으로 색 옅어지고 있음", "JP 장액혈성 30cc, 특이 변화 없음"],
+              "우측 복부 JP 배액은 장액성으로 색 옅어지고 있음", "JP serosanguineous하게 30cc, 특이 변화 없음"],
     "judgement": ["수술 후 폐 확장 저하에 의한 발열 가능성", "수술 부위 감염 가능성", "요로 감염 가능성", "탈수 가능성"],
     "noti_time": ["오전 10시 10분", "오후 2시 15분", "오후 6시 5분", "새벽 3시 10분"],
     "noti_content": ["BT 38.1, BP 150/85, HR 92, 수술 부위 oozing 없고 JP 양상 변화 없으나 폐음 하부 감소되어 있고 심호흡 잘 안 되는",
@@ -1378,6 +1378,23 @@ def _derive_s6(form: dict[str, Any], patient: Patient, sc, rng: random.Random, t
     form["evening_note"] = rng.choices(["stable", "visit", "edu", "pain_prn"], weights=[55, 20, 15, 10])[0]
     if form["evening_note"] == "pain_prn" and form["pain_plan"] == "pca" and form["pca_remove"] == "keep":
         form["evening_note"] = "stable"               # a running PCA is not topped up with PRN
+    # Evening/Night (user 2026-10-17: 세 듀티의 정규 라운딩 + 이벤트); the clock keeps the three roundings at 07:xx, 15:xx, 23:xx
+    form["t1"] = rng.choice(["오전 7시", "오전 7시 10분", "오전 7시 30분"])
+    form["t2"] = rng.choice(["오전 8시", "오전 8시 10분"])
+    form["t3"] = rng.choice(["오후 12시 30분", "오후 12시 40분", "오후 1시"])
+    form["t4"] = rng.choice(["오후 1시 30분", "오후 2시"])
+    form["t5"] = rng.choice(["오후 3시", "오후 3시 10분", "오후 3시 20분"])
+    form["t6"] = rng.choice(["오후 6시", "오후 6시 10분"])
+    form["t7"] = rng.choice(["오후 8시", "오후 8시 30분", "오후 9시"])
+    form["t8"] = rng.choice(["오후 11시", "오후 11시 10분", "오후 11시 30분"])
+    form["vitals_night"] = random_vitals(rng, "normal", with_spo2=False)
+    form["nrs_n"] = min(int(form["nrs4"]), rng.randint(0, 3))
+    if form["evening_note"] == "pain_prn":
+        form["nrs_n"] = max(form["nrs_n"], 1)
+    form["night_onset"] = rng.choices(["asleep", "resting", "awake_pain", "hypnotic"], weights=[60, 25, 10 if form["nrs_n"] >= 3 else 0, 8 if age >= 65 else 2])[0]
+    if form["night_onset"] == "awake_pain":
+        form["nrs_n"] = max(form["nrs_n"], 4)
+    form["night_line"] = rng.random() < 0.85
     # --- charting checklist: only protocols this patient can have, with details taken from the record ---
     hi_fall = age >= 70 or (patient.department == "정형외과" and age >= 60) or any(w in patient.diagnosis for w in _TRAUMA) \
         or (sc is not None and sc.key in ("THA", "TKA", "BKA"))
@@ -1444,7 +1461,8 @@ def _derive_s6(form: dict[str, Any], patient: Patient, sc, rng: random.Random, t
         form["bt3"] = form.get("p_temp", form.get("bt3"))
     else:
         form["bt3"] = round(rng.uniform(36.3, 37.4), 1)
-
+    # dinner follows the final lunch state (the 오심 protocol may have made lunch 금식 above)
+    form["meal3"] = "npo" if form["meal2"] == "npo" else rng.choices(["all", "half"], weights=[7, 3])[0]
 
 def audit(form: dict[str, Any], patient: Patient | None, template_key: str) -> list[str]:
     """Contradictions a nurse would catch; empty when the form is coherent. Used to re-draw random forms and

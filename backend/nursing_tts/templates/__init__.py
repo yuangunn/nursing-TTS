@@ -48,10 +48,15 @@ _apply_extras()
 
 for _t in TEMPLATES.values():
     if not any(sec.group == "protocol" for sec in _t.sections):
-        _t.sections.extend(protocol_sections(_t.key))
+        extra = protocol_sections(_t.key)
+        anchor = next((i for i, sec in enumerate(_t.sections) if sec.key == "d_morning"), None)   # S6: 정규 차팅 during the day shift
+        if anchor is None:
+            _t.sections.extend(extra)
+        else:
+            _t.sections[anchor + 1:anchor + 1] = extra
 
 # Signal record kinds required by the recording spec.
-RECORD_KINDS = ["간호정보조사", "퇴원간호", "수술전설명", "수술후설명", "인계"]
+RECORD_KINDS = ["간호정보조사", "퇴원간호", "수술전설명", "수술후설명", "인계", "경과기록"]
 
 
 def get_template(key: str) -> RecordTemplate:
