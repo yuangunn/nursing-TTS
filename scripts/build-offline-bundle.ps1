@@ -4,8 +4,9 @@
 #   ... -Qwen -Cuda      # + PyTorch cu128 for NVIDIA GPUs (≈ 3 GB; too big for a GitHub release asset — carry it on a USB stick)
 #   ... -Models          # + the model weights (≈ 5 GB)
 #   ... -Data            # + this PC's registered voices and noise clips (%APPDATA%\NursingTTS; private, never in a release)
+#   ... -NoZip           # leave the folder only (CI puts it straight into the -offline installer)
 # Output: <Out>\nursing-tts-offline-win-x64[-qwen][-cuda][-models].zip  (python\, models\hub\, bundle.json)
-param([switch]$Qwen, [switch]$Cuda, [switch]$Models, [switch]$Data, [string]$Out = "dist-offline")
+param([switch]$Qwen, [switch]$Cuda, [switch]$Models, [switch]$Data, [switch]$NoZip, [string]$Out = "dist-offline")
 $ErrorActionPreference = "Stop"
 Set-Location (Join-Path $PSScriptRoot "..")
 
@@ -62,6 +63,7 @@ $AppVersion = ""
 try { $AppVersion = (Get-Content app\package.json | ConvertFrom-Json).version } catch {}
 $meta = @{ name = "nursing-tts-offline"; platform = "win"; arch = "x64"; python = $PyVer; qwen = [bool]$Qwen; cuda = [bool]$Cuda; models = [bool]$Models; data = [bool]$Data; app_version = $AppVersion; created = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ") }
 $meta | ConvertTo-Json | Set-Content -Encoding UTF8 (Join-Path $Work "bundle.json")
+if ($NoZip) { Write-Host "done: $Work (no zip)"; exit 0 }
 $Zip = Join-Path $Out "$Name.zip"
 if (Test-Path $Zip) { Remove-Item $Zip }
 Compress-Archive -Path $Work -DestinationPath $Zip -CompressionLevel Optimal

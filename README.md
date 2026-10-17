@@ -128,7 +128,7 @@ powershell -ExecutionPolicy Bypass -File scripts\build-offline-bundle.ps1 -Qwen 
 
 모든 설치 파일에는 기본 목소리 15명(Zeroth-Korean, CC BY 4.0)과 병동 소음 클립(룸톤·네뷸라이저·중환자실·모니터 알람·회진 대화)이 들어 있어 첫 실행 때 데이터 폴더에 자동으로 들어갑니다(`backend/nursing_tts/assets/seed/`).
 
-**한 번에 설치되는 "-offline" 설치 파일**: 릴리스마다 `NursingTTS-offline-<버전>-mac-arm64.dmg`, `-mac-x64.dmg`, `-win-x64.exe`도 함께 올라갑니다. 앱 안(`resources/offline`)에 Python과 모든 패키지, Qwen3-TTS 복제 스택(Windows는 CPU PyTorch)이 들어 있어 설치만 하면 pip 없이 백엔드가 뜹니다. 들어 있지 않은 것은 모델 파일(약 5 GB, 설정 → 로컬 모델 폴더에 복사 또는 `--models` 번들)과 이 PC의 목소리·소음(`--data` 번들)입니다. NVIDIA GPU용 CUDA PyTorch는 설치 파일 크기 한도 때문에 `.ps1 -Qwen -Cuda` 번들로 따로 옮깁니다.
+**한 번에 설치되는 "-offline" 설치 파일**: 릴리스마다 `NursingTTS-offline-<버전>-mac-arm64.dmg`, `-win-x64.exe`도 함께 올라갑니다(Intel Mac용은 없음: PyTorch가 x86_64 macOS 휠을 더 이상 제공하지 않음). 앱 안(`resources/offline`)에 Python과 모든 패키지, Qwen3-TTS 복제 스택(Windows는 CPU PyTorch)이 들어 있어 설치만 하면 pip 없이 백엔드가 뜹니다. 들어 있지 않은 것은 모델 파일(약 5 GB, 설정 → 로컬 모델 폴더에 복사 또는 `--models` 번들)과 이 PC의 목소리·소음(`--data` 번들)입니다. NVIDIA GPU용 CUDA PyTorch는 설치 파일 크기 한도 때문에 `.ps1 -Qwen -Cuda` 번들로 따로 옮깁니다.
 
 ## TTS 엔진
 

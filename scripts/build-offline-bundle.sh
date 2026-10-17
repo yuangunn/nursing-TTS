@@ -5,7 +5,8 @@
 #   scripts/build-offline-bundle.sh --qwen          # + PyTorch, Qwen3-TTS, faster-whisper (voice cloning)
 #   scripts/build-offline-bundle.sh --qwen --models # + the model weights (Qwen 1.7B ≈ 4.5 GB, whisper small ≈ 0.5 GB)
 #   scripts/build-offline-bundle.sh --data          # + this PC's registered voices and noise clips (app data folder)
-#   scripts/build-offline-bundle.sh --out DIR       # where to build (default: dist-offline/)
+#   scripts/build-offline-bundle.sh --out DIR       # where to build (default: dist-offline/; relative paths are from the repo root)
+#   scripts/build-offline-bundle.sh --no-zip        # leave the folder only (CI puts it straight into the -offline installer)
 #
 # Output: <out>/nursing-tts-offline-<os>-<arch>[-qwen][-models].zip containing
 #   python/      relocatable CPython (python-build-standalone) with every package installed
@@ -23,11 +24,13 @@ OUT="dist-offline"
 WITH_QWEN=0
 WITH_MODELS=0
 WITH_DATA=0
+NO_ZIP=0
 for a in "$@"; do
   case "$a" in
     --qwen) WITH_QWEN=1 ;;
     --models) WITH_MODELS=1 ;;
     --data) WITH_DATA=1 ;;
+    --no-zip) NO_ZIP=1 ;;
     --out=*) OUT="${a#--out=}" ;;
     --out) shift_out=1 ;;
     *) if [ "${shift_out:-0}" = 1 ]; then OUT="$a"; shift_out=0; else echo "unknown option $a" >&2; exit 2; fi ;;
@@ -101,6 +104,7 @@ cat > "$WORK/bundle.json" <<EOF
 {"name": "nursing-tts-offline", "platform": "${OS}", "arch": "${ARCH}", "python": "${PY_VER}", "qwen": ${QWEN_JSON},
  "models": ${MODELS_JSON}, "data": ${DATA_JSON}, "app_version": "${APP_VERSION}", "created": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"}
 EOF
+if [ $NO_ZIP = 1 ]; then echo "done: $WORK (no zip)"; exit 0; fi
 rm -f "$OUT/$NAME.zip"
 (cd "$OUT" && zip -ryq "$NAME.zip" "$NAME")
 du -sh "$OUT/$NAME.zip"

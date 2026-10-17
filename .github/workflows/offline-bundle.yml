@@ -2,6 +2,7 @@ name: Offline bundle
 
 # Builds the intranet (no-internet) bundles: a relocatable Python with every backend package, optionally with the
 # voice-cloning stack, and uploads them to a release (user 2026-10-17). Windows CUDA bundles (~3 GB) exceed the
+# (the -offline installers from release.yml already contain the same bundle; this is for the zip-import path)
 # GitHub release asset limit — build those locally with scripts/build-offline-bundle.ps1 -Qwen -Cuda.
 on:
   workflow_dispatch:
@@ -25,8 +26,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: macos-latest, name: mac-arm64, shell: bash }
-          - { os: macos-13, name: mac-x64, shell: bash }
+          - { os: macos-latest, name: mac-arm64, shell: bash }   # no Intel mac: macos-13 never picks up, torch has no x86_64 macOS wheels
           - { os: windows-latest, name: win-x64, shell: pwsh }
     steps:
       - uses: actions/checkout@v4
