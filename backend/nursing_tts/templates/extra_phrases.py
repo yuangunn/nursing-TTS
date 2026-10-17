@@ -60,9 +60,9 @@ EXTRA: dict[tuple[str, str, str], list[str]] = {
     # ---------------- drains / lines ----------------
     ("*", "drain", "jp_sang"): ["JP bloody하게 {drain_amount}cc 나왔습니다.", "제이피 배액 bloody하게 {drain_amount}cc 나왔습니다.", "JP {drain_amount}cc bloody하게 나오고 있습니다.",
                                 "JP drain 하나 가지고 오셨고 {drain_amount}cc bloody하게 배액됩니다."],
-    ("*", "drain", "jp_sero"): ["JP serosanguineous {drain_amount}cc입니다.", "제이피 serosanguineous하게 {drain_amount}cc 나왔습니다.", "JP 색 옅어지면서 {drain_amount}cc 나왔습니다.",
+    ("*", "drain", "jp_sero"): ["JP serosanguineous {drain_amount}cc입니다.", "제이피 serosanguineous하게 {drain_amount}cc 나왔습니다.",
                                 "JP drain serosanguineous하게 {drain_amount}cc 나오고 있습니다."],
-    ("*", "drain", "none"): ["배액관은 없습니다.", "드레인 없으십니다."],
+    ("*", "drain", "none"): ["배액관은 없습니다.", "드레인 없습니다."],
     ("*", "line", "phrases"): ["라인은 {v}입니다.", "IV는 {v}입니다."],
     ("*", "iv", "phrases"): ["{v} 통해 수액 들어가고 있습니다.", "{v} 유지 중이고 사이트 깨끗합니다.", "IV는 {v} 가지고 계시고 잘 들어갑니다."],
     ("*", "iv_site", "clean"): ["IV site 깨끗합니다.", "라인 부위 문제 없습니다.", "삽입 부위 발적, 부종 없습니다."],
@@ -70,7 +70,7 @@ EXTRA: dict[tuple[str, str, str], list[str]] = {
     ("*", "antibiotic", "phrases"): ["항생제는 {v} 들어가고 있습니다.", "{v} 유지 중입니다.", "{v} 맞고 계십니다."],
     # ---------------- wound ----------------
     ("*", "dressing", "clean"): ["드레싱 깨끗합니다.", "수술 부위 clean 합니다.", "상처 드레싱 깨끗하고 oozing 없습니다.", "수술 부위 특이사항 없습니다."],
-    ("*", "dressing", "oozing"): ["드레싱에 oozing 소량 있어 보강했습니다.", "수술 부위 진물 조금 있어 드레싱 교환했습니다."],
+    ("*", "dressing", "oozing"): ["드레싱에 oozing 소량 있어 보강했습니다.", "수술 부위 진물 조금 있어 경계 표시하고 보강했습니다."],
     ("*", "wound", "clean"): ["수술 부위 깨끗하고 발적 없습니다.", "상처 부위 특이사항 없습니다.", "수술 부위 열감, 발적 없습니다."],
     # ---------------- respiratory ----------------
     ("*", "lung", "decreased"): ["폐음 하부 감소되어 있습니다.", "양측 하엽 폐음 약합니다.", "폐음 하부 감소되어 있고 심호흡 잘 안 됩니다."],

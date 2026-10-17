@@ -10,18 +10,18 @@ TEMPLATE = RecordTemplate(
     sections=[
         Section("op", "수술/검사 정보", hint="수술명/검사명, 예정 일시, 집도의/시행 과, 순서", fields=[
             txt("op_date", "예정 일시", placeholder="예: 내일 10월 14일 오전 8시",
-                phrases=["{v} ", "{v} 수술 예정으로,", "{v}에,"]),
+                phrases=["{v} ", "{v} 수술로,", "{v}에,"]),   # "예정으로, … 예정" twice
             sel("order", "수술 순서", [
                 opt("first", "첫 수술", "첫 수술로,", "첫 번째 수술이고,", "1번 수술로 잡혀 있고,"),
                 opt("second", "두 번째", "두 번째 수술로,", "2번 수술이고,", "두 번째 순서로 예정되어 있습니다."),
-                opt("third", "세 번째 이후", "세 번째 수술로,", "오후 수술로 잡혀 있고,"),
+                opt("third", "세 번째 이후", "세 번째 수술로,", "세 번째 이후 순서로 잡혀 있고,"),   # "오후 2시 … 오후 수술로"
                 opt("unknown", "순서 미정", "수술 순서는 아직 미정이고,", "순서는 수술실에서 연락 주기로 했고,"),
             ], default="first"),
             txt("procedure", "수술명/검사명", placeholder="비워두면 환자 정보의 수술명 사용",
                 phrases=["{v} 예정입니다.", "{v} 하실 예정이고,", "{v} 하시게 되고,"]),
             boolean("use_patient_surgery", "환자 정보의 수술명 사용",
                     phrases=["{dept} {prof} 교수님 집도로 {surgery} 예정입니다.", "{prof} 교수님 집도로 {surgery} 예정이고,",
-                             "{surgery} 하실 예정이고 집도의는 {dept} {prof} 교수님입니다."], default=True),
+                             "{surgery} 하실 예정이고 {dept} {prof} 교수님 집도입니다."], default=True),   # 기록체 "교수님임" 방지
         ]),
         Section("npo", "금식", hint="고형식/물 금식 시작 시각, 금식 중 허용 약", fields=[
             sel("npo_start", "금식 시작", [
@@ -65,7 +65,7 @@ TEMPLATE = RecordTemplate(
                 opt("shower", "샤워", nouns=["수술 전 샤워"]),
                 opt("antibiotic", "예방적 항생제", nouns=["예방적 항생제 피부반응검사"]),
                 opt("none", "해당 없음"),
-            ], phrases=["{v} 예정이고 설명하였습니다.", "전처치로 {v} 시행 예정입니다.", "{v} 하기로 하고 설명드렸구요,"],
+            ], phrases=["{v} 예정이라고 설명하였습니다.", "전처치로 {v} 시행 예정입니다.", "{v} 하기로 하고 설명드렸구요,"],   # "예정이고 설명" (49%)
                none_phrases=["특별한 전처치는 없습니다.", "전처치 해당 없고,"], default=["bowel_prep", "shave"]),
             txt("prep_detail", "전처치 상세", placeholder="예: 오늘 저녁 8시 하제 복용 예정",
                 phrases=["{v}.", "{v}이고,"]),   # free text for the user; the virtual patient leaves it empty (the 전처치 item already says it)
@@ -80,7 +80,7 @@ TEMPLATE = RecordTemplate(
                 opt("underwear", "속옷", nouns=["속옷"]),
             ], phrases=["수술 당일 아침 {v} 제거하도록 설명했습니다.", "{v} 제거하고 환의만 입으시도록 교육했고,",
                         "{v} 빼시도록 설명드렸구요,", "수술실 가기 전 {v} 제거하시도록 안내했습니다."],
-               none_phrases=["제거할 틀니, 장신구 없으십니다.", "틀니나 장신구는 없으시고,"], default=["denture", "glasses", "jewelry", "nail"]),
+               none_phrases=["제거할 틀니, 장신구 없습니다.", "틀니나 장신구는 없고,"], default=["denture", "glasses", "jewelry", "nail"]),
         ]),
         Section("consent", "동의서/확인", hint="수술·마취·수혈 동의서, 혈액형, 팔찌, 마킹", fields=[
             multi("consents", "동의서", [
