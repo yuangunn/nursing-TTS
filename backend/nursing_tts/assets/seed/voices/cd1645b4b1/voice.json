@@ -1,0 +1,26 @@
+{
+  "id": "cd1645b4b1",
+  "name": "기본 음성 남2",
+  "note": "출처: Zeroth-Korean (CC BY 4.0, Lucas Jo·Wonkyum Lee, OpenSLR 40, HF kresnik/zeroth_korean) · 화자 116 · F0 추정 122 Hz",
+  "sex": "남",
+  "created": 1792124930.042625,
+  "samples": [
+    {
+      "id": "2a3bd314",
+      "file": "2a3bd314.wav",
+      "transcript": "김완일씨는 고인에 대해 민주화 투쟁에 앞장서고 금융실명제를 실시해 나라가 번창할 수 있게 만든 분이라면서 조금 더 사셨으면 좋았을 텐데 라며 말끝을 흐렸다",
+      "script_id": "",
+      "duration": 11.58,
+      "created": 1792124930.048647
+    },
+    {
+      "id": "3b145a83",
+      "file": "3b145a83.wav",
+      "transcript": "적어도 새누리당에 비해 완승을 거뒀다면서도 비례대표 공천은 검증이 다소 부실한 점이 있었고 중앙위 결정과 권한을 소홀하게 생각해 걱정이 많았다",
+      "script_id": "",
+      "duration": 10.74,
+      "created": 1792124930.054416
+    }
+  ],
+  "primary_sample": "2a3bd314"
+}

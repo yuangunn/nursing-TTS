@@ -1,0 +1,26 @@
+{
+  "id": "e8a53b9657",
+  "name": "기본 음성 여8",
+  "note": "출처: Zeroth-Korean (CC BY 4.0, Lucas Jo·Wonkyum Lee, OpenSLR 40, HF kresnik/zeroth_korean) · 화자 201 · F0 추정 304 Hz",
+  "sex": "여",
+  "created": 1792063127.593664,
+  "samples": [
+    {
+      "id": "a403c78d",
+      "file": "a403c78d.wav",
+      "transcript": "수정되어 생명이 시작되는 그 순간부터 남과는 완전히 다른 한 인간이 된다는 점에는 더 이상 의문이 있을 수 없다고 마크 박사는 결론을 내렸습니다",
+      "script_id": "",
+      "duration": 11.59,
+      "created": 1792063127.625529
+    },
+    {
+      "id": "517aac78",
+      "file": "517aac78.wav",
+      "transcript": "모 대학에서 근무하는 그는 서울이 아니면 직장생활하기 어렵다며 미리 유산 준다고 생각하고 아파트를 해 달라고 목소리를 높였다",
+      "script_id": "",
+      "duration": 10.91,
+      "created": 1792063127.646087
+    }
+  ],
+  "primary_sample": "a403c78d"
+}

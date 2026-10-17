@@ -1,0 +1,26 @@
+{
+  "id": "0241afce7c",
+  "name": "기본 음성 남4",
+  "note": "출처: Zeroth-Korean (CC BY 4.0, Lucas Jo·Wonkyum Lee, OpenSLR 40, HF kresnik/zeroth_korean) · 화자 154 · F0 추정 154 Hz",
+  "sex": "남",
+  "created": 1792124906.291902,
+  "samples": [
+    {
+      "id": "2e0adef3",
+      "file": "2e0adef3.wav",
+      "transcript": "이날 코스닥이 오전 열 한 시 오십 사 분 팔 쩜 일 칠 퍼센트 폭락한 오백 구십 사 쩜 칠 오 까지 떨어지면서 서킷 브레이커가 발동돼 이십 분간 모든 종목의 거래가 중단됐다",
+      "script_id": "",
+      "duration": 11.59,
+      "created": 1792124906.297672
+    },
+    {
+      "id": "93ac9f84",
+      "file": "93ac9f84.wav",
+      "transcript": "강남구는 해명 자료에 일부 언론에서 강남구가 제주 세종과 같은 특별자치구로 독립을 원하는 것과 같이 보도돼 지역이기주의로 몰리는 상황을 더 이상 간과할 수 없다고 적었습니다",
+      "script_id": "",
+      "duration": 10.9,
+      "created": 1792124906.303607
+    }
+  ],
+  "primary_sample": "2e0adef3"
+}

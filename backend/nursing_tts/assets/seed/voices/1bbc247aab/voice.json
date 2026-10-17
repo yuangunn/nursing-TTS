@@ -1,0 +1,26 @@
+{
+  "id": "1bbc247aab",
+  "name": "기본 음성 남3",
+  "note": "출처: Zeroth-Korean (CC BY 4.0, Lucas Jo·Wonkyum Lee, OpenSLR 40, HF kresnik/zeroth_korean) · 화자 150 · F0 추정 117 Hz",
+  "sex": "남",
+  "created": 1792124954.3759308,
+  "samples": [
+    {
+      "id": "e66dfb2d",
+      "file": "e66dfb2d.wav",
+      "transcript": "러시아 시사주간 아르구멘트이 이 팍트이가 지난 주말 추운 계절은 여성의 외양에 부정적인 영향을 미치기 때문에 겨울이 지나면 종합적인 피부 복원 과정이 필요하다고들 한다",
+      "script_id": "",
+      "duration": 11.29,
+      "created": 1792124954.3824372
+    },
+    {
+      "id": "14dc1cc3",
+      "file": "14dc1cc3.wav",
+      "transcript": "그러나 일본 정부는 식민지 지배 자체에 대한 책임을 인정하지 않고 있고 한국인 피해자에 대한 보상 문제가 천 구백 육십 오 년으로 모두 해결됐다는 입장이다",
+      "script_id": "",
+      "duration": 8.72,
+      "created": 1792124954.387449
+    }
+  ],
+  "primary_sample": "e66dfb2d"
+}

@@ -1,0 +1,26 @@
+{
+  "id": "56b4f4aa49",
+  "name": "기본 음성 남1",
+  "note": "출처: Zeroth-Korean (CC BY 4.0, Lucas Jo·Wonkyum Lee, OpenSLR 40, HF kresnik/zeroth_korean) · 화자 114 · F0 추정 98 Hz",
+  "sex": "남",
+  "created": 1792124891.534049,
+  "samples": [
+    {
+      "id": "344f1b97",
+      "file": "344f1b97.wav",
+      "transcript": "오는 삼십 일 국회 본회의에서 건보 개편안을 확정하면 당장 내년 칠 월부터 바뀐 보험료를 내야 하고 유예 기간이 끝나는 이천 이십 이 년부터는 대폭 변화가 있을 예정이다",
+      "script_id": "",
+      "duration": 10.61,
+      "created": 1792124891.541783
+    },
+    {
+      "id": "848bb94b",
+      "file": "848bb94b.wav",
+      "transcript": "백 열 아홉 개국 정상을 포함한 백 아흔 두 개국 대표단이 기후 변화 문제에 대처하기 위해 이천 구 년 십 이 월에 덴마크 코펜하겐에서 열린 이 모임에 참석했습니다",
+      "script_id": "",
+      "duration": 11.39,
+      "created": 1792124891.549168
+    }
+  ],
+  "primary_sample": "344f1b97"
+}

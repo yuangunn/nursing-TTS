@@ -1,0 +1,26 @@
+{
+  "id": "37f32a2b98",
+  "name": "기본 음성 여4",
+  "note": "출처: Zeroth-Korean (CC BY 4.0, Lucas Jo·Wonkyum Lee, OpenSLR 40, HF kresnik/zeroth_korean) · 화자 164 · F0 추정 200 Hz",
+  "sex": "여",
+  "created": 1792125252.73875,
+  "samples": [
+    {
+      "id": "ba31e8ef",
+      "file": "ba31e8ef.wav",
+      "transcript": "그러므로 흡연 습관을 극복하기 원한다면 가족과 친구를 비롯하여 진정으로 지원을 아끼지 않고 참을성을 나타낼 사람에게 도움을 구하는 것이 현명할 것입니다",
+      "script_id": "",
+      "duration": 11.42,
+      "created": 1792125252.745634
+    },
+    {
+      "id": "93b07d13",
+      "file": "93b07d13.wav",
+      "transcript": "최근 민간에서 전자담배가 충전 도중 폭발하는 사고가 잇따라 당국이 주의를 당부하고 있는 가운데 병영 내 폭발 사고는 처음이다",
+      "script_id": "",
+      "duration": 9.77,
+      "created": 1792125252.751211
+    }
+  ],
+  "primary_sample": "ba31e8ef"
+}

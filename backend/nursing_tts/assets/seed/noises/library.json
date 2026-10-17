@@ -1,0 +1,47 @@
+[
+  {
+    "id": "custom_b09e330e",
+    "label": "병실 룸톤 (실녹음 7·8·9 무음 구간)",
+    "file": "custom_b09e330e.wav",
+    "continuous": true,
+    "gain": 0.5,
+    "duration": 22.01,
+    "created": 1792012102.053153
+  },
+  {
+    "id": "custom_7d436e34",
+    "label": "네뷸라이저 작동음 (실제 녹음)",
+    "file": "custom_7d436e34.wav",
+    "continuous": true,
+    "gain": 0.5,
+    "duration": 60.0,
+    "created": 1792016680.231779
+  },
+  {
+    "id": "custom_d046b2d9",
+    "label": "중환자실 배경음 (실제 녹음: 모니터·펌프·인공호흡기)",
+    "file": "custom_d046b2d9.wav",
+    "continuous": true,
+    "gain": 0.5,
+    "duration": 120.0,
+    "created": 1792016680.280141
+  },
+  {
+    "id": "custom_b75bb01b",
+    "label": "환자 모니터 알람 Mindray (실제 녹음)",
+    "file": "custom_b75bb01b.wav",
+    "continuous": false,
+    "gain": 0.6,
+    "duration": 10.0,
+    "created": 1792016680.292747
+  },
+  {
+    "id": "custom_c4184ae2",
+    "label": "회진 대화 (간호사8(가명 녹음) 톤 변조, 멀리서)",
+    "file": "custom_c4184ae2.wav",
+    "continuous": false,
+    "gain": 0.6,
+    "duration": 27.6,
+    "created": 1792018286.732309
+  }
+]

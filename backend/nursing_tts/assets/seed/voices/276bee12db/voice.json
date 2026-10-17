@@ -1,0 +1,26 @@
+{
+  "id": "276bee12db",
+  "name": "기본 음성 여6",
+  "note": "출처: Zeroth-Korean (CC BY 4.0, Lucas Jo·Wonkyum Lee, OpenSLR 40, HF kresnik/zeroth_korean) · 화자 180 · F0 추정 207 Hz",
+  "sex": "여",
+  "created": 1792125139.918946,
+  "samples": [
+    {
+      "id": "1db66e91",
+      "file": "1db66e91.wav",
+      "transcript": "그래서 재소자들은 보통 구치소 내에 있는 미용실을 이용을 하게 되는데 이 경우에는 파마나 염색 이런 거 안 되고 커트만 가능하다 이런 것을 구체적으로 설명하고 있고요",
+      "script_id": "",
+      "duration": 10.07,
+      "created": 1792125139.926867
+    },
+    {
+      "id": "ed3f870e",
+      "file": "ed3f870e.wav",
+      "transcript": "대학 연구진은 방사성탄소 연대측정을 시작할 때조차 이 책이 일 천 삼백 년 이상 된 것이라고 기대하지 않았는데 가장 오래된 것으로 밝혀져 매우 기쁘다고 말했다",
+      "script_id": "",
+      "duration": 9.29,
+      "created": 1792125139.932479
+    }
+  ],
+  "primary_sample": "1db66e91"
+}

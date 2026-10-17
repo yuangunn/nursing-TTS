@@ -1,0 +1,26 @@
+{
+  "id": "e467e16ddd",
+  "name": "기본 음성 여7",
+  "note": "출처: Zeroth-Korean (CC BY 4.0, Lucas Jo·Wonkyum Lee, OpenSLR 40, HF kresnik/zeroth_korean) · 화자 191 · F0 추정 253 Hz",
+  "sex": "여",
+  "created": 1792063109.789493,
+  "samples": [
+    {
+      "id": "4dbedfe1",
+      "file": "4dbedfe1.wav",
+      "transcript": "검찰은 여기서 그치지 않고 이 콘서트를 주최한 황선 씨 등 검찰의 표현에 따르면 이른바 종북 색채가 있는 사람들에 대해서도 수사를 확대하겠다고 밝혔습니다",
+      "script_id": "",
+      "duration": 11.84,
+      "created": 1792063109.8026712
+    },
+    {
+      "id": "8bb808a3",
+      "file": "8bb808a3.wav",
+      "transcript": "그리고 그다음 업종이 일 인 가구 많이 늘고 복잡하게 장보기 싫어하는 사람들이 많기 때문에 편의점이 잘되고요 돈이 없어도 아프면 병원은 또 가야 되잖아요",
+      "script_id": "",
+      "duration": 11.62,
+      "created": 1792063109.8153
+    }
+  ],
+  "primary_sample": "4dbedfe1"
+}

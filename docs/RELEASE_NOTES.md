@@ -1,6 +1,9 @@
 ## 간호기록 음성 녹음 생성기 — beta
 
-### 이번 버전 (v0.1.5-beta, 2026-10-17)
+### 이번 버전 (v0.1.6-beta, 2026-10-17)
+- **설치 파일만 실행하면 기본 목소리와 소음까지**: 모든 설치 파일(일반·-offline)에 기본 목소리 15명(Zeroth-Korean, CC BY 4.0)과 병동 소음 클립(룸톤·네뷸라이저·중환자실·모니터 알람·회진 대화)이 들어 있어 첫 실행 때 데이터 폴더에 자동으로 들어갑니다. `-offline` 설치 파일은 여기에 백엔드(Python·패키지·Qwen3-TTS 스택)까지 내장되어 인터넷 없이 바로 뜹니다. 온디바이스 모델(약 5 GB)만 따로 넣습니다.
+
+### 이전 버전 (v0.1.5-beta, 2026-10-17)
 - **한 번에 설치되는 "-offline" 설치 파일**: `NursingTTS-offline-<버전>-mac-arm64.dmg`, `-mac-x64.dmg`, `-win-x64.exe`에는 Python과 모든 패키지, Qwen3-TTS 복제 스택(Windows는 CPU PyTorch)이 들어 있어 설치만 하면 pip 없이 백엔드가 뜹니다. 모델(약 5 GB)은 설정 → 로컬 모델 폴더에 복사하거나 `--models` 번들로, NVIDIA CUDA는 `.ps1 -Qwen -Cuda` 번들로 따로 옮깁니다.
 - **목소리·소음 옮기기**: `scripts/build-offline-bundle.sh --data`(Windows `-Data`)로 만든 번들을 다른 PC에서 가져오면 이 PC의 등록 목소리와 소음 클립이 그대로 들어갑니다(이미 있는 항목은 덮어쓰지 않음).
 
