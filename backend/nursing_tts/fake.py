@@ -340,8 +340,8 @@ def _consistency(form: dict[str, Any], template_key: str, t, rng: random.Random,
         if patient is not None and patient.department != "정형외과" and rng.random() < 0.7:
             form["referral"] = []        # most discharges have no referral (real recordings)
     if patient is not None and patient.department != "정형외과" and (patient.age or 0) < 70:
-        for key in ("mobility", "adl"):   # a 30-year-old myoma patient does not arrive in a wheelchair
-            if key in form and rng.random() < 0.9:
+        for key in ("mobility", "adl"):   # a 30-year-old myoma patient does not arrive in a wheelchair (2026-10-18: 23세 ESS "부축 필요")
+            if key in form:
                 form[key] = "independent"
     # fall risk: Johns Hopkins score from the form, level from the score (scenario may force high/low)
     forced = set(sc.form.get("fall") or []) if sc is not None and "fall" in sc.form else set()
@@ -370,7 +370,7 @@ def _consistency(form: dict[str, Any], template_key: str, t, rng: random.Random,
     # pressure injury: Braden score ↔ risk band, and the admission skin finding
     if template_key == "s1" and "skin" in form:
         young_mobile = patient is not None and (patient.age or 0) < 65 and form.get("mobility") == "independent"
-        if rng.random() < (0.95 if young_mobile else 0.8):
+        if chemo or rng.random() < (0.95 if young_mobile else 0.8):   # a chemo cycle admission has no "피부 상처" to explain
             form["skin"] = "intact"        # a pressure injury on admission is rare, and rarer in a walking 40-year-old
     if "p_braden" in form:
         form["p_braden_risk"] = braden_risk(int(form["p_braden"]))
@@ -383,7 +383,7 @@ def _consistency(form: dict[str, Any], template_key: str, t, rng: random.Random,
             form["pressure_risk"] = {"최고위험": "very_high", "고위험": "high", "중등도 위험": "moderate", "저위험": "low", "위험 없음": "none"}[braden_risk(int(form["braden"]))]
     if template_key == "s1" and patient is not None:
         _derive_s1_problems(form, patient, rng)
-    if form.get("consciousness") == "alert" and "orientation" in form and rng.random() < 0.9:
+    if form.get("consciousness") == "alert" and "orientation" in form and (template_key == "s1" or rng.random() < 0.9):
         form["orientation"] = "yes"   # an alert patient is almost always oriented
     if form.get("weight_screen") == "neg":
         form.pop("weight_change", None)  # "변화 없음" screen must not be followed by "5kg 감소"
@@ -512,6 +512,12 @@ _EXCLUSIVE = (
     ("사타구니|서혜부", "배꼽", "흉터|반흔"),
     ("내치핵", "외치핵|혈전성"),
     ("선행", "보조"),
+    # 2026-10-18 검수: 진단·주호소·현병력이 다른 이야기 (제왕절개 거대아/진통/둔위, 재건 즉시/지연/확장기, 위암/대장암, 고식/보조)
+    ("전치태반", "둔위", "반복|이전 제왕", "진통|분만 진행", "거대아", "쌍둥이"),
+    ("즉시|동시|NSM", "지연|DIEP", "확장기|보형물 교체"),
+    ("위암", "대장|결장|직장"),
+    ("고식적|전이성", "보조"),
+    ("만성", "급성|오한|응급실"),
     ("발진", "갑상선|호르몬", "저림|신경병증", "설사|탈수", "오심|구토", "발열|호중구", "혈압", "단백뇨"),
 )
 _TOXICITY = ("응급실", "심해져", "오심", "구토", "설사", "발열", "저림", "발진", "탈수", "혈압 상승", "단백뇨", "기능 저하", "감량", "보류")
@@ -599,7 +605,7 @@ def _derive_s1(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
     if "history" in form and not forced_hist:
         p_none = 0.85 if age < 40 else 0.5 if age < 60 else 0.25
         if rng.random() < p_none:
-            form["history"] = []
+            form["history"] = ["none"]       # said ("과거력 없습니다") and asked in the dialogue, not left out (2026-10-18)
         else:
             w = {k: v for k, v in _HISTORY_W.items() if age >= 60 or k in _YOUNG_HISTORY}
             form["history"] = _weighted_distinct(rng, w, 1 if age < 60 else rng.choice([1, 1, 2, 2, 3]))
@@ -609,7 +615,7 @@ def _derive_s1(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
             form["history_detail"] = ", ".join(rng.choice(_DETAIL[h]).format(y=rng.randint(2, 15)) for h in hist[:2])
         else:
             form.pop("history_detail", None)
-    if "medications" in form:
+    if True:   # the med list follows the history even when the random fill left the field out (2026-10-18: 고혈압인데 약 없음)
         meds = [rng.choice(_MEDS[h]) for h in hist if h in _MEDS]
         if "심방세동" in form.get("history_detail", ""):   # AF (2026-10-17: "심방세동으로 약 복용 중" + "항응고제 복용 안 하십니다")
             meds = [m for m in meds if "아스피린" not in m and "비소프롤롤" not in m] + ["비소프롤롤 5mg qd", "아픽사반 5mg bid"]
@@ -618,7 +624,7 @@ def _derive_s1(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
         if meds:
             form["medications"] = ", ".join(meds)
         else:
-            form.pop("medications", None)
+            form["medications"] = "복용 중인 약 없음"   # → "복용 중인 약 없습니다"; the dialogue asks and hears "없어요"
     if "심방세동" in form.get("history_detail", "") and "아픽사반" not in str(form.get("medications") or ""):
         # the med list may not have been drawn at all — an AF patient is still on rate control and a NOAC
         kept = [m for m in str(form.get("medications") or "").split(", ") if m and "아스피린" not in m and "비소프롤롤" not in m]
@@ -629,9 +635,10 @@ def _derive_s1(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
         if held:   # NOACs stop 2 days before, antiplatelets a week
             form["apt_drug"], form["apt_hold"] = held, ("이틀 전" if held in ("아픽사반", "리바록사반", "에독사반") else "1주 전")
     if "route" in form:
-        form["route"] = "er" if "응급실" in cc else "transfer" if "전원" in cc else "opd"
+        form["route"] = "er" if re.search(r"응급실|진통|분만 진행", cc) else "transfer" if "전원" in cc else "opd"   # labour comes through the ER
     if "vitals" in form:
-        febrile = any(w in cc for w in ("발열", "오한", "호중구", "담낭염", "충수염", "농양", "감염"))
+        febrile = any(w in cc for w in ("발열", "오한", "호중구", "농양", "감염")) or \
+            (bool(re.search(r"담낭염|충수염", cc)) and bool(re.search(r"급성|오한|응급", cc)))   # chronic cholecystitis is afebrile
         v = random_vitals(rng, "fever" if febrile and rng.random() < 0.8 else "normal")
         if any(w in cc for w in ("탈수", "설사", "구토")):
             v["hr"] = rng.randint(96, 112)
@@ -673,7 +680,8 @@ def _derive_s1(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
             form.pop("pain_site", None)
         else:
             site = next((s for w, s in _SITE_BY_WORD if w in cc), None)
-            form["pain_site"] = site or ("복부" if chemo else "수술 예정 부위")   # the admission pain has a place
+            form["pain_site"] = site or ("복부" if chemo else {"산부인과": "하복부", "비뇨의학과": "하복부", "이비인후과": "목", "유방외과": "유방"}.get(
+                patient.department, "복부"))   # a body part, not "수술 예정 부위" (2026-10-18)
     if "emotion" in form:
         form["emotion"] = ["anxiety"] if rng.random() < (0.3 if not chemo else 0.15) else ["none"]
     if "symptom_screen" in form:
@@ -681,17 +689,20 @@ def _derive_s1(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
         form["symptom_screen"] = "pos" if edema_ok and rng.random() < 0.4 else "neg"
         if form["symptom_screen"] == "neg":
             form.pop("symptom_note", None)
+        if re.search(r"숨|호흡곤란|부종|두근", cc):   # the complaint already says it: no "숨찬 건 없으세요? — 그런 건 없어요"
+            form.pop("symptom_screen", None)
+            form.pop("symptom_note", None)
     if "weakness" in form:
         weak = "stroke" in hist or (patient.department == "정형외과" and rng.random() < 0.3)
         form["weakness"] = "pos" if weak and rng.random() < 0.7 else "neg"
         if form["weakness"] == "pos":
-            form["weakness_note"] = "환측 다리" if patient.department == "정형외과" else rng.choice(["오른쪽 다리", "왼쪽 팔"])
+            form["weakness_note"] = ("환측 팔" if _upper_limb(patient.diagnosis) else "환측 다리") if patient.department == "정형외과" else rng.choice(["오른쪽 다리", "왼쪽 팔"])
         else:
             form.pop("weakness_note", None)
     if "social_work" in form and rng.random() < 0.95:
         form["social_work"] = "neg"
     if "fall_history" in form:   # the fall that brought the patient in counts (user 2026-10-17)
-        fell = any(w in cc for w in ("낙상", "미끄러", "넘어", "골절"))
+        fell = bool(re.search(r"낙상|미끄러|넘어", cc)) or ("골절" in cc and not re.search(r"사고|축구|자전거", cc))   # a crash is not a fall
         form["fall_history"] = "yes" if fell or (age >= 75 and rng.random() < 0.08) else "no"
     # an elective admission is awake; confusion only in the very old after a fall
     if "consciousness" in form:
@@ -700,11 +711,22 @@ def _derive_s1(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
         form["isolation"] = "contact" if rng.random() < 0.05 else "none"
     if "devices" in form and not chemo and not any(w in cc for w in ("장루", "회장루")):
         form.pop("devices")                  # a THA patient does not come in with a stoma or a PICC
+    if not chemo and (re.search(r"회장루|장루", cc) or (sc is not None and sc.key == "Ileostomy repair")):   # stoma reversal: the stoma is still there
+        form["devices"] = "회장루" if "회장루" in cc else "장루"
+        if "bowel" in form:
+            form["bowel"] = "stoma"
+    if "bowel" in form and "변실금" in cc:
+        form["bowel"] = "incontinence"
     if "allergy" in form:
-        form["allergy"] = ["none"] if rng.random() < 0.8 else [rng.choices(["food", "penicillin", "antibiotic", "nsaid", "contrast", "other"], weights=[4, 3, 2, 2, 1, 1])[0]]
+        form["allergy"] = ["none"] if rng.random() < 0.8 else [rng.choices(["food", "penicillin", "antibiotic", "nsaid", "contrast"], weights=[4, 3, 2, 2, 1])[0]]   # no "기타 알러지"
     if "sense" in form:
         p_none = 0.65 if age >= 65 else 0.85
         form["sense"] = ["none"] if rng.random() < p_none else [rng.choices(["hearing", "vision", "speech", "foreign"], weights=[55, 40, 3, 2])[0]]
+    if "mobility" in form and patient.department == "정형외과":   # 2026-10-18: 47세 회전근개 "워커 짚고", 갓 다친 하지 골절이 걸어서 옴
+        if _upper_limb(patient.diagnosis):
+            form["mobility"] = "independent"
+        elif re.search(r"골절|미끄러|넘어|낙상|압궤", cc):
+            form["mobility"] = rng.choice(["bedrest", "assist"])
     if "adl" in form and "mobility" in form:   # the two mobility answers must agree
         form["adl"] = {"independent": "independent", "device": "walker", "assist": "assist", "bedrest": "wheelchair"}.get(form["mobility"], "independent")
     if isinstance(form.get("vitals"), dict):
@@ -726,7 +748,16 @@ def _derive_s1(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
         cands.append("어릴 때 편도절제술")
         if chemo and "수술 후" in cc:
             treat = "유방" if "유방" in cc else "대장" if any(w in cc for w in ("대장", "결장", "직장")) else ""
-            form["past_surgery"] = f"{rng.randint(1, 4)}개월 전 {treat + ' ' if treat else ''}수술"
+            months = max(1, round((patient.cycle or 1) * (14 if "FOLF" in (patient.regimen or "") else 21) / 30) + 1)   # adjuvant cycle 7 ≠ "1개월 전 수술"
+            form["past_surgery"] = f"{months}개월 전 {treat + ' ' if treat else ''}수술"
+        elif not chemo and sc is not None and sc.key == "Breast reconstruction" and re.search(r"지연|확장기|보형물|전절제 후", cc):
+            form["past_surgery"] = f"{rng.randint(1, 3)}년 전 유방 전절제술" + (" 및 조직확장기 삽입" if "확장기" in cc else "")
+        elif not chemo and "갑상선 전절제 후" in cc:
+            form["past_surgery"] = f"{rng.randint(1, 5)}년 전 갑상선 전절제술"
+        elif not chemo and sc is not None and sc.key == "Ileostomy repair":
+            form["past_surgery"] = f"{rng.randint(4, 8)}개월 전 직장암으로 저위전방절제술 및 회장루 조성술"
+        elif not chemo and re.search(r"반복 제왕|이전 제왕", cc):
+            form["past_surgery"] = f"{rng.randint(2, 5)}년 전 제왕절개"
         elif rng.random() < 0.45:
             form.pop("past_surgery", None)
         else:
@@ -745,6 +776,14 @@ def _derive_s1(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
         form["mood_summary"] = f"기분 가라앉은 날이 {_days[form['mood_days']].replace('다고', '고') if form['mood_days'] != 'none' else '없고'} 흥미 떨어진 날은 {_days[form['interest_days']]}"
         if "selfharm" in form and form["depression_screen"] == "neg":
             form["selfharm"] = "none"
+    # habits by sex and age (2026-10-18 검수: 여성 현재 흡연 24%·과거 흡연 53%, 임신부 흡연)
+    female = patient.sex.startswith("여")
+    pregnant = patient.surgery == "C-sec"
+    if "smoking" in form:
+        form["smoking"] = "never" if pregnant else rng.choices(["never", "quit", "current"],
+                                                            weights=[88, 8, 4] if female else ([45, 40, 15] if age >= 70 else [40, 35, 25]))[0]
+    if "alcohol" in form:
+        form["alcohol"] = "none" if pregnant else rng.choices(["none", "social", "heavy"], weights=[60, 38, 2] if female else [35, 55, 10])[0]
     # 금연·금주 교육은 해당 환자에게만 (user 2026-10-17); set unconditionally so the bool never lags the habit field
     form["smoking_edu"] = form.get("smoking") == "current"
     form["alcohol_edu"] = form.get("alcohol") in ("social", "heavy")
@@ -767,6 +806,37 @@ def _derive_s1(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
     if "weight_screen" in form:
         cancer = any(w in cc for w in ("암", "종양", "전이")) or chemo
         form["weight_screen"] = "loss" if (cancer and rng.random() < 0.3) else ("gain" if rng.random() < 0.08 else "neg")
+        # the amount follows the direction (2026-10-18: "2kg 증가" sent to 영양 상담 as weight loss)
+        if form["weight_screen"] == "loss":
+            form["weight_change"] = rng.choice(["2개월간 5kg 감소", "한 달 사이 3kg 감소", "4kg 정도 감소"])
+        elif form["weight_screen"] == "gain":
+            form["weight_change"] = rng.choice(["한 달 사이 2kg 증가", "3kg 증가"])
+        else:
+            form.pop("weight_change", None)
+    if form.get("sleep") == "hypnotic":
+        if age < 55:
+            form["sleep"] = "good"
+        elif "졸피뎀" not in str(form.get("medications") or ""):
+            meds = [m for m in str(form.get("medications") or "").split(", ") if m and m != "복용 중인 약 없음"]
+            form["medications"] = ", ".join(meds + ["졸피뎀 5mg hs"])
+    # caregiver like the handover (2026-10-18 검수: 83% "보호자 없음" because the random fill treated "none" as normal)
+    if "caregiver" in form:
+        allowed = list(sc.form.get("caregiver") or []) if sc is not None else []
+        if age < 20:
+            form["caregiver"] = "parent"
+        elif allowed:
+            form["caregiver"] = rng.choice(allowed)
+        elif patient.surgery == "C-sec":
+            form["caregiver"] = "spouse"
+        elif age >= 70:
+            form["caregiver"] = rng.choices(["spouse", "child", "caregiver", "intermittent"], weights=[35, 35, 20, 10])[0]
+        else:
+            form["caregiver"] = rng.choices(["spouse", "child", "none", "intermittent", "caregiver"], weights=[45, 10 if age >= 45 else 0, 30, 12, 3])[0]
+        if form["caregiver"] == "spouse" and form.get("marital") in ("single", "other"):
+            form["marital"] = "married"            # a spouse at the bedside: not "사별하셨고"
+    if "알레르기" in str(form.get("intake_note") or "") and form.get("allergy") in (None, ["none"]):
+        form["allergy"] = ["food"]                 # "알레르기 없습니다" + "해산물 알레르기라고 하셔서"
+        form.setdefault("allergy_reaction", "두드러기")
 
 
 def _derive_s1_problems(form: dict[str, Any], patient: Patient, rng: random.Random) -> None:
@@ -2001,7 +2071,10 @@ def _random_form_once(template_key: str, rng: random.Random, patient: Patient | 
                                           else ["증상 조절 후 퇴원 예정", "증상 호전 후 항암 일정은 외래에서 결정 예정"])
             else:
                 form.pop("onset", None)
-                form["plan"] = f"{sc.key} {patient.cycle}차 예정"
+                if "예정" in form.get("present_illness", ""):
+                    form.pop("plan", None)               # "N차 예정" said twice
+                else:
+                    form["plan"] = f"{sc.key} {patient.cycle}차 예정"
         if template_key == "s1" and sc.kind == "op":
             # plan names the actual surgery (not a generic "복강경 수술 예정" for a THA); drop it when the
             # present illness already ends in "... 예정"
@@ -2012,8 +2085,11 @@ def _random_form_once(template_key: str, rng: random.Random, patient: Patient | 
             # onset follows the complaint: trauma is days, incidental findings have no onset, the rest is months
             if any(w in cc for w in ("낙상", "미끄러", "넘어", "사고", "급성", "갑자기", "응급")):
                 form["onset"] = rng.choice(["어제", "2일 전", "3일 전", "일주일 전"])
-            elif any(w in cc for w in ("검진", "우연히", "발견")):
-                form.pop("onset", None)
+                if re.search(r"낙상|미끄러|넘어|사고|압궤|골절", cc):
+                    form["onset"] += " 다치심"     # an injury: "2일 전 다치셨습니다", not "2일 전 시작되었다고 하십니다"
+            elif any(w in cc for w in ("검진", "우연히", "발견", "추적", "재발", "전이", "소견", "상담", "BRCA", "예방적")) or \
+                    re.search(r"(입원|예정|결정|진단|위해|교체|재건|권유|의뢰)\s*$|진통|분만|\d+\s*(개월|주|년|일)\s*전|부터", cc):
+                form.pop("onset", None)          # a decision or a dated complaint has no "6개월 전부터 서서히" (2026-10-18)
             elif "onset" in form:
                 form["onset"] = rng.choice(["2개월 전부터", "3개월 전부터", "6개월 전부터 서서히", "1년 전부터", "1개월 전부터"])
         _apply_scenario(form, template_key, {f.key: f for _, f in t.iter_fields()}, sc, rng)
@@ -2028,7 +2104,9 @@ def _random_form_once(template_key: str, rng: random.Random, patient: Patient | 
         if female and patient.kind == "op" and patient.department == "산부인과" and patient.surgery != "C-sec":
             m = re.match(r"(\d+)월", patient.admission_date or "")
             month = int(m.group(1)) if m else 10
-            form["lmp"] = "폐경 상태" if (patient.age or 0) >= 52 else f"{month if rng.random() < 0.5 else (month - 2) % 12 + 1}월 {rng.randint(1, 28)}일"
+            adm = _month_day(patient.admission_date or "")
+            last = (datetime(2026, *adm) if adm else datetime(2026, month, 15)) - timedelta(days=rng.randint(3, 35))   # before the admission
+            form["lmp"] = "폐경됨" if (patient.age or 0) >= 52 else f"{last.month}월 {last.day}일"   # "폐경됨" → "폐경되셨습니다", not "월경일은 폐경 상태입니다"
         else:
             form.pop("lmp", None)
     if "family_history" in form and form.get("family_history") == "없음":

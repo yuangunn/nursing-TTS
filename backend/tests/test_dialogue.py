@@ -33,8 +33,8 @@ def test_dialogue_turns_follow_the_form_and_the_patients_age():
             assert all(re.search(r"(요|니다|네|예)[.!]$", t) for t in patient_lines), patient_lines
         # the answers follow the chart: fall history, history, pain
         joined = " ".join(patient_lines)
-        if f.get("fall_history") == "yes":
-            assert "넘어" in joined
+        if f.get("fall_history") == "yes":   # the patient tells the fall ("넘어져서/미끄러져서"); a fall admission is not asked again
+            assert re.search(r"넘어|미끄러", joined), joined
         if int(f.get("nrs") or 0) == 0:
             assert "점 정도" not in joined
         else:
@@ -195,9 +195,46 @@ def test_dialogue_keeps_chart_narration_after_the_interview():
         f = random_form("s1", rng, p)
         s = build_script("s1", f, p, random_datetime(rng), style="formal", seed=7000 + i, dialogue=True)
         last_patient = max(k for k, t in enumerate(s.turns) if t["speaker"] == "patient")
-        first_q = next(k for k, t in enumerate(s.turns) if t["text"].endswith("?"))
+        first_q = next(k for k, t in enumerate(s.turns) if k >= 3 and t["text"].endswith("?"))   # after the opening (its confirmation may say "혈압 상승")
         between = [t["text"] for t in s.turns[first_q:last_patient] if t["speaker"] == "nurse" and not t["text"].endswith("?")]
         assert not any(CHART_ONLY.search(x) for x in between), [x for x in between if CHART_ONLY.search(x)]
         after = [t["text"] for t in s.turns[last_patient + 1:]]
         assert after and re.search(r"기록하겠습니다|정리", after[0]) and all(t["speaker"] == "nurse" for t in s.turns[last_patient + 1:]), after[:2]
         assert any(CHART_ONLY.search(x) for x in after), after
+
+
+def test_admission_interview_review_2026_10_18():
+    """대량 검수(간호정보조사): 보호자 83% 없음, 약을 묻지 않음, 면담 뒤 기록에 묻지 않은 질문문, 항암 환자에게 수술 걱정,
+    "가슴에 멍울"(갑상선·자궁), "검사에서 뭐가 보인다고" 두 번, "이번이 한 번째예요", 남자에게 "유방 전절제술", 증가인데 영양 상담."""
+    rng = random.Random(1020)
+    old_with_cg = old = 0
+    for i in range(160):
+        p = random_patient(rng, "s1")
+        f = random_form("s1", rng, p)
+        if (p.age or 0) >= 70:
+            old += 1
+            old_with_cg += f.get("caregiver") not in ("none", None)
+        if p.surgery == "C-sec":
+            assert f.get("caregiver") == "spouse" and f.get("smoking") == "never"
+        if f.get("weight_screen") == "loss":
+            assert "감소" in f.get("weight_change", ""), f.get("weight_change")
+        if f.get("weight_screen") == "gain":
+            assert "증가" in f.get("weight_change", ""), f.get("weight_change")
+        if not p.sex.startswith("여"):
+            assert "유방" not in str(f.get("past_surgery") or ""), f.get("past_surgery")
+        s = build_script("s1", f, p, random_datetime(rng), style=rng.choice(["formal", "mixed", "casual"]), seed=i, dialogue=True)
+        lines = [(t["speaker"], t["text"]) for t in s.turns]
+        nurse = [t for sp, t in lines if sp == "nurse"]
+        story = next(t for sp, t in lines if sp == "patient")
+        cc = f.get("chief_complaint", "")
+        if "가슴에 멍울" in story:
+            assert re.search(r"유방|가슴", cc), (cc, story)
+        assert story.count("보인다고") <= 1 and "한 번째" not in story, story
+        if p.kind == "chemo":
+            assert not any("수술하시는 거" in t for t in nurse), nurse
+        if "medications" in f:
+            assert any("약" in t and t.endswith("?") for t in nurse), nurse          # the medication question is asked
+        k = next((j for j, (sp, t) in enumerate(lines) if "기록하겠습니다" in t or "정리하겠습니다" in t), len(lines))
+        assert not any("?" in t for sp, t in lines[k + 1:]), lines[k + 1:]           # the dictation has no unanswered questions
+        assert "환부 쪽" not in s.spoken_text and "어제에" not in s.spoken_text
+    assert old_with_cg >= 0.8 * old, (old_with_cg, old)

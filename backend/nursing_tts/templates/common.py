@@ -23,7 +23,7 @@ CONSCIOUSNESS = [
     opt("drowsy", "기면(drowsy)",
         "의식 drowsy 합니다.", "의식 기면 상태로 부르면 눈 뜨십니다.", "멘탈 drowsy 하시고,"),
     opt("confuse", "혼돈(confuse)",
-        "의식 confuse 상태입니다.", "지남력 떨어지고 confuse 하십니다.", "멘탈 confuse 하시고,"),
+        "의식 confuse 상태입니다.", "말씀이 조금 혼동되시고 confuse 하십니다.", "멘탈 confuse 하시고,"),
     opt("stupor", "혼미(stupor)",
         "의식 stupor 상태입니다.", "강한 자극에만 반응하는 stupor 상태입니다.", "stupor 상태로 강한 자극에만 반응하십니다."),
 ]
@@ -36,7 +36,7 @@ ORIENTATION = [
 
 PAIN_NRS = Field(
     key="nrs", label="통증 NRS", kind="number", min=0, max=10, step=1, default=3,
-    phrases=["통증 NRS {v}점입니다.", "통증은 NRS {v}점이고,", "NRS {v}점으로,", "통증 {v}점 정도 호소하십니다.",
+    phrases=["통증 NRS {v}점입니다.", "통증은 NRS {v}점이고,", "NRS {v}점으로,", "통증 {v}점 정도라고 하십니다.",
              "통증 점수 {v}점이구요,", "통증은 {v}점 정도라고 하십니다."],
     hint="0~10", example="통증 NRS 3점",
 )
