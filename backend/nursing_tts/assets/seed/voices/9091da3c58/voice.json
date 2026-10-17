@@ -1,0 +1,26 @@
+{
+  "id": "9091da3c58",
+  "name": "기본 음성 여5",
+  "note": "출처: Zeroth-Korean (CC BY 4.0, Lucas Jo·Wonkyum Lee, OpenSLR 40, HF kresnik/zeroth_korean) · 화자 168 · F0 추정 203 Hz",
+  "sex": "여",
+  "created": 1792125156.11957,
+  "samples": [
+    {
+      "id": "37233da5",
+      "file": "37233da5.wav",
+      "transcript": "김진혁 돌아갈 자리가 없는 것뿐만 아니라 만약에 나중에 소위 이제 이런 부분들이 해소가 돼서 정상화가 된다고 하더라도 어떻게 해야 될지가 굉장히 곤혹스럽게 되는 거죠",
+      "script_id": "",
+      "duration": 10.43,
+      "created": 1792125156.125601
+    },
+    {
+      "id": "3573d8ed",
+      "file": "3573d8ed.wav",
+      "transcript": "은행 대출처럼 복잡하지 않고 자동화기기에서 몇 차례 클릭만으로 현금을 손에 쥘 수 있다는 편리함 때문에 점점 이용 빈도가 잦아지고 한 차례 연체했다가 갚기도 했다",
+      "script_id": "",
+      "duration": 9.67,
+      "created": 1792125156.130591
+    }
+  ],
+  "primary_sample": "37233da5"
+}

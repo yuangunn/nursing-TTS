@@ -32,6 +32,18 @@ app = FastAPI(title="Nursing TTS backend", version=__version__)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
+@app.on_event("startup")
+def _seed_data() -> None:
+    """First start: put the shipped public voices and ward noise clips into the data folder (seed.py)."""
+    try:
+        from .seed import ensure_seed_data
+        added = ensure_seed_data(data_dir())
+        if added["voices"] or added["noises"]:
+            print(f"[seed] 기본 목소리 {added['voices']}개, 소음 {added['noises']}개를 데이터 폴더에 넣었습니다")
+    except Exception as e:  # noqa: BLE001
+        print(f"[seed] skipped: {e}")
+
+
 # ---------------------------------------------------------------------------
 # Models
 # ---------------------------------------------------------------------------

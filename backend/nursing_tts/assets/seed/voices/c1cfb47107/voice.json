@@ -1,0 +1,26 @@
+{
+  "id": "c1cfb47107",
+  "name": "기본 음성 남6",
+  "note": "출처: Zeroth-Korean (CC BY 4.0, Lucas Jo·Wonkyum Lee, OpenSLR 40, HF kresnik/zeroth_korean) · 화자 192 · F0 추정 149 Hz",
+  "sex": "남",
+  "created": 1792124796.461756,
+  "samples": [
+    {
+      "id": "4a26e7ca",
+      "file": "4a26e7ca.wav",
+      "transcript": "검찰은 여기서 그치지 않고 이 콘서트를 주최한 황선 씨 등 검찰의 표현에 따르면 이른바 종북 색채가 있는 사람들에 대해서도 수사를 확대하겠다고 밝혔습니다",
+      "script_id": "",
+      "duration": 9.75,
+      "created": 1792124796.478965
+    },
+    {
+      "id": "e02988b7",
+      "file": "e02988b7.wav",
+      "transcript": "앞으로 계속 북진하면서 정오 무렵엔 동해상으로 올라와 오후 두 시를 전후해선 부산 남동쪽 백 쉰 킬로미터 부근 해상까지 북상하겠습니다",
+      "script_id": "",
+      "duration": 9.3,
+      "created": 1792124796.48398
+    }
+  ],
+  "primary_sample": "4a26e7ca"
+}

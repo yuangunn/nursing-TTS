@@ -1,0 +1,26 @@
+{
+  "id": "46a3de682e",
+  "name": "기본 음성 남7",
+  "note": "출처: Zeroth-Korean (CC BY 4.0, Lucas Jo·Wonkyum Lee, OpenSLR 40, HF kresnik/zeroth_korean) · 화자 207 · F0 추정 132 Hz",
+  "sex": "남",
+  "created": 1792124825.687525,
+  "samples": [
+    {
+      "id": "d82b9147",
+      "file": "d82b9147.wav",
+      "transcript": "수정되어 생명이 시작되는 그 순간부터 남과는 완전히 다른 한 인간이 된다는 점에는 더 이상 의문이 있을 수 없다고 마크 박사는 결론을 내렸습니다",
+      "script_id": "",
+      "duration": 9.64,
+      "created": 1792124825.69328
+    },
+    {
+      "id": "c6005211",
+      "file": "c6005211.wav",
+      "transcript": "일곱 개 라인이고 그 일곱 개 라인마다 투표함을 개함하는 부가 있고 분류부가 있고 심사집계부가 있고 위원검열부가 네 개 부서가 있어요",
+      "script_id": "",
+      "duration": 10.11,
+      "created": 1792124825.698878
+    }
+  ],
+  "primary_sample": "d82b9147"
+}

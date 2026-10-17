@@ -1,0 +1,26 @@
+{
+  "id": "505c3d8201",
+  "name": "기본 음성 여2",
+  "note": "출처: Zeroth-Korean (CC BY 4.0, Lucas Jo·Wonkyum Lee, OpenSLR 40, HF kresnik/zeroth_korean) · 화자 130 · F0 추정 209 Hz",
+  "sex": "여",
+  "created": 1792125206.217806,
+  "samples": [
+    {
+      "id": "1871da62",
+      "file": "1871da62.wav",
+      "transcript": "업계 관계자는 가격이 오르면 지상파 삼 사는 연간 천 이백 억원 추가 수익을 올린다면서 그 부담은 이용자에게 고스란히 넘어갈 수밖에 없다고 토로했다",
+      "script_id": "",
+      "duration": 9.79,
+      "created": 1792125206.2256918
+    },
+    {
+      "id": "156adad9",
+      "file": "156adad9.wav",
+      "transcript": "이 의원은 곡성은 부모님께서 지금도 살고 계시는 저의 영원한 고향이자 마음의 지역구라면서도 순천 발전을 위한 큰 구상을 갖고 있다고 강조했다",
+      "script_id": "",
+      "duration": 8.95,
+      "created": 1792125206.230963
+    }
+  ],
+  "primary_sample": "1871da62"
+}

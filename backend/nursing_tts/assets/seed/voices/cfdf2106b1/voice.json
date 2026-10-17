@@ -1,0 +1,26 @@
+{
+  "id": "cfdf2106b1",
+  "name": "기본 음성 여3",
+  "note": "출처: Zeroth-Korean (CC BY 4.0, Lucas Jo·Wonkyum Lee, OpenSLR 40, HF kresnik/zeroth_korean) · 화자 160 · F0 추정 226 Hz",
+  "sex": "여",
+  "created": 1792125162.680883,
+  "samples": [
+    {
+      "id": "70b94be9",
+      "file": "70b94be9.wav",
+      "transcript": "머니투데이 취재여담 특별자치구 주장 억울함 답답함 호소한 것 해명 싸늘한 여론 언론 서울시 때문 강남구를 철저히 배제하고 법인격을 모독하는 건 참기가 고통스럽습니다",
+      "script_id": "",
+      "duration": 10.9,
+      "created": 1792125162.687835
+    },
+    {
+      "id": "daf442b9",
+      "file": "daf442b9.wav",
+      "transcript": "이 때문에 입주자 모집공고 전부터 시프트 입주권 편법 거래 등이 인터넷에 떠도는 등 부작용도 낳고 있어 제도 개선이 필요하다는 지적도 적지 않다",
+      "script_id": "",
+      "duration": 9.84,
+      "created": 1792125162.693535
+    }
+  ],
+  "primary_sample": "70b94be9"
+}

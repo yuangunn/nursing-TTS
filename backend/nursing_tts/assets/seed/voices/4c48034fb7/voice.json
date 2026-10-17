@@ -1,0 +1,26 @@
+{
+  "id": "4c48034fb7",
+  "name": "기본 음성 남5",
+  "note": "출처: Zeroth-Korean (CC BY 4.0, Lucas Jo·Wonkyum Lee, OpenSLR 40, HF kresnik/zeroth_korean) · 화자 187 · F0 추정 140 Hz",
+  "sex": "남",
+  "created": 1792063095.2479382,
+  "samples": [
+    {
+      "id": "41e6bbc9",
+      "file": "41e6bbc9.wav",
+      "transcript": "당시 북한은 두 발의 미사일을 발사했는데 고각으로 발사된 한 발이 최대 높이 일 천 사백 십 삼 쩜 육 키로미터를 솟구쳐 사거리 사백 키로미터를 기록 성공한 것으로 평가됐다",
+      "script_id": "",
+      "duration": 11.45,
+      "created": 1792063095.570125
+    },
+    {
+      "id": "4b7806a0",
+      "file": "4b7806a0.wav",
+      "transcript": "이천 십 년 오백 일흔 두 건 이천 십 일 년 오백 여든 여섯 건 이천 십 이 년 육백 아홉 건 이천 십 삼 년 육백 마흔 일곱 건 이천 십 사 년 육백 서른 여섯 건이다",
+      "script_id": "",
+      "duration": 10.17,
+      "created": 1792063095.5788438
+    }
+  ],
+  "primary_sample": "41e6bbc9"
+}

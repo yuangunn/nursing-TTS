@@ -126,6 +126,8 @@ powershell -ExecutionPolicy Bypass -File scripts\build-offline-bundle.ps1 -Qwen 
 
 `--data`(Windows `-Data`)를 붙이면 이 PC의 등록 목소리·소음 클립(앱 데이터 폴더의 `voices/`, `noises/`)도 함께 들어가 다른 PC에 그대로 옮겨집니다. 번들은 `dist-offline/nursing-tts-offline-<os>-<arch>[-qwen][-models][-data].zip`로 만들어집니다(안에 relocatable CPython `python/`, 선택 `models/hub/`, `bundle.json`). 인트라넷 PC에서는 앱 설치 파일을 깔고 **처음 설정 마법사의 "백엔드 설치" 단계** 또는 **설정 → 백엔드**에서 "📦 오프라인 번들(zip) 가져오기"로 그 zip을 고르면, 앱 데이터 폴더 `offline/`에 풀려 그 Python으로 백엔드가 뜹니다. 모델을 번들에 넣지 않았다면 설정 → 로컬 모델의 폴더에 `models--Qwen--Qwen3-TTS-12Hz-1.7B-Base`, `models--Systran--faster-whisper-small` 폴더를 복사하세요. GitHub Actions의 "Offline bundle" 워크플로로도 mac(arm64/x64)·Windows(CPU) 번들을 릴리스에 올릴 수 있습니다(2 GB 넘는 CUDA 번들은 로컬에서 만들어 옮김).
 
+모든 설치 파일에는 기본 목소리 15명(Zeroth-Korean, CC BY 4.0)과 병동 소음 클립(룸톤·네뷸라이저·중환자실·모니터 알람·회진 대화)이 들어 있어 첫 실행 때 데이터 폴더에 자동으로 들어갑니다(`backend/nursing_tts/assets/seed/`).
+
 **한 번에 설치되는 "-offline" 설치 파일**: 릴리스마다 `NursingTTS-offline-<버전>-mac-arm64.dmg`, `-mac-x64.dmg`, `-win-x64.exe`도 함께 올라갑니다. 앱 안(`resources/offline`)에 Python과 모든 패키지, Qwen3-TTS 복제 스택(Windows는 CPU PyTorch)이 들어 있어 설치만 하면 pip 없이 백엔드가 뜹니다. 들어 있지 않은 것은 모델 파일(약 5 GB, 설정 → 로컬 모델 폴더에 복사 또는 `--models` 번들)과 이 PC의 목소리·소음(`--data` 번들)입니다. NVIDIA GPU용 CUDA PyTorch는 설치 파일 크기 한도 때문에 `.ps1 -Qwen -Cuda` 번들로 따로 옮깁니다.
 
 ## TTS 엔진

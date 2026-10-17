@@ -1,0 +1,41 @@
+"""Shipped seed data (public voices + ward noises) lands in a fresh data folder once, and deletions stick."""
+import json
+import shutil
+
+from nursing_tts.seed import SEED_DIR, SEED_VERSION, ensure_seed_data, seed_contents
+
+
+def test_seed_copies_public_voices_and_noises_once(tmp_path):
+    seed = seed_contents()
+    assert len(seed["voices"]) >= 10 and len(seed["noises"]) >= 4
+    assert "481e0ff97c" not in seed["voices"]            # the nurse's private recordings never ship
+    for vid in seed["voices"]:
+        meta = json.loads((SEED_DIR / "voices" / vid / "voice.json").read_text(encoding="utf-8"))
+        assert "Zeroth" in meta.get("note", "") and meta["samples"] and not (SEED_DIR / "voices" / vid / "demo.wav").exists()
+        for smp in meta["samples"]:
+            assert (SEED_DIR / "voices" / vid / smp["file"]).exists()
+    added = ensure_seed_data(tmp_path)
+    assert added == {"voices": len(seed["voices"]), "noises": len(seed["noises"])}
+    lib = json.loads((tmp_path / "noises" / "library.json").read_text(encoding="utf-8"))
+    assert [n["id"] for n in lib] == seed["noises"] and all((tmp_path / "noises" / n["file"]).exists() for n in lib)
+    assert json.loads((tmp_path / "seed.json").read_text())["version"] == SEED_VERSION
+    # the user deletes a voice and a clip: the next start must not bring them back
+    shutil.rmtree(tmp_path / "voices" / seed["voices"][0])
+    lib = lib[1:]
+    (tmp_path / "noises" / "library.json").write_text(json.dumps(lib), encoding="utf-8")
+    assert ensure_seed_data(tmp_path) == {"voices": 0, "noises": 0}
+    assert not (tmp_path / "voices" / seed["voices"][0]).exists()
+    assert len(json.loads((tmp_path / "noises" / "library.json").read_text())) == len(seed["noises"]) - 1
+
+
+def test_seeded_voices_and_noises_are_usable(tmp_path, monkeypatch):
+    monkeypatch.setenv("NURSING_TTS_DATA", str(tmp_path))
+    from nursing_tts import noise_library, voices
+    ensure_seed_data(tmp_path)
+    names = [v.name for v in voices.list_voices()]
+    assert any(n.startswith("기본 음성 여") for n in names) and any(n.startswith("기본 음성 남") for n in names)
+    assert all(voices.pick_reference(v.id) is not None for v in voices.list_voices())
+    clips = noise_library.custom_clips()
+    labels = " ".join(c.label for c in clips)
+    assert len(clips) >= 4 and "네뷸라이저" in labels and "알람" in labels and "회진" in labels
+    assert any(noise_library.is_floor(c.label) for c in clips)        # the room tone floor comes with it
