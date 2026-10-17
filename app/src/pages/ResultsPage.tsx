@@ -47,14 +47,32 @@ export default function ResultsPage() {
   const [events, setEvents] = useState<{ type: string; start: number; duration: number }[]>([]);
   // sentence segments (start/end seconds) drive click-to-seek and the karaoke highlight (user 2026-10-17)
   const [segments, setSegments] = useState<{ start: number; end: number; text: string; speaker?: string }[]>([]);
+  const [metaText, setMetaText] = useState("");
   const [time, setTime] = useState(0);
   const seek = useRef<((t: number) => void) | null>(null);
   useEffect(() => {
     setTime(0);
-    if (!sel) { setEvents([]); setSegments([]); return; }
-    get<{ noise?: { events?: { type: string; start: number; duration: number }[] }; segments?: { start: number; end: number; text: string; speaker?: string }[] }>(`/api/output/meta?rel=${encodeURIComponent(sel.rel)}`)
-      .then((m) => { setEvents(m.noise?.events || []); setSegments(m.segments || []); }).catch(() => { setEvents([]); setSegments([]); });
+    if (!sel) { setEvents([]); setSegments([]); setMetaText(""); return; }
+    get<{ spoken_text?: string; noise?: { events?: { type: string; start: number; duration: number }[] }; segments?: { start: number; end: number; text: string; speaker?: string }[] }>(`/api/output/meta?rel=${encodeURIComponent(sel.rel)}`)
+      .then((m) => { setEvents(m.noise?.events || []); setSegments(m.segments || []); setMetaText(m.spoken_text || ""); })
+      .catch(() => { setEvents([]); setSegments([]); setMetaText(""); });
   }, [sel?.rel]);
+  // Which segments open a paragraph of the transcript: every segment is a piece of one line, in order, so walk the lines
+  // and consume them. On any mismatch (hand-edited text) the rest simply flows as one paragraph.
+  const paraStart = useMemo(() => {
+    const lines = metaText.split("\n").map((l) => l.trim()).filter(Boolean);
+    let li = 0;
+    let rest = lines[0] || "";
+    let ok = lines.length > 0;
+    return segments.map((sg) => {
+      const t = sg.text.trim();
+      if (!ok || li >= lines.length || !rest.startsWith(t)) { ok = false; return false; }
+      const start = rest === lines[li];
+      rest = rest.slice(t.length).trim();
+      if (!rest) { li += 1; rest = lines[li] || ""; }
+      return start;
+    });
+  }, [segments, metaText]);
   const segStyle = (s: { start: number; end: number }): React.CSSProperties | undefined => {
     if (time < s.start || time >= s.end) return undefined;
     const p = Math.round(((time - s.start) / Math.max(0.2, s.end - s.start)) * 100);
@@ -295,8 +313,8 @@ export default function ResultsPage() {
                   const cls = "seg" + (i === 0 ? " signal" : "") + (time >= s.end ? " done" : time >= s.start ? " active" : "");
                   return (
                     <span key={i}>
-                      {i === 1 ? "\n" : i > 1 ? " " : ""}
-                      {s.speaker && (i === 0 || s.speaker !== segments[i - 1].speaker) && <span className="muted">{s.speaker === "patient" ? "환자: " : "간호사: "}</span>}
+                      {i === 0 ? "" : paraStart[i] || (i === 1 && !paraStart.some(Boolean)) ? "\n" : " "}
+                      {s.speaker && (i === 0 || paraStart[i] || s.speaker !== segments[i - 1].speaker) && <span className="muted">{s.speaker === "patient" ? "환자: " : "간호사: "}</span>}
                       <span className={cls} style={segStyle(s)} onClick={() => seek.current?.(s.start)}>{s.text}</span>
                     </span>
                   );
