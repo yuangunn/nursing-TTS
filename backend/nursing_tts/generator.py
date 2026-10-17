@@ -506,7 +506,10 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
 
     closings = phrase_store.effective(template.key, "closings", "phrases", template.closings)
     if include_closing and closings:
-        paragraphs.append(fix_josa(_fmt(rng.choice(closings), ctx)))
+        # 녹음 공통 원칙 (user 2026-10-17): the mandatory start phrase (signal "strict") goes with the common closing
+        # "이상 [기록지 명칭] 마치겠습니다" — each template lists it first; other signal formats keep the varied closings
+        closing = template.closings[0] if signal_format == "strict" and template.closings else rng.choice(closings)
+        paragraphs.append(fix_josa(_fmt(closing, ctx)))
         speakers.append("nurse")
 
     # an empty placeholder ("{stage}" when POD is unknown) must not leave "절제술 ." or double spaces

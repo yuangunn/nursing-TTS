@@ -317,3 +317,26 @@ def test_progress_record_has_three_duty_roundings_and_its_own_kind():
         assert all(re.search(r"혈압|BP|활력|V/S|VS|바이탈", l) for l in rounds), rounds
         assert not re.search(r"장액혈성|(?<!무)혈성", s.spoken_text) and "serosanguineous" not in s.tts_text and "bloody" not in s.tts_text
         assert s.spoken_text.splitlines()[-1].startswith(("이상", "여기까지"))
+
+
+COMMON_CLOSING = {"s1": "이상 간호정보조사지 마치겠습니다.", "s2": "이상 수술전 간호기록 마치겠습니다.", "s3_1": "이상 수술후 간호기록 마치겠습니다.",
+                  "s3_2": "이상 수술후 간호기록 마치겠습니다.", "s4": "이상 퇴원 간호기록 마치겠습니다.", "s5": "이상 인계기록지 마치겠습니다.",
+                  "s6": "이상 경과기록 마치겠습니다."}
+
+
+def test_strict_signal_ends_with_the_common_closing():
+    """녹음 공통 원칙 (user 2026-10-17): 시작은 「… 님 [기록종류] 기록입니다」, 끝은 「이상 [기록지 명칭] 마치겠습니다」.
+    With the mandatory start phrase every record ends with its common closing; the random signal mix keeps varied closings."""
+    rng = random.Random(99)
+    varied = set()
+    for t, closing in COMMON_CLOSING.items():
+        for i in range(8):
+            p = random_patient(rng, t)
+            f = random_form(t, rng, p)
+            for dlg in ((False, True) if t == "s1" else (False,)):
+                s = build_script(t, f, p, random_datetime(rng), style="formal", seed=9300 + i, signal_format="strict", dialogue=dlg)
+                assert s.spoken_text.splitlines()[-1] == closing, (t, dlg, s.spoken_text.splitlines()[-1])
+                assert re.search(r"님 \S+ 기록입니다\.$", s.spoken_text.splitlines()[0]), s.spoken_text.splitlines()[0]
+            r = build_script(t, f, p, random_datetime(rng), style="formal", seed=9400 + i, signal_format="random")
+            varied.add(r.spoken_text.splitlines()[-1])
+    assert len(varied) > len(COMMON_CLOSING), varied   # the random mix still varies the closing
