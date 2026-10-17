@@ -340,3 +340,45 @@ def test_strict_signal_ends_with_the_common_closing():
             r = build_script(t, f, p, random_datetime(rng), style="formal", seed=9400 + i, signal_format="random")
             varied.add(r.spoken_text.splitlines()[-1])
     assert len(varied) > len(COMMON_CLOSING), varied   # the random mix still varies the closing
+
+
+def test_record_time_follows_the_patient_timeline():
+    """user 2026-10-17 (맥락): the signal date/time sits on the patient's timeline and after the record's own clock — no POD 0
+    note months away from its operation or before the ward arrival, no progress note timed before its 23:00 round."""
+    from datetime import datetime, timedelta
+    from nursing_tts.fake import _month_day, _parse_clock, record_datetime
+    now = datetime(2026, 10, 17, 22, 0)
+    rng = random.Random(123)
+
+    def same_day(d, md):
+        return (d.month, d.day) == md
+
+    for t in ("s1", "s2", "s3_1", "s3_2", "s4", "s5", "s6"):
+        for _ in range(25):
+            p = random_patient(rng, t)
+            f = random_form(t, rng, p)
+            w = record_datetime(t, p, f, rng, now=now)
+            mins = w.hour * 60 + w.minute
+            op = _month_day(p.op_date)
+            assert w <= now + timedelta(days=1), (t, w)
+            if t == "s1":
+                assert same_day(w, _month_day(p.admission_date)), (p.admission_date, w)
+                assert (18 * 60 <= mins <= 23 * 60 + 30) if f.get("route") == "er" else (10 * 60 <= mins <= 16 * 60 + 30), (f.get("route"), w)
+            if t == "s2":
+                assert same_day(w + timedelta(days=1), op) and "내일" in f["op_date"], (p.op_date, w, f["op_date"])
+            if t == "s3_1":
+                assert same_day(w, op) and mins >= _parse_clock(f["arrival_time"]) + 15, (p.op_date, f.get("arrival_time"), w)
+            if t == "s3_2":
+                found, again = _parse_clock(f["found_time"]), _parse_clock(f["re_time"])
+                if again < found:
+                    assert same_day(w - timedelta(days=p.pod + 1), op), (p.op_date, p.pod, w)
+                else:
+                    assert same_day(w - timedelta(days=p.pod), op) and mins > again, (p.op_date, p.pod, f["re_time"], w)
+            if t == "s4":
+                assert 8 * 60 + 30 <= mins <= 10 * 60 + 40, w
+                visit = _month_day(f["opd"])
+                assert any(same_day(w + timedelta(days=k), visit) for k in range(1, 45)), (w, f["opd"])   # clinic after the discharge
+            if t == "s5":
+                assert w.hour in (7, 15, 23), w
+            if t == "s6":
+                assert mins >= _parse_clock(f["t8"]) + 5, (f["t8"], w)

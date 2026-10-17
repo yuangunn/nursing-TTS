@@ -179,6 +179,78 @@ def random_datetime(rng: random.Random, around: datetime | None = None) -> datet
     return day.replace(hour=hour, minute=minute, second=0, microsecond=0)
 
 
+def _parse_clock(text: str) -> int | None:
+    """'오후 2시 30분' / '새벽 3시' / '12시 30분' -> minutes since midnight (ward clock as written by _clock); None without a time."""
+    m = re.search(r"(새벽|오전|오후|아침|저녁|밤)?\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분|\s*(반))?", text or "")
+    if not m:
+        return None
+    h = int(m.group(2))
+    mi = int(m.group(3)) if m.group(3) else (30 if m.group(4) else 0)
+    if m.group(1) in ("오후", "저녁", "밤") and h < 12:
+        h += 12
+    elif m.group(1) in ("새벽", "오전", "아침") and h == 12:
+        h = 0
+    return (h % 24) * 60 + mi
+
+
+def _month_day(text: str) -> tuple[int, int] | None:
+    m = re.match(r"\s*(\d{1,2})월\s*(\d{1,2})일", text or "")
+    return (int(m.group(1)), int(m.group(2))) if m else None
+
+
+def record_datetime(template_key: str, patient: Patient, form: dict[str, Any], rng: random.Random,
+                    now: datetime | None = None) -> datetime:
+    """When the record is dictated: on the patient's own timeline and after the record's own clock (user 2026-10-17, 맥락 —
+    a "POD 0" note dated months away from its operation, recorded before the patient reached the ward, or a progress note
+    timed 10:30 that charts the 23:00 round).  S1 on the admission day (외래 10~16시, 응급실 18~23시), S2 the afternoon or
+    evening before the operation ("내일 수술"), S3-1 on the operation day 15~45 min after the ward arrival, S3-2 after the
+    event's re-assessment, S4 on the discharge morning, S5 at a shift change (07·15·23시), S6 after the 23:00 round.
+    The year puts the record within the past twelve months."""
+    now = now or datetime.now()
+    md = _month_day(patient.op_date) or (now.month, now.day)
+    adm_md = _month_day(patient.admission_date)
+    chemo = patient.kind == "chemo"
+    shift_days = max(0, (patient.day or 1) - 1) if chemo else (patient.pod or 0)
+
+    def days(year: int) -> tuple[datetime, datetime, datetime]:
+        op = datetime(year, md[0], md[1])
+        adm = datetime(year, *adm_md) if adm_md else op - timedelta(days=1)
+        return op, adm, op + timedelta(days=shift_days)
+
+    def record_day(year: int) -> datetime:
+        op, adm, day_n = days(year)
+        return {"s1": adm, "s2": op - timedelta(days=1), "s3_1": op}.get(template_key, day_n)
+
+    year = now.year if record_day(now.year).date() <= now.date() else now.year - 1
+    op, adm, day_n = days(year)
+    t = template_key
+    if t == "s1":
+        day, mins = adm, (rng.randint(18 * 60, 23 * 60 + 30) if form.get("route") == "er" else rng.randint(10 * 60, 16 * 60 + 30))
+    elif t == "s2":
+        day, mins = op - timedelta(days=1), rng.randint(14 * 60, 20 * 60 + 30)
+    elif t == "s3_1":
+        arrival = _parse_clock(str(form.get("arrival_time") or ""))
+        day, mins = op, (arrival if arrival is not None else rng.randint(12 * 60, 16 * 60)) + rng.randint(15, 45)
+    elif t == "s3_2":
+        found, again = _parse_clock(str(form.get("found_time") or "")), _parse_clock(str(form.get("re_time") or ""))
+        if again is None:
+            again = rng.randint(9 * 60, 21 * 60)
+        if found is not None and again < found:
+            again += 24 * 60                                     # the re-assessment ran past midnight
+        day, mins = day_n, again + rng.randint(10, 40)
+    elif t == "s4":
+        day, mins = day_n, rng.randint(8 * 60 + 30, 10 * 60 + 40)  # discharge morning, before the 오전 11시 discharge
+    elif t == "s5":
+        shift = 23 if form.get("gas_out") else rng.choice([7, 15, 23])   # "금일 가스 아웃 … 저녁부터 물 시작했고" is a night handover
+        day, mins = day_n, shift * 60 + rng.randint(0, 40)
+    elif t == "s6":
+        last = _parse_clock(str(form.get("t8") or "")) or 23 * 60
+        day, mins = day_n, min(23 * 60 + 59, last + rng.randint(5, 25))
+    else:
+        day, mins = day_n, rng.randint(9 * 60, 17 * 60)
+    return day + timedelta(minutes=mins)
+
+
 def random_vitals(rng: random.Random, profile: str | None = None, with_spo2: bool = True) -> dict[str, Any]:
     profile = profile or rng.choices(["normal", "fever", "hypo"], weights=[75, 20, 5])[0]
     p = VS_PROFILE[profile]
@@ -1126,15 +1198,14 @@ def _derive_s4(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
     form["teachback"] = rng.choices(["both", "patient", "caregiver", "re_edu"], weights=[70, 20, 5, 5])[0]
     m = re.match(r"(\d+)월 (\d+)일", patient.op_date or "")
     if m:
-        mo, d = int(m.group(1)), int(m.group(2)) + rng.randint(12, 21)
-        if d > 28:
-            d, mo = d - 28, mo % 12 + 1
-        form["opd"] = f"{mo}월 {d}일 {rng.choice(['오전 9시', '오전 10시 30분', '오전 11시', '오후 2시', '오후 3시'])}"
+        offset = rng.randint(12, 21)
+        if not chemo and patient.pod:
+            offset = max(offset, patient.pod + rng.randint(5, 9))   # a 21-day BKA stay still has its clinic after discharge
+        visit = datetime(2026, int(m.group(1)), int(m.group(2))) + timedelta(days=offset)
+        form["opd"] = f"{visit.month}월 {visit.day}일 {rng.choice(['오전 9시', '오전 10시 30분', '오전 11시', '오후 2시', '오후 3시'])}"
         if chemo:                                            # 다음 입원 일자: the cycle after the clinic check (user 2026-10-17)
-            d2, mo2 = d + 1, mo
-            if d2 > 28:
-                d2, mo2 = 1, mo % 12 + 1
-            form["next_admission"] = f"{mo2}월 {d2}일"
+            nxt = visit + timedelta(days=1)
+            form["next_admission"] = f"{nxt.month}월 {nxt.day}일"
             if form.get("further") == "next_cycle":
                 form.pop("further")                           # "다음 차수 입원 예정" is now the 다음 입원 일자 sentence
     if not chemo:
