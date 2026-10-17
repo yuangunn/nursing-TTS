@@ -21,7 +21,7 @@ from .rounds import pitch_shift, time_stretch
 from .audio.io import normalize_peak, resample, rms, write_wav
 from .audio.mixer import NoiseClip, NoiseConfig, mix
 from .config import load_settings, output_dir
-from .fake import random_datetime, random_form, random_patient
+from .fake import random_form, random_patient, record_datetime
 from .generator import Patient, build_script
 from .templates import get_template
 from .tts.base import natural_pause, synthesize_script
@@ -521,8 +521,8 @@ def start_batch(opts: dict[str, Any], custom_noises: list[NoiseClip]) -> Job:
     for i in range(count):
         t = rng.choice(templates)
         patient = random_patient(rng, t)
-        when = random_datetime(rng)
         form = random_form(t, rng, patient)
+        when = record_datetime(t, patient, form, rng)
         if t == "s1" and not opts.get("nursing_dx", True):
             form.pop("nursing_problems", None)          # 간호진단 문장 빼기 (user 2026-10-17)
         n = dict(noise)

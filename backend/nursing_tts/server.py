@@ -23,7 +23,7 @@ from .audio import noise as noise_mod
 from .audio.mixer import NoiseConfig, level_to_snr_db, mix
 from .config import data_dir, load_settings, output_dir, save_settings
 from .enroll_scripts import SCRIPTS
-from .fake import random_datetime, random_form, random_patient
+from .fake import random_form, random_patient, record_datetime
 from .generator import Patient, build_script
 from .templates import default_form, list_templates, TEMPLATES
 from .tts.registry import engine_status
@@ -648,7 +648,7 @@ def random_patient_api(body: dict[str, Any]):
     t = body.get("template") or "s1"
     p = random_patient(rng, t)
     form = random_form(t, rng, p)
-    when = random_datetime(rng)
+    when = record_datetime(t, p, form, rng)
     return {"patient": p.__dict__, "form": form, "datetime": when.isoformat(timespec="minutes")}
 
 
