@@ -264,7 +264,8 @@ def test_protocol_checklists():
                                                      "datetime": "2026-10-14T07:00", "style": style, "seed": 3}).json()
         txt = r["spoken_text"]
         assert "{" not in txt and "}" not in txt, txt
-        assert "침상 높이를 낮춤" in txt and "38.4" in txt and "210" in txt and "5점" in txt
+        # checklist clauses keep "~함" only in 기록체; spoken styles read them as connectives (2026-10-17 "잠들어 있음, …없습니다")
+        assert ("침상 높이를 낮춤" if style == "chart" else "침상 높이를 낮췄고") in txt and "38.4" in txt and "210" in txt and "5점" in txt
         if style == "chart":
             assert "함" in txt
     # random virtual patients include protocol items without raw placeholders

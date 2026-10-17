@@ -56,7 +56,7 @@ TEMPLATE = RecordTemplate(
             boolean("gas_out", "가스 배출", phrases=["금일 가스 아웃 확인되어 저녁부터 물 시작했고 잘 드셨습니다.", "가스 아웃 확인됐고,", "오늘 gas out 됐구요,"],
                     false_phrases=["아직 가스 배출 안 되어 금식 유지 중입니다.", "gas out 아직 안 됐고,"], default=True),
             txt("io", "I/O", placeholder="예: 수액 2000, 소변 1800, JP 60",
-                phrases=["I/O는 {v}cc입니다.", "I/O {v}이고,", "인아웃은 {v} 이구요,"], default="수액 2000, 소변 1800, JP 60"),
+                phrases=["I/O는 {v}cc입니다.", "I/O {v}이고,", "인아웃은 {v}이구요,"], default="수액 2000, 소변 1800, JP 60"),
             sel("voiding", "배뇨", [
                 opt("self", "자가배뇨", "자가배뇨 잘 하고 있습니다.", "self voiding 잘 하시고,", "소변 잘 보시구요,"),
                 opt("foley", "도뇨관", "Foley 유지 중입니다.", "소변줄 유지 중이고,"),
