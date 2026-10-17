@@ -38,6 +38,9 @@ def model_cached(model_id: str) -> bool:
         return False
 
 
+_PROMPT_CACHE = 6   # reference prompts kept on the device at once
+
+
 class QwenEngine:
     key = "qwen"
     label = "Qwen3-TTS (내장 한국어 목소리 복제)"
@@ -51,7 +54,7 @@ class QwenEngine:
         self.batch = max(1, int(batch or 1))  # sentence chunks per generate call (decode is memory-bound, so batching is ~free)
         self.idle_unload_s = float(idle_unload_min or 0) * 60
         self._m = None
-        self._prompts: dict[tuple, object] = {}  # ponytail: unbounded; a few voices × samples, cleared on unload
+        self._prompts: dict[tuple, object] = {}  # reference prompts on the device; capped at _PROMPT_CACHE (2026-10-17: 35 samples of one voice ate memory)
         self._lock = threading.Lock()
         self._last_used = 0.0
 
@@ -119,6 +122,8 @@ class QwenEngine:
                 prompt = m.create_voice_clone_prompt(ref_audio=(audio, sr), ref_text=ref_text or None,
                                                      x_vector_only_mode=not ref_text)
                 self._prompts[key] = prompt
+                while len(self._prompts) > _PROMPT_CACHE:          # oldest first (dict keeps insertion order)
+                    self._prompts.pop(next(iter(self._prompts)))
             for start in range(0, len(texts), self.batch):
                 group = texts[start:start + self.batch]
                 if seed is not None:
