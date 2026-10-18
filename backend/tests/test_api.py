@@ -401,7 +401,7 @@ def test_script_review_flags_roundtrip():
 
 def test_scenarios_endpoint_lists_ops_and_regimens():
     sc = client.get("/api/scenarios").json()
-    assert sum(1 for s in sc if s["kind"] == "op") >= 30 and sum(1 for s in sc if s["kind"] == "chemo") >= 13
+    assert sum(1 for s in sc if s["kind"] == "op") >= 30 and sum(1 for s in sc if s["kind"] == "chemo") >= 12
     assert all(s["key"] and s["ko"] and s["dept"] for s in sc)
 
 

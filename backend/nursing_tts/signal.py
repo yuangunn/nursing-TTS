@@ -52,7 +52,7 @@ def builtin_written_templates() -> list[str]:
 
 def _kind_text(kind: str, rng: random.Random, use_aliases: bool) -> str:
     if use_aliases and rng.random() < 0.35:
-        return rng.choice(KIND_ALIASES.get(kind, [kind]))
+        return rng.choice([a for a in KIND_ALIASES.get(kind, [kind]) if not a.endswith("지")] or [kind])   # "…조사지하겠습니다" (서식 이름은 파서 전용)
     return kind
 
 
@@ -76,6 +76,9 @@ def render(when: datetime, name: str, kind: str, fmt: str = "strict", rng: rando
     else:
         f = next((f for f in FORMATS if f["key"] == fmt), FORMATS[0])
         written_t = f["written"]
+    key = next((f["key"] for f in FORMATS if f["written"] == written_t), "custom")
+    if " {name} 님 " in written_t and random.Random(f"{name}{when:%Y%m%d%H%M}").random() < 0.3:
+        written_t = written_t.replace(" {name} 님 ", " {name} ")   # 님 or not, both in the data (own rng: the script's choices stay put)
     kind_text = _kind_text(kind, rng, use_aliases)
     if kind_text.endswith("기록") and "{kind} 기록" in written_t:
         kind_text = kind_text[:-2].strip()            # "경과기록 기록입니다" → "경과 기록입니다"
@@ -85,7 +88,6 @@ def render(when: datetime, name: str, kind: str, fmt: str = "strict", rng: rando
     time_t = korean.read_time(when.hour, when.minute)
     written = written_t.format(date=date_w, time=time_w, name=name, kind=kind_text)
     tts = written_t.format(date=date_t, time=time_t, name=name, kind=kind_text)
-    key = next((f["key"] for f in FORMATS if f["written"] == written_t), "custom")
     return written, tts, key
 
 
@@ -119,7 +121,10 @@ class SignalMatch:
 
 
 _ALL_KIND_ALIASES = sorted({a for v in KIND_ALIASES.values() for a in v}, key=len, reverse=True)
-_KIND_RE = "|".join(re.escape(a) for a in _ALL_KIND_ALIASES)
+_sq = lambda a: re.sub(r"\s+", "", a)
+# spaces inside an alias are optional ("수술 전 간호 기록입니다", "간호 정보조사"); two-letter 인계 must match exactly ("확인 계획")
+_KIND_RE = "|".join(r"\s*".join(map(re.escape, a)) if len(a) > 2 else re.escape(a)
+                    for a in sorted({_sq(a) for a in _ALL_KIND_ALIASES}, key=len, reverse=True))
 _DATE_RE = re.compile(r"(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일")
 _TIME_RE = re.compile(r"(오전|오후|아침|저녁|새벽|낮|밤)?\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분|\s*반)?")
 _NAME_RE = re.compile(
@@ -164,7 +169,7 @@ def parse(text: str) -> SignalMatch:
             name = w
             break
     kind_text = m_kind.group(0)
-    kind = next((k for k, aliases in KIND_ALIASES.items() if kind_text in aliases), "")
+    kind = next((k for k, aliases in KIND_ALIASES.items() if _sq(kind_text) in {_sq(a) for a in aliases}), "")
     m_verb = _VERB_RE.search(window, m_kind.end())
     verb = m_verb.group(1) if m_verb else ""
     end = (m_verb.end() if m_verb else m_kind.end())
@@ -190,14 +195,16 @@ def _guess_format(s: str) -> str:
         return "label_record"
     if "환자명" in s2 and "시작" in s2:
         return "label_start"
-    if "님" in s2 and "기록 시작" in s2:
+    has_nim = bool(re.search(r"(?<![가-힣])님(?![가-힣])", s2))   # the word ("님," too), not a name ending in 님
+    nim = has_nim or "환자" not in s2           # 님 is optional in the ○○○ 님 forms (user 2026-10-18); "환자분 …" stays custom
+    if nim and re.search(r"기록\s*시작\s*하겠습니다", s2):
         return "nim_record_start"
-    if "님" in s2 and "시작합니다" in s2:
+    if nim and "시작합니다" in s2:          # "○○○ 님 수술 후 경과기록 시작합니다" is nim_start, not "기록 시작"
         return "nim_start"
-    if "님" in s2 and "하겠습니다" in s2:
+    if nim and "하겠습니다" in s2:
         return "nim_do"
-    if "환자" in s2 and "기록입니다" in s2 and "님" not in s2:
+    if "환자" in s2 and "기록입니다" in s2 and not has_nim:
         return "patient_record"
-    if "님" in s2 and "기록입니다" in s2:
+    if nim and "기록입니다" in s2:
         return "strict"
     return "custom"

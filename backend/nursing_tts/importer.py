@@ -184,6 +184,9 @@ def build_specs(template_key: str, rows: list[dict[str, str]], mapping: dict[str
                         warnings.append(f"{i + 1}행: '{f.label}' 값 '{raw}'를 예/아니오로 읽지 못했습니다")
                 else:
                     form[k] = raw
+        mapped = {t[5:] for t in list(cols) + list(fixed) if t.startswith("form.")}
+        if template_key == "s6" and "nrs_n" in mapped and "night_onset" not in mapped:
+            form.pop("night_onset", None)   # a 23시 score means awake; the default "수면 중" would drop it
         if patient["regimen"] and not patient["surgery"]:
             patient["kind"] = "chemo"
         style = form.pop("_style", None)
