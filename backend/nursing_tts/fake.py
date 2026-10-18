@@ -129,16 +129,26 @@ def chemo_track(regimen: str | None) -> str:
 _CHEMO_CARBO = ("TCHP", "TCH", "K+TC", "T+C+Jemperli")   # carboplatin AUC5~6 on D1
 
 
+def _paclitaxel_only(regimen: str | None, day: int | None) -> bool:   # K+TC D8·D15 = weekly paclitaxel 80 alone (~1 h)
+    return regimen == "K+TC" and (day or 1) != 1
+
+
+def _chemo_short(patient: Patient) -> bool:                           # the infusion is over before the 15:00 round
+    return patient.regimen in _CHEMO_SHORT or _paclitaxel_only(patient.regimen, patient.day)
+
+
 def _chemo_premed(regimen: str | None, rng: random.Random, day: int = 1) -> str:
     r = regimen or ""
     if r in ("AC", "K+AC"):
         return "아프레피탄트 125mg PO, 팔로노세트론 0.25mg, 덱사메타손 12mg IV"
+    if r == "E-FOLFIRI":
+        return "팔로노세트론 0.25mg, 덱사메타손 8mg, 페니라민 4mg IV"     # cetuximab: antihistamine premedication
     if r in _CHEMO_FU:
         return "팔로노세트론 0.25mg, 덱사메타손 8mg IV"
     if r in _CHEMO_SINGLE:
         return rng.choice(["", "아세트아미노펜 650mg PO, 페니라민 4mg IV"])   # 해당하는 경우만
     taxane = "덱사메타손 10mg, 페니라민 4mg, 파모티딘 20mg IV"                # taxane: hypersensitivity premedication
-    if r in _CHEMO_CARBO and not (r == "K+TC" and day != 1):                 # K+TC D8·D15 = weekly paclitaxel alone
+    if r in _CHEMO_CARBO and not _paclitaxel_only(r, day):
         return "팔로노세트론 0.25mg, " + taxane
     return taxane
 
@@ -1749,7 +1759,7 @@ def _chemo_s6(form: dict[str, Any], patient: Patient, rng: random.Random) -> Non
     reconnect = "항암 주입 종료됨. continuous fluid 재연결함" + (f". 내일 항암 종료 24시간 후 {gcsf} 피하주사 예정 설명함" if track == "gcsf" else "")
     if track == "single":   # 허주마(·퍼제타): 끝나면 니들 빼고 그날 퇴원 (user 2026-10-18)
         reconnect = "항암 주입 종료됨. 주입 반응 없음. " + ("PICC 유지 상태로" if picc else "케모포트 니들 제거하고 지혈 확인 후") + " 퇴원 교육 시행하고 퇴원함"
-    if patient.regimen in _CHEMO_SHORT:
+    if _chemo_short(patient):
         form["tc3"], form["chemo_end_early"] = after, reconnect
         if form.get("afternoon_activity") == "chemo_infusion":
             form["afternoon_activity"] = rng.choice(["walk_assist", "walk_self"])   # nothing runs by the 15:00 round
@@ -1780,7 +1790,7 @@ def _chemo_s5(patient: Patient, shift: int, rng: random.Random, picc: bool = Fal
     if hod == 2 and shift == 15:
         if track == "fu":
             return f"12시부터 {reg} 항암 주입 중이고 오후에 5-FU 23시간 지속 주입 1차 연결 예정", "", "5-FU 1차 연결 후 주입 속도 확인"
-        if patient.regimen in _CHEMO_SHORT:
+        if _chemo_short(patient):
             return f"{reg} 항암 주입 마치고 continuous fluid 재연결함", cont, "저녁 활력징후와 오심 사정"
         return f"12시부터 {reg} 항암 주입 중이고 주입 반응 없음", "", "항암 종료 후 continuous fluid 재연결"
     if hod == 2:   # 23:00
@@ -1885,7 +1895,7 @@ def _derive_s5(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
     chemo_special = chemo_plan = ""
     if chemo:
         chemo_special, chemo_fluid, chemo_plan = _chemo_s5(patient, shift, rng, "PICC" in str(form.get("line") or ""))
-        if (vs != "stable" and "퇴원" in chemo_special) or (vs in ("fever", "hypotension") and (not started or "12시부터" in chemo_special)):
+        if (vs != "stable" and "퇴원" in chemo_special) or (vs in ("fever", "fever_resolved", "hypotension") and (patient.hod or 1) <= 2):
             # not going home, not "12시 항암 시작 예정", not "주입 반응 없음" with a fever or a low pressure (2026-10-18 검토)
             vs = form["vs_summary"] = "stable"
             form["bt_now"] = round(rng.uniform(36.4, 37.4), 1)
@@ -2189,7 +2199,7 @@ def _derive_s6(form: dict[str, Any], patient: Patient, sc, rng: random.Random, t
     if form["evening_note"] == "pain_prn":
         form["nrs_n"] = max(form["nrs_n"], 1)
     pca_running = form.get("pain_plan") == "pca" and form["pca_remove"] == "keep"
-    awake_w = 10 if form["nrs_n"] >= 3 and not (mute or pca_running) else 0
+    awake_w = 10 if form["nrs_n"] >= 3 and not (mute or pca_running or form.get("evening_note") == "pain_prn") else 0   # no 2nd PRN 3 h later
     form["night_onset"] = rng.choices(["asleep", "resting", "awake_pain", "hypnotic"], weights=[60, 25, awake_w, 8 if age >= 65 else 2])[0]
     if form["night_onset"] == "awake_pain":
         form["nrs_n"] = max(form["nrs_n"], 4)
@@ -2490,6 +2500,8 @@ def _spread_leaflet(form: dict[str, Any], rng: random.Random, patient: Patient, 
     if pool and sc is not None and sc.key == "LAR":   # stoma care and reversal only with a stoma, LARS advice only without (2026-10-18)
         stoma = form.get("device") == "stoma"
         pool = [x for x in pool if ("장루" in x) == stoma] or list(pool)
+    if "없음" in str(form.get("discharge_meds") or ""):
+        pool = [x for x in pool if not re.search(r"지사제|로페라마이드", x)]   # no antidiarrheal prescribed (HP "퇴원약 처방 없음")
     if not pool:
         return
     k = min(len(pool), rng.choice([1, 2, 2, 3]))

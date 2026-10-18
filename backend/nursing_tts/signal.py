@@ -125,6 +125,7 @@ _sq = lambda a: re.sub(r"\s+", "", a)
 # spaces inside an alias are optional ("수술 전 간호 기록입니다", "간호 정보조사"); two-letter 인계 must match exactly ("확인 계획")
 _KIND_RE = "|".join(r"\s*".join(map(re.escape, a)) if len(a) > 2 else re.escape(a)
                     for a in sorted({_sq(a) for a in _ALL_KIND_ALIASES}, key=len, reverse=True))
+_KIND_WORD_RE = re.compile(r"(?<![가-힣])(?:" + _KIND_RE + ")")
 _DATE_RE = re.compile(r"(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일")
 _TIME_RE = re.compile(r"(오전|오후|아침|저녁|새벽|낮|밤)?\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분|\s*반)?")
 _NAME_RE = re.compile(
@@ -142,6 +143,10 @@ def parse(text: str) -> SignalMatch:
     window = text[: max(len(head) + 1, 200)]
     m_date = _DATE_RE.search(window)
     m_kind = re.search(_KIND_RE, window)
+    if m_kind and m_kind.start() and "가" <= window[m_kind.start() - 1] <= "힣":   # began inside a word ("김인수 인계" → 인수 인계)
+        m_word = _KIND_WORD_RE.search(window, m_kind.start())
+        if m_word and m_word.start() < m_kind.end():                             # glued "강신자님간호정보조사" keeps its match
+            m_kind = m_word
     if not m_kind:
         return SignalMatch(ok=False, missing=["kind"] + (["date"] if not m_date else []))
     start = m_date.start() if m_date else 0
@@ -195,7 +200,7 @@ def _guess_format(s: str) -> str:
         return "label_record"
     if "환자명" in s2 and "시작" in s2:
         return "label_start"
-    has_nim = bool(re.search(r"(?<![가-힣])님(?![가-힣])", s2))   # the word ("님," too), not a name ending in 님
+    has_nim = bool(re.search(r"(?<!환자)님(?![가-힣])", s2))   # after the name, glued or not ("님," too); "환자님" is patient_record
     nim = has_nim or "환자" not in s2           # 님 is optional in the ○○○ 님 forms (user 2026-10-18); "환자분 …" stays custom
     if nim and re.search(r"기록\s*시작\s*하겠습니다", s2):
         return "nim_record_start"

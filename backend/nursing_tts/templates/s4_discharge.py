@@ -22,7 +22,7 @@ TEMPLATE = RecordTemplate(
                 phrases=["금일 {v} 퇴원 예정으로 퇴원 후 주의사항에 대해 교육하였습니다.", "금일 {v} 퇴원 예정이며 환자에게 퇴원약과 주의사항에 대해 교육하였습니다.",
                          "오늘 {v} 퇴원 예정이고,"], default="오전"),
             txt("course", "입원 경과 요약", placeholder="예: 수술 후 특이 합병증 없이 회복",
-                phrases=["{v} 상태입니다.", "{v}하였고,", "입원 경과는 {v}(이)구요,"], speak_prob=0.3),
+                phrases=["{v}입니다.", "{v}(이)고,", "입원 경과는 {v}(이)구요,"], speak_prob=0.3),   # verb-like endings read as sentences (generator)
             boolean("id_check", "입원 팔찌·정맥주사 제거 부위 확인", phrases=["퇴원 전 입원 팔찌 제거하고 정맥주사 제거 부위 출혈이나 부종 없는 것 확인하였습니다.",
                     "입원 팔찌 제거하고 정맥주사 뺀 자리 지혈된 것 확인했고,", "팔찌 제거하고 IV 뺀 자리 확인했구요,"], default=True),
         ]),

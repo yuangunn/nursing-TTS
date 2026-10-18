@@ -334,6 +334,8 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
         if rng.random() > f.speak_prob:
             return None
         local["v"] = str(value).strip()
+        if f.key in ("lab", "course") and re.search(r"(시행|처방|제거|교체|중단|연계|진행|유지)$", local["v"]):
+            local["v"] += "함"   # "…수혈 1 pack 시행" → "…시행하였습니다", not "…시행입니다" (typed or imported values)
         # Nominalised free text ("…옅어지고 있음", "…시행함") must not get "입니다" glued on: chart style keeps
         # it as is, spoken styles say it ("…있습니다", "…하였습니다") and then follow the register.
         if re.search(r"(음|됨|함|임|없음|있음|입원|시작|예정|투여|내원|방문|완료|추적|보냄|하심|계심|다치심|\s중)$", local["v"]) or \

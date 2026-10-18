@@ -1055,3 +1055,62 @@ def test_review_round2_fixes_2026_10_18():
                        ("2026년 10월 12일 오후 9시 42분 환자 강신자 님, 인계하겠습니다.", "nim_do"),
                        ("2026년 10월 12일 오후 9시 42분 강신자 님 인계 기록 시작 하겠습니다.", "nim_record_start")):
         assert signal.parse(line).format == want, (line, signal.parse(line).format)
+
+
+def test_review_round3_fixes_2026_10_19():
+    """검토 3차: 항암 당일까지 인계의 '열 났다가 떨어짐', 처방 없는 지사제 교육, K+TC D8·D15 긴 주입, 세툭시맙 전처치,
+    표 가져오기 빈칸·'수면' NRS, 20시 PRN 뒤 23시 PRN, 직접 입력한 '…시행' 값, '김인수 인계' 이름, '강신자님'+'환자'."""
+    from datetime import datetime
+    from nursing_tts import importer, signal
+    from nursing_tts.fake import record_datetime
+    rng = random.Random(1019)
+    chemo = [s.key for s in clinical.SCENARIOS if s.kind == "chemo"]
+    for i in range(300):
+        p = random_patient(rng, "s5", scenario=chemo[i % len(chemo)])
+        f = random_form("s5", rng, p)
+        assert not (p.hod <= 2 and f["vs_summary"] in ("fever", "fever_resolved", "hypotension")), (p.regimen, p.hod, f["_shift"], f["vs_summary"])
+    for i in range(60):
+        p = random_patient(rng, "s4", scenario="HP")
+        f = random_form("s4", rng, p)
+        text = build_script("s4", f, p, record_datetime("s4", p, f, rng), style="formal", seed=i).spoken_text
+        assert not ("없음" in str(f.get("discharge_meds") or "") and re.search(r"지사제|로페라마이드", text)), text
+    seen_d8 = seen_d1 = 0
+    for i in range(200):
+        p = random_patient(rng, "s6", scenario=random.Random(i).choice(["K+TC", "E-FOLFIRI"]))
+        f = random_form("s6", rng, p)
+        text = build_script("s6", f, p, record_datetime("s6", p, f, rng), style="chart", seed=i).spoken_text
+        eleven = next((l for l in text.splitlines() if l.startswith("오전 11시")), "")
+        if p.regimen == "E-FOLFIRI" and p.hod == 2:
+            assert "페니라민" in eleven, eleven
+        if p.regimen == "K+TC" and p.hod == 2 and p.day != 1:
+            seen_d8 += 1
+            assert not re.search(r"(?m)^오후 [45]시[^\n]*항암 주입 종료", text) and "팔로노세트론" not in eleven, text
+        if p.regimen == "K+TC" and p.hod == 2 and p.day == 1:
+            seen_d1 += 1
+            assert "팔로노세트론" in eleven, eleven
+        if f.get("evening_note") == "pain_prn":
+            assert f.get("night_onset") != "awake_pain", f
+    assert seen_d8 and seen_d1, (seen_d8, seen_d1)
+    p = random_patient(rng, "s6", scenario="TKA")
+    for cell in ("", "수면"):
+        spec = importer.build_specs("s6", [{"밤 NRS": cell}], {"columns": {"form.nrs_n": "밤 NRS"}})["specs"][0]
+        night = [l for l in build_script("s6", spec["form"], p, datetime(2026, 10, 18, 23, 40), style="chart", seed=1).spoken_text.splitlines() if l.startswith("오후 11시")]
+        assert night and not re.search(r"\d점|BP|혈압", night[0]), (cell, night)
+    import copy
+    from nursing_tts.generator import realize_field
+    from nursing_tts.templates import get_template
+    for t, key, value in (("s4", "course", "수술 후 수혈 1회 시행"), ("s5", "lab", "Hb 8.9로 수혈 1 pack 시행")):
+        fd = copy.deepcopy(get_template(t).field_map()[key])
+        fd.speak_prob = 1.0                                   # a copy: the shared template keeps its 0.3
+        for st in ("formal", "mixed", "casual", "chart"):
+            for s in range(6):
+                out = realize_field(fd, value, {"_template": t}, random.Random(s), st, force_close=bool(s % 2))
+                assert out and "시행입니다" not in out and "시행이고" not in out, out
+    for line, name, kind in (("2026년 10월 12일 오후 9시 42분 김인수 인계 기록입니다.", "김인수", "인계"),
+                             ("2026년 10월 12일 오후 9시 42분 남궁인수 님 인수인계 기록입니다.", "남궁인수", "인계")):
+        m = signal.parse(line)
+        assert m.ok and m.name == name and m.kind == kind, (line, m.name, m.kind)
+    for line, want in (("2026년 10월 12일 오후 9시 42분 환자 강신자님 퇴원간호 기록입니다.", "strict"),
+                       ("2026년 10월 12일 오후 9시 42분 환자 강신자님 인계하겠습니다.", "nim_do"),
+                       ("2026년 10월 12일 오후 9시 42분 강신자 환자님 퇴원간호 기록입니다.", "patient_record")):
+        assert signal.parse(line).format == want, (line, signal.parse(line).format)

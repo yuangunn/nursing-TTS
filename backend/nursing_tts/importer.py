@@ -124,6 +124,7 @@ def build_specs(template_key: str, rows: list[dict[str, str]], mapping: dict[str
         patient: dict[str, Any] = {"name": "", "age": None, "sex": "남", "diagnosis": "", "surgery": "", "professor": "", "department": "",
                                    "pod": None, "op_date": "", "admission_date": "", "kind": "op", "regimen": "", "cycle": None, "day": None}
         form = default_form(template_key)
+        supplied: set[str] = set()                # form keys this row really filled
         when: str | None = None
         for target, col in list(cols.items()) + [(k, None) for k in fixed]:
             raw = str(fixed[target]) if col is None else (row.get(col, "") or "")
@@ -157,6 +158,7 @@ def build_specs(template_key: str, rows: list[dict[str, str]], mapping: dict[str
                         warnings.append(f"{i + 1}행: '{f.label}' 값 '{raw}'에 맞는 선택지가 없어 기본값을 씁니다")
                     else:
                         form[k] = v
+                        supplied.add(k)
                 elif f.kind == "multi":
                     picked = []
                     for part in re.split(r"[,;|/·]+", raw):
@@ -174,6 +176,7 @@ def build_specs(template_key: str, rows: list[dict[str, str]], mapping: dict[str
                     n = _to_number(raw)
                     if n is not None:
                         form[k] = n
+                        supplied.add(k)
                 elif f.kind == "bool":
                     low = raw.strip().lower()
                     if low in _TRUE:
@@ -184,9 +187,9 @@ def build_specs(template_key: str, rows: list[dict[str, str]], mapping: dict[str
                         warnings.append(f"{i + 1}행: '{f.label}' 값 '{raw}'를 예/아니오로 읽지 못했습니다")
                 else:
                     form[k] = raw
-        mapped = {t[5:] for t in list(cols) + list(fixed) if t.startswith("form.")}
-        if template_key == "s6" and "nrs_n" in mapped and "night_onset" not in mapped:
-            form.pop("night_onset", None)   # a 23시 score means awake; the default "수면 중" would drop it
+                    supplied.add(k)
+        if template_key == "s6" and "nrs_n" in supplied and "night_onset" not in supplied:
+            form.pop("night_onset", None)   # this row's 23시 score means awake; the default "수면 중" would drop it
         if patient["regimen"] and not patient["surgery"]:
             patient["kind"] = "chemo"
         style = form.pop("_style", None)
