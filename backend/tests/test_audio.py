@@ -256,3 +256,11 @@ def test_only_real_clips_are_offered_and_each_is_mixed_probabilistically(tmp_pat
         assert types and types <= {"c1", "c2"}, types   # c0 is the room tone: floor only, never a picked noise
         seen |= types
     assert seen == {"c1", "c2"}
+
+
+def test_qwen_generation_has_a_length_ceiling():
+    """2026-10-18: without max_new_tokens one runaway sentence ran a batch to the 8192-token default (23 GB, hours)."""
+    from nursing_tts.tts.qwen import _token_cap
+    assert _token_cap(["환자분 통증 없다고 하십니다."]) < 400          # a short sentence cannot run for minutes
+    assert _token_cap(["가" * 150]) >= 150 / 2 * 12.5                   # 150 syllables at 2 per second still fit
+    assert _token_cap(["가" * 5000]) == 8192

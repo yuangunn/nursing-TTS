@@ -41,6 +41,15 @@ def model_cached(model_id: str) -> bool:
 _PROMPT_CACHE = 6   # reference prompts kept on the device at once
 
 
+def _token_cap(texts: list[str]) -> int:
+    """Generation ceiling for one batch. The model default (8192 codec tokens, ~11 min) let one sentence that never
+    reached its end-of-speech token run the whole batch for hours while the KV cache grew past 20 GB and swapped
+    (2026-10-18: one discharge record stalled the demo backend at 23 GB; the same seed stalls the same script again).
+    ponytail: ~7 tokens per character = 12.5 tokens/s at 1.8 syllables/s, about 3x a normal nurse's pace; raise the
+    factor only if a deliberately slow voice gets cut off. A truncated chunk fails the chunk CER check and is retried."""
+    return min(8192, 100 + 7 * max((len(t) for t in texts), default=0))
+
+
 class QwenEngine:
     key = "qwen"
     label = "Qwen3-TTS (내장 한국어 목소리 복제)"
@@ -129,7 +138,8 @@ class QwenEngine:
                 if seed is not None:
                     import torch
                     torch.manual_seed(seed + start)
-                wavs, sr = m.generate_voice_clone(text=group, language="Korean", voice_clone_prompt=prompt)
+                wavs, sr = m.generate_voice_clone(text=group, language="Korean", voice_clone_prompt=prompt,
+                                                  max_new_tokens=_token_cap(group))
                 out.extend(np.asarray(w, dtype=np.float32) for w in wavs)
             self._last_used = time.time()
         fixed: list[np.ndarray] = []
