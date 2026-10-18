@@ -879,3 +879,25 @@ def test_chemo_hospital_days_2026_10_18():
                 assert track != "fu" or f"23시간 지속 주입 {p.hod - 1}차 연결" in text, text
                 starts = [_parse_clock(m.group(0)) for m in re.finditer(r"(?m)^(?:오전|오후) \d{1,2}시(?: \d{1,2}분)?", text)]
                 assert starts == sorted(starts), text   # 11시 전처치 → 12시 시작 → 점심 → 15시 라운딩 → 종료/1차 → 23시
+
+
+def test_demo_read_fixes_2026_10_18():
+    """시연 대본 정독(2026-10-18): 아침 공복 채혈인데 오후 외래, 입원해서 맞는 HP·H에 "3주 후 외래 투여 예약", 퇴원약도 집 약도
+    없는데 "약 복용법 이해", "관찰 하기로" 띄어쓰기."""
+    from nursing_tts.fake import _parse_clock, record_datetime
+    rng = random.Random(1019)
+    keys = [s.key for s in clinical.SCENARIOS]
+    for t in ("s4", "s3_2"):
+        for i in range(160):
+            p = random_patient(rng, t, scenario=keys[i % len(keys)] if t == "s4" and i % 2 else None)
+            f = random_form(t, rng, p)
+            text = build_script(t, f, p, record_datetime(t, p, f, rng), style=["formal", "mixed", "casual", "chart"][i % 4], seed=i).spoken_text
+            assert "{" not in text, text
+            if t == "s4":
+                if "아침" in str(f.get("exam_prep") or ""):
+                    assert _parse_clock(f["opd"].split("일 ", 1)[1]) >= 10 * 60 + 30, f["opd"]
+                assert "외래 투여" not in text and "3주 후 외래 예약" not in text, text
+                if "없음" in str(f.get("discharge_meds") or "없음") and f.get("home_meds") in (None, "none"):
+                    assert "약 복용법" not in text, text
+            else:
+                assert not re.search(r"(관찰|측정|재노티|지속|적용|재평가) 하(기로|겠)", text), text

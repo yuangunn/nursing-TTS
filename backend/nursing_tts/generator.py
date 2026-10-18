@@ -113,7 +113,7 @@ class Patient:
             "treatment": treatment,          # surgery (spoken) or "<regimen> 항암"
             "treatment_ko": treatment_ko,
             "treatment_abbr": treatment_abbr,
-            "stage": stage,                  # "POD 2" or "항암 3차 D1"
+            "stage": stage,                  # "POD 2" or "3차 HOD 2"
             "regimen": self.regimen,
             "cycle": self.cycle if self.cycle is not None else "",
             "day": self.day if self.day is not None else "",
@@ -123,6 +123,7 @@ class Patient:
             "pod": self.pod if self.pod is not None else "",
             "op_date": self.op_date,
             "admission_date": self.admission_date,
+            "med_teach": "약 복용법과 ",     # S4 teach-back; build_script blanks it when no drug was given or taken
         }
 
 
@@ -417,6 +418,8 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
     if patient.kind != "chemo" and patient.pod == 0:
         ctx["earlier"] = "병실 올라온 뒤"         # the op day: the patient was in the OR during the day
     ctx["_mute"] = patient.scenario == "Tracheostomy" and template_key in ("s3_1", "s3_2", "s5", "s6") and (patient.pod or 0) <= 6
+    if template_key == "s4" and "없음" in str(form.get("discharge_meds") or "없음") and form.get("home_meds") in (None, "none"):
+        ctx["med_teach"] = ""        # no discharge drug, no home drug: "약 복용법 이해" has nothing to refer to (2026-10-18 H 퇴원)
     # Scalar form values are available as placeholders too ({event}, {bt_peak}, ...).
     # Select values map to their option label; multi values to a comma list of nouns.
     fmap = template.field_map()
