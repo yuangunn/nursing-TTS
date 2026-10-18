@@ -473,6 +473,8 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
     deferred: list[str] = []          # dialogue: chart facts the nurse records after the interview, not between questions (user 2026-10-17)
 
     intros = phrase_store.effective(template.key, "intros", "phrases", template.intros)
+    if patient.kind == "chemo" and ((patient.hod or 2) == 1 or (patient.hod == 2 and hour < 12)):
+        intros = [x for x in intros if "시행하고" not in x] or intros   # HOD#1, 07시 HOD#2: the infusion is still ahead (2026-10-18)
     if intros:
         intro = fix_josa(_fmt(rng.choice(intros), ctx)).strip()
         if intro:

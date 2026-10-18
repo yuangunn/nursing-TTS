@@ -1767,7 +1767,7 @@ def _chemo_s5(patient: Patient, shift: int, rng: random.Random) -> tuple[str, st
     if hod == 2 and shift == 7:
         if track == "single":
             return f"오늘 12시 {reg} 주입 후 케모포트 니들 제거하고 퇴원 예정", cont, "퇴원 교육 시행"
-        return f"오늘 11시 전처치 후 12시 {reg} 항암 시작 예정", cont, "11시 전처치 투여하고 수액 제거 후 12시 항암 시작"
+        return f"오늘 11시 전처치 후 12시 {reg} 항암 시작 예정", cont, "11시 전처치 투여하고 수액 제거 후 12시 항암 시작 준비"
     if hod == 2 and shift == 15:
         if track == "fu":
             return f"12시부터 {reg} 항암 주입 중이고 오후에 5-FU 23시간 지속 주입 1차 연결 예정", "", "5-FU 1차 연결 후 주입 속도 확인"
@@ -2007,9 +2007,14 @@ def _derive_s5(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
             form.pop("glucose")
         if "항구토제" in str(form.get("prn") or ""):
             form.pop("prn")
+    started = chemo and ((patient.hod or 1) >= 3 or (patient.hod == 2 and shift >= 15))   # the infusion has begun (12시 HOD#2)
+    if chemo and started and "항암 진행 가능" in str(form.get("lab") or ""):
+        form["lab"] = rng.choice(["Hb 9.6으로 감소", "크레아티닌 정상 범위"])   # 2026-10-18: HOD#3 "ANC 1,800으로 항암 진행 가능"
     pend = [x for x in _pool(sc, "pending", "s5") if ("미음" not in x or d in ("npo", "sow")) and ("퇴원" not in x or near_dc)
             and not (alone and "보호자" in x) and _fits_shift(x, shift, "pending")
-            and not (patient.regimen in ("HP", "H") and "항구토제" in x)]
+            and not (patient.regimen in ("HP", "H") and "항구토제" in x)
+            and not (chemo and "항구토제" in x and not started)          # HOD#1: no drug given yet, nothing to add
+            and not (chemo and "다음 항암" in x and (patient.hod or 1) < 2)]
     if pend:
         form["pending"] = _fill(rng.choice(pend), patient, sc)
     else:
