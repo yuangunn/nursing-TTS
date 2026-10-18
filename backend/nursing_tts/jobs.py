@@ -44,8 +44,21 @@ def _patient_voice(spec: dict[str, Any], patient: Patient, voice_id: str, rng: r
     return None, (shift, 0.85 if old else 0.95), ""
 
 
+def _other_refs(voice_id: str, ref, seed: int, style: str | None) -> list:
+    """Up to two other clips of the same voice for chunk retries (see synthesize_script)."""
+    out: list = []
+    for k in range(1, 8):
+        r = voices_mod.pick_reference(voice_id, rng=random.Random(seed + 7919 * k), style=style)
+        if r and (ref is None or r[0] != ref[0]) and all(r[0] != o[0] for o in out):
+            out.append(r)
+        if len(out) == 2:
+            break
+    return out
+
+
 def _synthesize_turns(engine, spoken_lines: list[str], tts_lines: list[str], speakers: list[str], refs: dict[str, Any],
-                      shift: dict[str, tuple[float, float]], seed: int, rng: random.Random, progress=None, **kw):
+                      shift: dict[str, tuple[float, float]], seed: int, rng: random.Random, progress=None,
+                      retry_refs: dict[str, list] | None = None, **kw):
     """Runs of consecutive same-speaker lines are synthesized with that speaker's reference voice and joined with a
     short turn gap; segments carry the speaker."""
     runs: list[tuple[str, list[int]]] = []
@@ -59,7 +72,7 @@ def _synthesize_turns(engine, spoken_lines: list[str], tts_lines: list[str], spe
     pos, sr = 0, 24000
     for r, (sp, idxs) in enumerate(runs):
         a, sr, segs = synthesize_script(engine, [spoken_lines[i] for i in idxs], [tts_lines[i] for i in idxs], refs.get(sp),
-                                        seed + 101 * r, progress=None, **kw)
+                                        seed + 101 * r, progress=None, retry_refs=(retry_refs or {}).get(sp), **kw)
         ps, pt = shift.get(sp, (0.0, 1.0))
         if ps:
             a = pitch_shift(a, sr, ps)
@@ -272,6 +285,7 @@ def generate_one(spec: dict[str, Any], settings: dict[str, Any], custom_noises: 
     if engine.clones_voice and ref is None:
         raise RuntimeError("목소리 복제 엔진에는 등록된 목소리(참조 음성)가 필요합니다. 목소리 등록 탭에서 먼저 녹음하세요.")
 
+    alt_refs = _other_refs(voice_id, ref, seed, "interview" if template_key == "s1" else "dictation") if voice_id else []
     paragraphs = [p for p in script.tts_text.splitlines() if p.strip()]
     spoken_lines = [p for p in script.spoken_text.splitlines() if p.strip()]
     if len(spoken_lines) != len(paragraphs):  # should not happen; labels then fall back to whole paragraphs
@@ -286,11 +300,12 @@ def generate_one(spec: dict[str, Any], settings: dict[str, Any], custom_noises: 
         audio, sr, segments = _synthesize_turns(engine, spoken_lines, paragraphs, speakers, {"nurse": ref, "patient": patient_ref or ref},
                                                 {"patient": patient_shift if patient_ref is None else (0.0, patient_shift[1])}, seed, rng,
                                                 progress=progress, verify=chunk_verify, cer_threshold=float(settings.get("chunk_cer_threshold", 0.3)),
-                                                retries=int(settings.get("chunk_retries", 2)))
+                                                retries=int(settings.get("chunk_retries", 2)),
+                                                retry_refs={"nurse": alt_refs, "patient": [] if patient_ref else alt_refs})
     else:
         audio, sr, segments = synthesize_script(engine, spoken_lines, paragraphs, ref, seed, progress=progress,
                                                 verify=chunk_verify, cer_threshold=float(settings.get("chunk_cer_threshold", 0.3)),
-                                                retries=int(settings.get("chunk_retries", 2)))
+                                                retries=int(settings.get("chunk_retries", 2)), retry_refs=alt_refs)
     timing: dict[str, Any] = {"synth_s": round(time.perf_counter() - t0, 1)}
     checked = [sg for sg in segments if "cer" in sg]
     chunk_summary = {"checked": len(checked), "retried": sum(1 for sg in checked if sg.get("retries")),
@@ -396,6 +411,9 @@ def generate_one(spec: dict[str, Any], settings: dict[str, Any], custom_noises: 
                 progress(len(paragraphs), len(paragraphs))
             t2 = time.perf_counter()
             meta["verify"] = verify_mod.verify(wav_path, script.spoken_text, script.tts_text, settings)
+            if chunk_summary and chunk_summary["still_bad"] and meta["verify"].get("passed"):
+                meta["verify"]["passed"] = False    # a sentence still unreadable after the retries: the label no longer matches the
+                meta["verify"]["reason"] = "chunk"  # audio there, whatever the whole-file CER (2026-10-18: 42 s of stutter, file CER 14%)
             timing["verify_s"] = round(time.perf_counter() - t2, 1)
         else:
             meta["verify"] = {"error": "faster-whisper 미설치", "passed": None}

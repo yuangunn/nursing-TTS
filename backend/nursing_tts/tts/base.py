@@ -119,7 +119,7 @@ def _synth_all(engine: TTSEngine, texts: list[str], ref: tuple[Path, str] | None
 
 def synthesize_script(engine: TTSEngine, spoken_lines: list[str], tts_lines: list[str], ref: tuple[Path, str] | None,
                       seed: int | None, progress=None, verify=None, cer_threshold: float = 0.3,
-                      retries: int = 2) -> tuple[np.ndarray, int, list[dict]]:
+                      retries: int = 2, retry_refs: list | None = None) -> tuple[np.ndarray, int, list[dict]]:
     """Synthesize sentence chunks and join them with natural pauses.
 
     Returns (audio, sr, segments) where each segment is {start, end, text, tts[, cer, retries]} in
@@ -147,7 +147,10 @@ def synthesize_script(engine: TTSEngine, spoken_lines: list[str], tts_lines: lis
             bad = [k for k, c in enumerate(cers) if c is not None and c > cer_threshold]
             if not bad:
                 break
-            new_audios, _ = _synth_all(engine, [texts[k] for k in bad], ref, (seed + 1000 * attempt) if seed is not None else None)
+            # another clip of the same voice: a sentence that runs past its end with one prompt clip usually reads fine with
+            # another (2026-10-18: "금일 오후 퇴원 예정이며…" stuttered on "금" for 42 s in all three takes with one clip)
+            r = retry_refs[(attempt - 1) % len(retry_refs)] if retry_refs else ref
+            new_audios, _ = _synth_all(engine, [texts[k] for k in bad], r, (seed + 1000 * attempt) if seed is not None else None)
             for k, a in zip(bad, new_audios):
                 a = trim_silence(np.asarray(a, dtype=np.float32), sr)
                 c = float(verify(plan[k][1], plan[k][2], a, sr))
