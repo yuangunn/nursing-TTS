@@ -4,7 +4,7 @@ from __future__ import annotations
 import random
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from . import korean
@@ -121,7 +121,7 @@ class Patient:
             "prof": self.professor,
             "dept": self.department,
             "pod": self.pod if self.pod is not None else "",
-            "op_date": self.op_date,
+            "op_date": _shift_md(self.op_date, (self.day or 1) - 1) if chemo else self.op_date,   # this admission's infusion day
             "admission_date": self.admission_date,
             "med_teach": "약 복용법과 ",     # S4 teach-back; build_script blanks it when no drug was given or taken
         }
@@ -145,6 +145,15 @@ class Script:
 # ---------------------------------------------------------------------------
 # Signal line
 # ---------------------------------------------------------------------------
+
+def _shift_md(md: str, days: int) -> str:
+    """'2월 2일' + 14 → '2월 16일' (chemo op_date is the cycle D1; a weekly D8·D15 admission infuses later)."""
+    m = re.match(r"\s*(\d{1,2})월\s*(\d{1,2})일", md or "")
+    if not m or not days:
+        return md
+    d = datetime(2026, int(m.group(1)), int(m.group(2))) + timedelta(days=days)
+    return f"{d.month}월 {d.day}일"
+
 
 def signal_line(when: datetime, patient_name: str, kind: str, fmt: str = "strict", rng: random.Random | None = None,
                 use_aliases: bool = False) -> tuple[str, str, str]:
@@ -334,8 +343,14 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
         if rng.random() > f.speak_prob:
             return None
         local["v"] = str(value).strip()
-        if f.key in ("lab", "course") and re.search(r"(시행|처방|제거|교체|중단|연계|진행|유지)$", local["v"]):
-            local["v"] += "함"   # "…수혈 1 pack 시행" → "…시행하였습니다", not "…시행입니다" (typed or imported values)
+        if re.search(r"(습니다|니다|어요|아요|에요|예요|해요|세요|었다|았다|했다|된다|한다)\.?$", local["v"]):
+            return _finish(local["v"].rstrip(".") + ".", {}, rng, style, force_close)   # a typed sentence: no frame ("…했습니다입니다")
+        local["v"] = local["v"].rstrip(".")                   # "양호." → "양호"
+        if f.key in ("lab", "course"):   # typed or imported verbal nouns read as sentences, in the right voice (2026-10-18 검토)
+            local["v"] = re.sub(r"(시행|제거|교체|중단|연계|수혈|교정|노티|보고|변경|투여)$", r"\1함", local["v"])   # …시행하였습니다
+            local["v"] = re.sub(r"(처방|정상화)$", r"\1됨", local["v"])                                  # …처방되었습니다
+            local["v"] = re.sub(r"(유지|진행)$", r"\1 중", local["v"])                                  # …유지 중입니다
+            local["v"] = re.sub(r"(?<=후 )퇴원$", "퇴원 예정", local["v"])                               # S4 is before the discharge
         # Nominalised free text ("…옅어지고 있음", "…시행함") must not get "입니다" glued on: chart style keeps
         # it as is, spoken styles say it ("…있습니다", "…하였습니다") and then follow the register.
         if re.search(r"(음|됨|함|임|없음|있음|입원|시작|예정|투여|내원|방문|완료|추적|보냄|하심|계심|다치심|\s중)$", local["v"]) or \
@@ -466,6 +481,10 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
     tts_paragraphs: list[str] = [sig_tts]
     speakers: list[str] = ["nurse"]
     dialogue = bool(dialogue) and template.key == "s1"
+    if template_key == "s5" and (form.get("allergy_none") or str(form.get("allergy") or "").strip().lower() in ("없음", "nka", "nkda", "none", "무", "-")):
+        form = {**{k: v for k, v in form.items() if k != "allergy"}, "allergy_none": True}   # the 알레르기 칸 is prefilled with 조영제
+    if template_key == "s6" and form.get("pain_plan") != "prn":   # the 07:40 PRN 재사정 follows a 07:00 PRN only (기본 폼·표 가져오기)
+        form = {k: v for k, v in form.items() if k not in ("t1p", "nrs_prn")}
     if template_key == "s6" and form.get("night_onset") in ("asleep", "hypnotic"):   # manual forms too: nobody is woken
         form = {k: v for k, v in form.items() if k not in ("vitals_night", "nrs_n")}  # for 23시 vitals or a pain score
     if dialogue:                                            # a patient who just answered every question is alert, oriented and speaks

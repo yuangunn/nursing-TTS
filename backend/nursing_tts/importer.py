@@ -190,6 +190,10 @@ def build_specs(template_key: str, rows: list[dict[str, str]], mapping: dict[str
                     supplied.add(k)
         if template_key == "s6" and "nrs_n" in supplied and "night_onset" not in supplied:
             form.pop("night_onset", None)   # this row's 23시 score means awake; the default "수면 중" would drop it
+        elif template_key == "s6" and "night_onset" in supplied and "nrs_n" not in supplied and form.get("night_onset") in ("awake_pain", "resting"):
+            form.pop("nrs_n", None)         # awake without a score: no invented 1점 (it contradicted "통증으로 못 자서 PRN")
+        elif template_key == "s6" and "nrs_n" in supplied and form.get("night_onset") in ("asleep", "hypnotic"):
+            warnings.append(f"{i + 1}행: 수면 중이라 23시 NRS {form.get('nrs_n')}점은 읽지 않습니다")
         if patient["regimen"] and not patient["surgery"]:
             patient["kind"] = "chemo"
         style = form.pop("_style", None)

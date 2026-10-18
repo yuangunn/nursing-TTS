@@ -144,9 +144,10 @@ def parse(text: str) -> SignalMatch:
     m_date = _DATE_RE.search(window)
     m_kind = re.search(_KIND_RE, window)
     if m_kind and m_kind.start() and "가" <= window[m_kind.start() - 1] <= "힣":   # began inside a word ("김인수 인계" → 인수 인계)
-        m_word = _KIND_WORD_RE.search(window, m_kind.start())
-        if m_word and m_word.start() < m_kind.end():                             # glued "강신자님간호정보조사" keeps its match
-            m_kind = m_word
+        sp = re.compile(r"[ \t]+").search(window, m_kind.start())
+        m_word = _KIND_WORD_RE.search(window, sp.end()) if sp and "\n" not in window[m_kind.start():sp.end()] else None
+        if m_word and m_word.start() == sp.end():   # the very next word is a kind: the first match sat inside the name
+            m_kind = m_word                         # (glued "강신자수술 후 경과기록" / "강신자님간호정보조사" keep theirs)
     if not m_kind:
         return SignalMatch(ok=False, missing=["kind"] + (["date"] if not m_date else []))
     start = m_date.start() if m_date else 0

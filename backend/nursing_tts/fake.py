@@ -137,6 +137,11 @@ def _chemo_short(patient: Patient) -> bool:                           # the infu
     return patient.regimen in _CHEMO_SHORT or _paclitaxel_only(patient.regimen, patient.day)
 
 
+def _regimen_label(patient: Patient) -> str:                           # "K+TC 3차 D8": the weekly day is not the D1 triple
+    label = f"{patient.regimen} {patient.cycle}차" if patient.cycle else str(patient.regimen)
+    return label + (f" D{patient.day}" if _paclitaxel_only(patient.regimen, patient.day) else "")
+
+
 def _chemo_premed(regimen: str | None, rng: random.Random, day: int = 1) -> str:
     r = regimen or ""
     if r in ("AC", "K+AC"):
@@ -423,6 +428,8 @@ def _consistency(form: dict[str, Any], template_key: str, t, rng: random.Random,
     elif "fall" in form and "moderate" in opts.get("fall", set()) and not forced and patient is not None:
         age = patient.age or 50
         form["fall"] = rng.choice(["high", "moderate"]) if age >= 80 else rng.choice(["moderate", "low", "low"]) if age >= 65 else "low"
+        if form["fall"] == "low" and form.get("delirium") == "night":
+            form["fall"] = "moderate"                 # JHFRAT: 70+ (2) + IV (1) + cognition
     if "p_jhfrat" in form:
         form["p_jhfrat"] = max(int(form["p_jhfrat"]), 14)          # the high-risk protocol re-assesses as still high
     # pressure injury: Braden score ↔ risk band, and the admission skin finding
@@ -1738,7 +1745,7 @@ def _derive_s4(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
 def _chemo_s6(form: dict[str, Any], patient: Patient, rng: random.Random) -> None:
     """항암 후 경과기록: HOD#2 전처치 → 12시 시작 → 종료·수액 재연결 또는 5-FU 1차, HOD#3(5-FU) 낮에 2차 (user 2026-10-18)."""
     track, hod = chemo_track(patient.regimen), patient.hod or 2
-    reg = f"{patient.regimen} {patient.cycle}차" if patient.cycle else patient.regimen
+    reg = _regimen_label(patient)
     rate = rng.choice([45, 48, 50, 52, 55])
     gcsf = rng.choice(["롤론티스", "뉴라스타"])
     picc = "PICC" in str(form.get("line") or "")
@@ -1762,7 +1769,7 @@ def _chemo_s6(form: dict[str, Any], patient: Patient, rng: random.Random) -> Non
     if _chemo_short(patient):
         form["tc3"], form["chemo_end_early"] = after, reconnect
         if form.get("afternoon_activity") == "chemo_infusion":
-            form["afternoon_activity"] = rng.choice(["walk_assist", "walk_self"])   # nothing runs by the 15:00 round
+            form["afternoon_activity"] = rng.choice(["walk_assist"] if (patient.age or 50) >= 70 else ["walk_assist", "walk_self"])   # nothing runs by 15:00
     else:
         form["tc4"] = rng.choice(["오후 4시", "오후 4시 30분", "오후 5시", "오후 5시 30분"])
         form["chemo_end_late"] = f"5-FU+NS 1L 23시간 지속 주입 1차 연결함, {rate}cc/hr로 주입 중" if track == "fu" else reconnect
@@ -1772,7 +1779,7 @@ def _chemo_s6(form: dict[str, Any], patient: Patient, rng: random.Random) -> Non
 def _chemo_s5(patient: Patient, shift: int, rng: random.Random, picc: bool = False) -> tuple[str, str, str]:
     """(특이사항, 수액, 다음 근무 계획) of a chemo handover on this hospital day and shift (user 2026-10-18 timeline)."""
     track, hod = chemo_track(patient.regimen), patient.hod or 1
-    reg = f"{patient.regimen} {patient.cycle}차" if patient.cycle else patient.regimen
+    reg = _regimen_label(patient)
     cont = rng.choice(["N/S 1리터 continuous 80cc/hr", "하트만 1리터 continuous 80cc/hr"])
     rate = rng.choice([45, 48, 50, 52, 55])
     bag = lambda n: f"5-FU+NS 1L 23시간 지속 주입 {n}차 {rate}cc/hr"
@@ -2020,9 +2027,13 @@ def _derive_s5(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
     if not form.get("imaging"):
         form.pop("imaging", None)
     form["pressure"] = "risk" if age >= 75 and rng.random() < 0.15 else "none"
-    form["delirium"] = "night" if age >= 70 and rng.random() < 0.1 else "none"
+    said = "섬망" in str(form.get("special") or "")       # THA special line "야간 섬망 있어 보호자 상주 중"
+    form["delirium"] = "night" if age >= 70 and rng.random() < 0.1 and not said \
+        and not (chemo and (patient.hod or 1) == 1 and shift == 15) else "none"   # admitted this morning: no night on the ward yet
+    if said or form["delirium"] == "night":
+        form.pop("sleep", None)                  # the delirium line is the night's report (not "수면 양호" + "야간 섬망")
     if form["delirium"] == "night" and form["caregiver"] in ("none", "intermittent"):
-        form["caregiver"] = rng.choice(["child", "spouse", "caregiver"])   # "야간 섬망 있어 보호자 상주"
+        form["caregiver"] = rng.choice(["child", "spouse"])   # "야간 섬망 있어 보호자 상주" (not 간병인 + 보호자)
     alone = form["caregiver"] in ("none",)
     if chemo and patient.regimen in ("HP", "H"):
         if re.search(r"ANC", str(form.get("lab") or "")):
@@ -2293,6 +2304,7 @@ def _derive_s6(form: dict[str, Any], patient: Patient, sc, rng: random.Random, t
     if chemo:
         _chemo_s6(form, patient, rng)
         _drop_section(form, t, "prot_med")   # the premedication is the 11시 entry; 5-FU day 2 has no scheduled antiemetic (2026-10-18 검토)
+        _drop_section(form, t, "prot_skin")  # an ambulant chemo admission has no air mattress / 2-hourly turns
         if (patient.hod or 2) == 2:   # the checklist sits at 08:30~10:45, before the 11:00 premedication
             for key in ("prot_glucose", "prot_nausea", "prot_fever"):   # no chemo nausea before the chemo; a fever would hold it
                 _drop_section(form, t, key)

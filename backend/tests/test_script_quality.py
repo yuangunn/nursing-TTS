@@ -1114,3 +1114,63 @@ def test_review_round3_fixes_2026_10_19():
                        ("2026년 10월 12일 오후 9시 42분 환자 강신자님 인계하겠습니다.", "nim_do"),
                        ("2026년 10월 12일 오후 9시 42분 강신자 환자님 퇴원간호 기록입니다.", "patient_record")):
         assert signal.parse(line).format == want, (line, signal.parse(line).format)
+
+
+def test_review_round4_fixes_2026_10_19():
+    """검토 4차: 야간 섬망↔수면·낙상·입원 당일, K+TC 주간 날짜, 70세 짧은 항암 보행, 항암 욕창 체크리스트, 직접 입력 값 끝맺음,
+    기본 폼의 알레르기·07:40 PRN, 표 가져오기 깨어 있는 행, 이름 속 종류("김인계 인계")와 붙여 쓴 종류."""
+    import copy
+    from datetime import datetime, timedelta
+    from nursing_tts import importer, signal
+    from nursing_tts.fake import _month_day, record_datetime
+    from nursing_tts.generator import realize_field
+    from nursing_tts.templates import default_form, get_template
+    rng = random.Random(2019)
+    chemo = [s.key for s in clinical.SCENARIOS if s.kind == "chemo"]
+    for i in range(400):
+        p = random_patient(rng, "s5", scenario=random.Random(i).choice(chemo + ["THA", "TKA", None]))
+        f = random_form("s5", rng, p)
+        if f.get("delirium") == "night" or "섬망" in str(f.get("special") or ""):
+            assert "sleep" not in f and f.get("fall") != "low", (f.get("sleep"), f.get("fall"))
+            assert not (p.kind == "chemo" and p.hod == 1 and int(f["_shift"]) == 15), f
+        if p.regimen == "K+TC" and p.day != 1:
+            text = build_script("s5", f, p, record_datetime("s5", p, f, rng), style="formal", seed=i).spoken_text
+            m = re.search(r"(\d+월 \d+일) K\+TC 항암 시행하고", text)
+            if m:
+                d1 = datetime(2026, *_month_day(p.op_date)) + timedelta(days=p.day - 1)
+                assert m.group(1) == f"{d1.month}월 {d1.day}일", (m.group(1), p.op_date, p.day)
+    for i in range(160):
+        p = random_patient(rng, "s6", scenario=random.Random(i).choice(["AC", "K+AC", "K+TC", "HP", "H", "TCHP"]))
+        f = random_form("s6", rng, p)
+        text = build_script("s6", f, p, record_datetime("s6", p, f, rng), style="chart", seed=i).spoken_text
+        assert not re.search(r"에어매트리스|욕창 예방|Braden", text), text
+        three = next((l for l in text.splitlines() if l.startswith("오후 3시")), "")
+        if (p.age or 50) >= 70:
+            assert not re.search(r"혼자 복도 보행|스스로 보행", three), three
+        if p.regimen == "K+TC" and p.day != 1 and p.hod == 2:
+            assert re.search(r"K\+TC \d+차 D(8|15) 항암 시작", text), text
+    for t, key, value, bad in (("s4", "course", "수술 후 특이 합병증 없이 회복하였습니다.", "습니다입니다|습니다\\.\\."),
+                               ("s4", "course", "수술 후 회복 양호.", r"\.입니다|양호\.\s"),
+                               ("s5", "lab", "Hb 10.2 유지", "유지했|유지하였"),
+                               ("s5", "lab", "KCl 처방", "처방했|처방하였"),
+                               ("s4", "course", "배액관 제거 후 퇴원", "퇴원하였|퇴원했|퇴원 상태")):
+        fd = copy.deepcopy(get_template(t).field_map()[key])
+        fd.speak_prob = 1.0
+        for st in ("formal", "mixed", "chart"):
+            for s in range(5):
+                out = realize_field(fd, value, {"_template": t}, random.Random(s), st, force_close=bool(s % 2))
+                assert out and not re.search(bad, out), (value, st, out)
+    p = random_patient(rng, "s5", scenario="TKA")
+    f = dict(default_form("s5"), allergy_none=True)
+    assert "조영제" not in build_script("s5", f, p, datetime(2026, 10, 18, 7, 20), style="formal", seed=1).spoken_text
+    p = random_patient(rng, "s6", scenario="TKA")
+    txt = build_script("s6", default_form("s6"), p, datetime(2026, 10, 18, 23, 40), style="formal", seed=1).spoken_text
+    assert not any(l.startswith("오전 7시 40분") for l in txt.splitlines()), txt
+    spec = importer.build_specs("s6", [{"수면": "통증으로 못 잠"}], {"columns": {"form.night_onset": "수면"}, "values": {"form.night_onset": {"통증으로 못 잠": "awake_pain"}}})["specs"][0]
+    assert "nrs_n" not in spec["form"], spec["form"]
+    r = importer.build_specs("s6", [{"수면": "수면 중", "NRS": "5"}], {"columns": {"form.night_onset": "수면", "form.nrs_n": "NRS"}, "values": {"form.night_onset": {"수면 중": "asleep"}}})
+    assert any("23시 NRS" in w for w in r["warnings"]), r["warnings"]
+    for line, name, kind in (("2026년 10월 12일 오후 9시 42분 김인계 인계 기록입니다.", "김인계", "인계"),
+                             ("2026년 10월 12일 오후 9시 42분 강신자수술 후 경과기록입니다.", "강신자", "경과기록")):
+        m = signal.parse(line)
+        assert m.ok and m.name == name and m.kind == kind, (line, m.name, m.kind)
