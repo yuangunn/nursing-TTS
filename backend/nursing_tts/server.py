@@ -64,6 +64,7 @@ class PatientModel(BaseModel):
     cycle: int | None = None
     day: int | None = None
     scenario: str = ""
+    hod: int | None = None         # 항암 입원 일차 (HOD#1 입원, HOD#2 항암 …)
 
 
 class NoiseModel(BaseModel):

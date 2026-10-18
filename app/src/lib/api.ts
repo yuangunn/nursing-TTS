@@ -201,6 +201,7 @@ export interface Patient {
   regimen?: string;
   cycle?: number | null;
   day?: number | null;
+  hod?: number | null;  // 항암 입원 일차: HOD#1 입원·니들, HOD#2 항암(= D일), 퇴원은 regimen마다 HOD#2~4
   scenario?: string;    // clinical.py 시나리오 키
 }
 export interface NoiseSettings {

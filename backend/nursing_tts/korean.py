@@ -195,7 +195,7 @@ ABBREVIATIONS: dict[str, list[str]] = {
     "PTBD": ["피티비디"], "ENBD": ["이엔비디"], "chest tube": ["체스트 튜브"], "Rt": ["라이트"], "Lt": ["레프트"],
     "Rt.": ["라이트"], "Lt.": ["레프트"], "arm": ["암"], "Fr.": ["프렌치"],
     "sanguineous": ["생기너스"], "serosanguineous": ["시로생기너스"], "serous": ["시러스"],
-    "bloody": ["블러디"], "turbid": ["터비드"], "straw": ["스트로우"], "pinkish": ["핑키시"], "orange": ["오렌지"],
+    "bloody": ["블러디"], "turbid": ["터비드"], "5-FU": ["파이브에프유"], "continuous": ["컨티뉴어스"], "fluid": ["플루이드"], "straw": ["스트로우"], "pinkish": ["핑키시"], "orange": ["오렌지"],
     "Good sleep pattern": ["굿 슬립 패턴"], "good sleep pattern": ["굿 슬립 패턴"],
     "oozing": ["우징"], "pus": ["퍼스"], "bile": ["바일"], "purulent": ["퓨룰런트"],
     "dressing": ["드레싱"], "stapler": ["스테플러"], "steri-strip": ["스테리스트립"],
@@ -371,6 +371,7 @@ def to_tts_text(spoken: str, rng: random.Random | None = None) -> str:
 
     # 3-. "POD 3" / "POD#3" is said "피오디 삼일째" on this ward (not "피오디 삼")
     text = re.sub(r"(?<![A-Za-z])POD\s*#?\s*(\d+)(?![\d])", lambda m: f"피오디 {sino(int(m.group(1)))}일째", text)
+    text = re.sub(r"(?<![A-Za-z])HOD\s*#?\s*(\d+)(?![\d])", lambda m: f"에이치오디 {sino(int(m.group(1)))}일째", text)   # 항암 입원 일차
 
     # 3a. any "q{n}h" not in the dictionary (q24h, q2h ...) -> "{n} 시간마다"
     text = re.sub(r"(?<![A-Za-z0-9])q\s*(\d+)\s*h(?![A-Za-z0-9])",  # \b fails before Hangul ("q24h이고")

@@ -494,7 +494,9 @@ def opening(form: dict[str, Any], patient: Patient, rng: random.Random) -> list[
             sents.append("이번이 처음이에요.")
         elif cyc:
             sents.append(f"이번이 {_NATIVE[cyc] + ' ' if cyc in _NATIVE else str(cyc)}번째예요.")   # 열다섯 번째 / 23번째
-        later = ["지난번처럼 2박 3일 하고 가는 거예요."] if cyc > 1 else []
+        reg = str(getattr(patient, "regimen", "") or "")   # HP·Herzuma 1박 2일, 5-FU 3박 4일, 그 밖 2박 3일 (user 2026-10-18)
+        stay = "1박 2일" if reg in ("HP", "H") else "3박 4일" if "FOLF" in reg else "2박 3일"
+        later = [f"지난번처럼 {stay} 하고 가는 거예요."] if cyc > 1 else []
         sents.append(rng.choice(["날짜 맞춰서 왔어요.", "외래에서 하라는 대로 입원했어요."] + later) if rng.random() < 0.9 else "")
         sents = [x for x in sents if x]
     lead = rng.choice(["", "", "그게, ", "아, 그게 ", "음, "])

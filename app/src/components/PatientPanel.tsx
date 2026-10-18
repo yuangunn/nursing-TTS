@@ -17,8 +17,8 @@ export default function PatientPanel({ patient, onChange, onRandom, step }: Prop
   const chemo = patient.kind === "chemo";
   const set = (k: keyof Patient, v: unknown) => onChange({ ...patient, [k]: v });
   const setKind = (kind: string) => onChange(kind === "chemo"
-    ? { ...patient, kind, surgery: "", pod: null, regimen: patient.regimen || "", cycle: patient.cycle ?? 1, day: patient.day ?? 1 }
-    : { ...patient, kind: "op", regimen: "", cycle: null, day: null, pod: patient.pod ?? 1 });
+    ? { ...patient, kind, surgery: "", pod: null, regimen: patient.regimen || "", cycle: patient.cycle ?? 1, day: patient.day ?? 1, hod: patient.hod ?? 2 }
+    : { ...patient, kind: "op", regimen: "", cycle: null, day: null, hod: null, pod: patient.pod ?? 1 });
   return (
     <div className="panel">
       <h2>
@@ -101,6 +101,12 @@ export default function PatientPanel({ patient, onChange, onRandom, step }: Prop
           <label>입원일 (예: 10월 13일)</label>
           <input type="text" value={patient.admission_date} onChange={(e) => set("admission_date", e.target.value)} />
         </div>
+        {chemo && (
+          <div>
+            <label><Term k="HOD">입원 일차 (HOD)</Term></label>
+            <input type="number" min={1} max={4} style={{ width: "100%" }} value={patient.hod ?? ""} onChange={(e) => set("hod", e.target.value === "" ? null : Number(e.target.value))} />
+          </div>
+        )}
       </div>
     </div>
   );
