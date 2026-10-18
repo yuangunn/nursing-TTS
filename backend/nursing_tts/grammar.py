@@ -119,4 +119,6 @@ def close_sentence(fragment: str) -> str:
             if suffix.startswith("@"):
                 return rx.sub(suffix[1:], stem) + "."
             return stem + suffix + "."
+    if re.search(r"(범위|상태|수준|정도|[\dA-Za-z%])$", stem):   # the copula went with "고": "정상 범위고," → "정상 범위입니다."
+        return stem + "입니다."   # ponytail: word list; "모친 당뇨고," still closes as "…당뇨." — add nouns when they show up
     return stem + "."

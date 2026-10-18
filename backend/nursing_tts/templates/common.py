@@ -5,7 +5,7 @@ VITALS_FIELD = Field(
     key="vitals", label="활력징후 (V/S)", kind="vitals",
     default={"sbp": 120, "dbp": 80, "hr": 76, "rr": 18, "bt": 36.7, "spo2": "", "o2": ""},
     hint="혈압/맥박/호흡/체온/산소포화도. 비워두면 말하지 않습니다.",
-    example="혈압은 123에 90 나오셨구요 맥박은 72 열은 7도 1 나오셨습니다",
+    example="혈압 123/90, 맥박 72회, 체온 37.1도 측정되었습니다",
 )
 
 O2_OPTIONS = [

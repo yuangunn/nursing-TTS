@@ -4,7 +4,7 @@ from __future__ import annotations
 import random
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from . import korean
@@ -121,7 +121,7 @@ class Patient:
             "prof": self.professor,
             "dept": self.department,
             "pod": self.pod if self.pod is not None else "",
-            "op_date": self.op_date,
+            "op_date": _shift_md(self.op_date, (self.day or 1) - 1) if chemo else self.op_date,   # this admission's infusion day
             "admission_date": self.admission_date,
             "med_teach": "약 복용법과 ",     # S4 teach-back; build_script blanks it when no drug was given or taken
         }
@@ -146,6 +146,15 @@ class Script:
 # Signal line
 # ---------------------------------------------------------------------------
 
+def _shift_md(md: str, days: int) -> str:
+    """'2월 2일' + 14 → '2월 16일' (chemo op_date is the cycle D1; a weekly D8·D15 admission infuses later)."""
+    m = re.match(r"\s*(\d{1,2})월\s*(\d{1,2})일", md or "")
+    if not m or not days:
+        return md
+    d = datetime(2026, int(m.group(1)), int(m.group(2))) + timedelta(days=days)
+    return f"{d.month}월 {d.day}일"
+
+
 def signal_line(when: datetime, patient_name: str, kind: str, fmt: str = "strict", rng: random.Random | None = None,
                 use_aliases: bool = False) -> tuple[str, str, str]:
     """Return (written, tts, format_key).  Default is the mandatory spec form:
@@ -163,7 +172,7 @@ def _vf(key: str) -> list[str]:
     return phrase_store.effective("_vitals", key, "phrases", VITALS_FORMS[key])
 
 
-def realize_vitals(value: dict[str, Any], rng: random.Random, verb_style: str = "mixed") -> str:
+def realize_vitals(value: dict[str, Any], rng: random.Random, verb_style: str = "mixed", remeasure: bool = False) -> str:
     """value: {sbp, dbp, hr, rr, bt, spo2, o2}"""
     parts: list[str] = []
     v = dict(value)
@@ -191,7 +200,7 @@ def realize_vitals(value: dict[str, Any], rng: random.Random, verb_style: str = 
     if not parts:
         return ""
     lead = rng.choice(_vf("lead"))
-    no_check = "체크" in lead                  # "활력징후 체크하니 … 체크되었습니다" (2026-10-18 2차 검수)
+    no_check = bool(re.search("체크|측정", lead)) or remeasure   # "체크하니 … 체크되었습니다", "재측정 … 측정되었습니다"
     if lead.endswith(("은 ", "는 ")):   # "바이탈은 혈압은 …" — one topic marker is enough
         parts[0] = re.sub(r"^(\S+?)(은|는) ", r"\1 ", parts[0])
     joiner = rng.choice([", ", ", ", " "])
@@ -199,7 +208,7 @@ def realize_vitals(value: dict[str, Any], rng: random.Random, verb_style: str = 
         endings = ["측정됨.", "체크됨.", "확인됨.", "임."]
     else:
         endings = _vf("ending_formal") if verb_style == "formal" else _vf("ending")
-    ending = rng.choice([e for e in endings if not (no_check and "체크" in e)] or endings)
+    ending = rng.choice([e for e in endings if not (no_check and re.search("체크|측정", e))] or endings)
     body = joiner.join(parts)
     sep = "" if ending.startswith(("입니다", "이고", "임")) else " "   # "체온 37.0입니다", not "37.0 입니다"
     return f"{lead}{body}{sep}{ending}".replace("  ", " ")
@@ -249,8 +258,7 @@ _PAREN = re.compile(r"\((?!.\))")
 _QUOTED = re.compile(r"[다라]고 (하|함|표현|호소|말)")
 
 
-def _choose(variants: list[str], rng: random.Random, style: str, force_close: bool, no_questions: bool = False,
-            mute: bool = False) -> str | None:
+def _choose(variants: list[str], rng: random.Random, style: str, force_close: bool, mute: bool = False) -> str | None:
     if not variants:
         return None
     pool = variants
@@ -258,8 +266,7 @@ def _choose(variants: list[str], rng: random.Random, style: str, force_close: bo
         pool = [v for v in variants if not _is_connective(v)] or variants
     if style == "chart":
         pool = [v for v in pool if "거는" not in v] or pool   # "확인할 거는 …임" is speech, not chart (2026-10-18)
-    if style in ("formal", "chart") or no_questions:   # interview questions ("…있을까요?") belong to 현장 말투 only, and never to the
-        pool = [v for v in pool if "?" not in v] or pool   # dictation after a dialogue (nobody answered them; 2026-10-18)
+    pool = [v for v in pool if "?" not in v] or pool   # no self-asked questions in any record: the dialogue type asks (user 2026-10-18)
     # parenthetical checklist forms "사정함(부위, 점수)" read badly aloud in every style, 기록체 included (2026-10-17 대량 검수:
     # "수면양상을 관찰함(특이사항 없이 잘 잤다고 함)"); "(이)/(으)" particle markers are not parentheses
     pool = [v for v in pool if not _PAREN.search(v)] or pool
@@ -278,7 +285,7 @@ def _choose(variants: list[str], rng: random.Random, style: str, force_close: bo
 
 
 def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random, style: str,
-                  force_close: bool, no_questions: bool = False) -> str | None:
+                  force_close: bool) -> str | None:
     """Return one spoken fragment for this field, or None if nothing to say."""
     if value is None or value == "" or value == [] or value is False and f.kind != "bool":
         return None
@@ -290,7 +297,7 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
         option = next((o for o in f.options if o.value == value), None)
         if option is None:
             return None
-        phrase = _choose(phrase_store.effective(ctx.get("_template", ""), f.key, option.value, option.phrases), rng, style, force_close, no_questions, bool(ctx.get("_mute")))
+        phrase = _choose(phrase_store.effective(ctx.get("_template", ""), f.key, option.value, option.phrases), rng, style, force_close, bool(ctx.get("_mute")))
         if phrase is None:
             return None
         local["v"] = option.label
@@ -299,7 +306,7 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
         values = [v for v in value if v not in f.skip_values]
         tk = ctx.get("_template", "")
         if not values or values == ["none"]:
-            phrase = _choose(phrase_store.effective(tk, f.key, "none", f.none_phrases), rng, style, force_close, no_questions, bool(ctx.get("_mute")))
+            phrase = _choose(phrase_store.effective(tk, f.key, "none", f.none_phrases), rng, style, force_close, bool(ctx.get("_mute")))
             return _finish(phrase, local, rng, style, force_close)
         options = [o for o in f.options if o.value in values and o.value != "none"]
         # Each option may have its own full phrase; otherwise use the list form.
@@ -316,7 +323,7 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
         else:
             local["v"] = nouns[0] if nouns else ""
         local["count"] = len(nouns)
-        phrase = _choose(phrase_store.effective(tk, f.key, "phrases", f.phrases), rng, style, force_close, no_questions, bool(ctx.get("_mute")))
+        phrase = _choose(phrase_store.effective(tk, f.key, "phrases", f.phrases), rng, style, force_close, bool(ctx.get("_mute")))
         return _finish(phrase, local, rng, style, force_close)
     if f.kind == "number":
         if rng.random() > f.speak_prob:
@@ -330,39 +337,52 @@ def realize_field(f: Field, value: Any, ctx: dict[str, Any], rng: random.Random,
             pool = [p for p in pool if "호소" not in p and "아픈 정도" not in p and "정도" not in p] or pool
         if f.key.startswith("nrs") and isinstance(v, int) and v >= 4:   # "NRS 6점으로 조절되고 있습니다" is not controlled
             pool = [p for p in pool if "조절" not in p] or pool
-        phrase = _choose(pool, rng, style, force_close, no_questions, bool(ctx.get("_mute")))
+        phrase = _choose(pool, rng, style, force_close, bool(ctx.get("_mute")))
         return _finish(phrase, local, rng, style, force_close)
     if f.kind == "text":
         if rng.random() > f.speak_prob:
             return None
         local["v"] = str(value).strip()
+        if re.search(r"(습니다|니다|어요|아요|에요|예요|해요|세요|었다|았다|했다|된다|한다)\.?$", local["v"]):
+            return _finish(local["v"].rstrip(".") + ".", {}, rng, style, force_close)   # a typed sentence: no frame ("…했습니다입니다")
+        local["v"] = local["v"].rstrip(".")                   # "양호." → "양호"
+        if f.key in ("lab", "course"):   # typed or imported verbal nouns read as sentences, in the right voice (2026-10-18 검토)
+            local["v"] = re.sub(r"(시행|제거|교체|중단|연계|수혈|교정|노티|보고|변경|투여)$", r"\1함", local["v"])   # …시행하였습니다
+            local["v"] = re.sub(r"(처방|정상화)$", r"\1됨", local["v"])                                  # …처방되었습니다
+            local["v"] = re.sub(r"(유지|진행)$", r"\1 중", local["v"])                                  # …유지 중입니다
+            local["v"] = re.sub(r"(?<=후 )퇴원$", "퇴원 예정", local["v"])                               # S4 is before the discharge
         # Nominalised free text ("…옅어지고 있음", "…시행함") must not get "입니다" glued on: chart style keeps
         # it as is, spoken styles say it ("…있습니다", "…하였습니다") and then follow the register.
-        if re.search(r"(음|됨|함|임|없음|있음|입원|시작|예정|투여|내원|방문|완료|추적|보냄|하심|계심|다치심|\s중)$", local["v"]):
+        if re.search(r"(음|됨|함|임|없음|있음|입원|시작|예정|투여|내원|방문|완료|추적|보냄|하심|계심|다치심|\s중)$", local["v"]) or \
+                (f.key in ("lab", "course") and re.search(r"(감소|상승|증가|추가|저하|호전|악화|가능|회복|양호|안정)$", local["v"])):   # not "…감소입니다"
             if f.key == "glucose" and not re.match(r"(혈당|BST)", local["v"]):   # the frame is skipped: keep its subject
                 local["v"] = "혈당 " + local["v"]
+            if f.key == "lab" and not re.match(r"(\S+\s)?\S*(랩|lab|검사|CBC|금일|오늘)", local["v"], re.I):
+                local["v"] = rng.choice(["오늘 랩은 ", "랩은 ", "검사 결과 "]) + local["v"]
             if style == "chart":
                 return _fmt("{v}.", local)
             return _finish(phrase_store.formal_from_chart(local["v"] + "."), {}, rng, style, force_close)
         pool = phrase_store.effective(ctx.get("_template", ""), f.key, "phrases", f.phrases)
+        if f.key == "discharge_date" and "없음" in str(ctx.get("discharge_meds") or ""):
+            pool = [p for p in pool if "퇴원약" not in p] or pool   # "퇴원약과 주의사항 교육" + "퇴원약 처방 없습니다" (H/HP)
         if f.key == "medications":   # 인슐린 "복용", 흡입기 "드시고", bid "아침 식후 하나씩" (2026-10-18)
             inject = re.search(r"주사|흡입", local["v"])
             several = re.search(r"bid|tid|hs|주사|흡입", local["v"])
             pool = [p for p in pool if not (inject and re.search(r"복용|드시", p)) and not (several and "식후" in p)] or pool
-        phrase = _choose(pool, rng, style, force_close, no_questions, bool(ctx.get("_mute")))
+        phrase = _choose(pool, rng, style, force_close, bool(ctx.get("_mute")))
         return _finish(phrase, local, rng, style, force_close)
     if f.kind == "bool":
         tk = ctx.get("_template", "")
         phrases = phrase_store.effective(tk, f.key, "phrases", f.phrases) if value else phrase_store.effective(tk, f.key, "false", f.false_phrases)
-        phrase = _choose(phrases, rng, style, force_close, no_questions, bool(ctx.get("_mute")))
+        phrase = _choose(phrases, rng, style, force_close, bool(ctx.get("_mute")))
         return _finish(phrase, local, rng, style, force_close)
     if f.kind == "vitals":
         if not isinstance(value, dict):
             return None
-        return realize_vitals(value, rng, verb_style=style) or None
+        return realize_vitals(value, rng, verb_style=style, remeasure=f.key == "re_vitals") or None
     if f.kind in ("date", "time"):
         local["v"] = str(value)
-        phrase = _choose(f.phrases, rng, style, force_close, no_questions, bool(ctx.get("_mute")))
+        phrase = _choose(f.phrases, rng, style, force_close, bool(ctx.get("_mute")))
         return _fmt(phrase, local) if phrase else None
     return None
 
@@ -461,6 +481,12 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
     tts_paragraphs: list[str] = [sig_tts]
     speakers: list[str] = ["nurse"]
     dialogue = bool(dialogue) and template.key == "s1"
+    if template_key == "s5" and (form.get("allergy_none") or str(form.get("allergy") or "").strip().lower() in ("없음", "nka", "nkda", "none", "무", "-")):
+        form = {**{k: v for k, v in form.items() if k != "allergy"}, "allergy_none": True}   # the 알레르기 칸 is prefilled with 조영제
+    if template_key == "s6" and form.get("pain_plan") != "prn":   # the 07:40 PRN 재사정 follows a 07:00 PRN only (기본 폼·표 가져오기)
+        form = {k: v for k, v in form.items() if k not in ("t1p", "nrs_prn")}
+    if template_key == "s6" and form.get("night_onset") in ("asleep", "hypnotic"):   # manual forms too: nobody is woken
+        form = {k: v for k, v in form.items() if k not in ("vitals_night", "nrs_n")}  # for 23시 vitals or a pain score
     if dialogue:                                            # a patient who just answered every question is alert, oriented and speaks
         form = dict(form)
         form["consciousness"] = "alert"
@@ -511,14 +537,19 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
                         turns_here.append(("nurse", a))
             spoken_fields = narrated
         # Force the last fragment of a section to close its sentence.
+        said: list[Field] = []
         for idx, (f, v) in enumerate(spoken_fields):
             is_last = idx == len(spoken_fields) - 1
-            frag = realize_field(f, v, ctx, rng, style, force_close=is_last, no_questions=dialogue)
+            frag = realize_field(f, v, ctx, rng, style, force_close=is_last)
             if frag:
                 fragments.append(frag)
+                said.append(f)
                 structured.setdefault(section.key, {})[f.key] = v
             elif is_last and fragments and fragments[-1].endswith(","):
                 fragments[-1] = _close(fragments[-1], style)
+        if said and all(f.label == "시각" for f in said):   # a clock time alone is no entry (S6 기본 폼의 빈 항암 칸, 2026-10-18 검토)
+            fragments = []
+            structured.pop(section.key, None)
         # Avoid very long run-on sentences: close every 3rd connective
         run = 0
         for i, frag in enumerate(fragments):

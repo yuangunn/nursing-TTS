@@ -181,6 +181,10 @@ _FROM_CHART: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"(었|았|였|했|됐|웠|렸|켰|쳤|졌|셨)음\.$"), r"\1습니다."),   # 있었음 → 있었습니다, 하였음 → 하였습니다
     (re.compile(r"나옴\.$"), "나옵니다."), (re.compile(r"시범 보임\.$"), "시범 보였습니다."), (re.compile(r"보임\.$"), "보입니다."), (re.compile(r"들림\.$"), "들립니다."), (re.compile(r"들어감\.$"), "들어갑니다."),
     (re.compile(r"않음\.$"), "않습니다."), (re.compile(r"잠듦\.$"), "잠들었습니다."), (re.compile(r"낮춤\.$"), "낮췄습니다."),
+    (re.compile(r"좋음\.$"), "좋습니다."),   # "수면 양상 좋음" (2026-10-18)
+    # S5 랩 값은 명사로 끝난다: "Hb 9.6으로 감소입니다" 대신 (2026-10-18)
+    (re.compile(r"(감소|상승|증가|추가)\.$"), r"\1했습니다."), (re.compile(r"(저하|호전|악화)\.$"), r"\1되었습니다."), (re.compile(r"가능\.$"), "가능합니다."),
+    (re.compile(r"회복\.$"), "회복하였습니다."), (re.compile(r"양호\.$"), "양호합니다."), (re.compile(r"안정\.$"), "안정되었습니다."),   # S4 입원 경과
     (re.compile(r"(?<=\s)둠\.$"), "두었습니다."), (re.compile(r"(?<=[려어와해\s])줌\.$"), "주었습니다."),
     (re.compile(r"(해|아|어|여)짐\.$"), r"\1집니다."), (re.compile(r"(넣|먹|씻|닦|찍|읽)음\.$"), r"\1습니다."),   # "손으로 밀어 넣음."
     (re.compile(r"(가능|필요|양호|깨끗|경미|불량|중요|심|동일|정상|적절)함\.$"), r"\1합니다."),   # state, not an action
@@ -196,6 +200,7 @@ _CLAUSE_FROM_CHART: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"(?<!포)함, "), "했고, "), (re.compile(r"됨, "), "됐고, "), (re.compile(r"(?<![책모])임, "), "이고, "),
     (re.compile(r"(?<=\s)둠, "), "두었고, "), (re.compile(r"(?<=[려어와해\s])줌, "), "주었고, "), (re.compile(r"낮춤, "), "낮췄고, "),
     (re.compile(r"(해|아|어|여)짐, "), r"\1지고, "), (re.compile(r"들어감, "), "들어가고, "), (re.compile(r"나옴, "), "나오고, "),
+    (re.compile(r"좋음, "), "좋고, "),
 ]
 
 
