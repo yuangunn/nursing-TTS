@@ -280,3 +280,19 @@ def test_qwen_decodes_a_batch_one_sentence_at_a_time():
     _decode_one_by_one(tok)
     assert tok.decode([{"audio_codes": 1}, {"audio_codes": 2}, {"audio_codes": 3}]) == (["wav1", "wav2", "wav3"], 24000)
     assert Tok.calls == [1, 1, 1]
+
+
+def test_chunk_retry_uses_another_reference_clip():
+    """2026-10-18: one sentence stuttered for 42 s in all three takes with the same prompt clip; retries switch clips."""
+    import numpy as np
+    from nursing_tts.tts.base import synthesize_script
+    used = []
+
+    class Eng:
+        def synthesize_many(self, texts, ref, seed=None):
+            used.append(ref[1])
+            return [np.full(4800, 0.1 if ref[1] == "A" else 0.2, dtype=np.float32) for _ in texts], 24000
+    verify = lambda sp, tt, a, sr: 0.9 if float(np.abs(a).max()) < 0.15 else 0.0   # every take with clip A is unreadable
+    line = "금일 오후 퇴원 예정이며 퇴원약에 대해 교육하였습니다."
+    _, _, segs = synthesize_script(Eng(), [line], [line], ("a.wav", "A"), 1, verify=verify, retries=2, retry_refs=[("b.wav", "B")])
+    assert used == ["A", "B"] and segs[0]["cer"] == 0.0
