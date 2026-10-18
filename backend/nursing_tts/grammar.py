@@ -110,6 +110,8 @@ def close_sentence(fragment: str) -> str:
             if stem.endswith(ending):
                 return stem[: -len(ending)] + "입니다."
         return stem + "."
+    if stem.endswith("(이)"):                       # "랩은 … 가능(이)구요," closes as "가능입니다." (2026-10-18: was "가능이.")
+        return stem[:-3] + "입니다."
     if stem and final_consonant(stem[-1]) == 20:   # ㅆ 받침 = 과거·있다: 했/됐/드렸/낮췄/보냈 + 습니다
         return stem + "습니다."
     for rx, suffix in _STEM_RULES:

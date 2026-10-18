@@ -195,7 +195,7 @@ def test_other_templates_are_coherent():
                     assert not (f.get(generic) and f.get(note)), (generic, f.get(generic), f.get(note))   # 범주당 한 번
                 assert "referral" not in f or "stoma" not in f["referral"] or f.get("device") != "stoma"
             if t == "s5":
-                if f.get("diet") == "npo":
+                if f.get("diet") == "npo" and "gas_out" in f:   # gas is tracked after abdominal surgery only
                     assert f.get("gas_out") is False
                 if f.get("diet") in ("sd", "gd", "soft", "dm"):
                     assert "gas_out" not in f
@@ -386,7 +386,10 @@ def test_record_time_follows_the_patient_timeline():
                     late = w.hour < 2 and again >= 22 * 60     # a 23:30 recheck is charted just after midnight
                     assert same_day(w - timedelta(days=p.pod + (1 if late else 0)), op) and (late or mins > again), (p.op_date, p.pod, f["re_time"], w)
             if t == "s4":
-                assert 8 * 60 + 30 <= mins <= 10 * 60 + 40, w
+                from nursing_tts.fake import chemo_track
+                track = chemo_track(p.regimen) if p.kind == "chemo" else ""
+                lo, hi = {"single": (14 * 60 + 30, 16 * 60 + 30), "gcsf": (14 * 60, 17 * 60 + 30), "fu": (9 * 60 + 30, 11 * 60 + 30)}.get(track, (8 * 60 + 30, 10 * 60 + 40))
+                assert lo <= mins <= hi, (track, w)   # 단독 항암 당일 오후, G-CSF 24시간 뒤, 5-FU HOD#4 오전 (user 2026-10-18)
                 visit = _month_day(f["opd"])
                 assert any(same_day(w + timedelta(days=k), visit) for k in range(1, 45)), (w, f["opd"])   # clinic after the discharge
             if t == "s5":
@@ -442,8 +445,8 @@ def test_demo_read_through_context_rules():
         if p.kind == "chemo" and f.get("next_admission"):
             (om, od), (nm, nd) = [tuple(int(x) for x in re.match(r"(\d+)월 (\d+)일", v).groups()) for v in (p.op_date, f["next_admission"])]
             gap = (date(2026 + (nm < om), nm, nd) - date(2026, om, od)).days
-            # the next infusion (weekly K+TC: D8/D15), discharged the morning after (D2/D9/D16; FOLF pump D3), moved off weekends (2026-10-18)
-            want = 14 if "FOLF" in p.regimen else {2: 7, 9: 14}.get(p.day, 21) if p.regimen == "K+TC" else 21
+            # admitted the day before the next infusion (HOD#1; weekly K+TC D8/D15), moved off weekends (2026-10-18)
+            want = 13 if "FOLF" in p.regimen else {1: 6, 8: 13}.get(p.day, 20) if p.regimen == "K+TC" else 20
             assert want <= gap <= want + 3, (p.regimen, p.day, p.op_date, f["next_admission"])
     for i in range(30):
         p = random_patient(rng, "s2", scenario="ESS")
@@ -540,8 +543,8 @@ def test_handover_fits_its_shift_and_its_patient():
         w = record_datetime("s5", p, f, rng)
         s = build_script("s5", f, p, w, style=rng.choice(["casual", "mixed", "formal"]), seed=i)
         txt = s.spoken_text
-        if p.kind == "chemo" or p.pod == 0:
-            assert w.hour != 7, (p.surgery or p.regimen, w)
+        if (p.kind == "chemo" and p.hod == 1) or (p.kind != "chemo" and p.pod == 0):
+            assert w.hour != 7, (p.surgery or p.regimen, w)   # 입원일·수술일 아침에는 인계할 일이 없다
         if w.hour < 20:
             assert "데이 때" not in txt, txt
         plan = f.get("plan", "")
@@ -630,7 +633,8 @@ def test_event_and_discharge_review_2026_10_18():
         w = record_datetime("s4", p, f, rng)
         s = build_script("s4", f, p, w, style=rng.choice(["formal", "mixed", "casual", "chart"]), seed=i).spoken_text
         if p.kind == "chemo":
-            assert p.day >= 2, (p.regimen, p.day)                                          # the morning after the infusion
+            from nursing_tts.fake import CHEMO_DISCHARGE_HOD, chemo_track
+            assert p.hod == CHEMO_DISCHARGE_HOD[chemo_track(p.regimen)], (p.regimen, p.hod)   # 단독 HOD#2, G-CSF·그 밖 HOD#3, 5-FU HOD#4
         mo, dd = (int(x) for x in re.match(r"(\d+)월 (\d+)일", f["opd"]).groups())
         visit = _dt(w.year + (1 if (mo, dd) < (w.month, w.day) else 0), mo, dd)
         assert visit.weekday() < 5, (f["opd"], w)                                          # no weekend clinic
@@ -842,3 +846,36 @@ def test_urine_and_foley_wording_2026_10_18():
                 assert re.search(r"스트로우|핑키시|오렌지", s.tts_text), s.tts_text
             if t == "s3_1" and f.get("foley") == "cbi":
                 assert "잠근" not in s.spoken_text, s.spoken_text
+
+
+def test_chemo_hospital_days_2026_10_18():
+    """사용자 2026-10-18 항암 입원 흐름: HOD#1 입원·니들 → HOD#2 11시 전처치·12시 시작 → 단독(HP·H)은 그날 니들 제거 후
+    퇴원, TCHP·Adriamycin 계열은 HOD#3 G-CSF(병동 피하주사) 뒤, 그 밖은 HOD#3 수액·니들 제거 후, 5-FU는 HOD#2 오후 1차·
+    HOD#3 낮 2차 23시간 주입 → HOD#4 오전 종료 후 퇴원. 펌프·자가주사 없음, 퇴원 시각은 기록 시각 뒤."""
+    from nursing_tts.fake import _parse_clock, chemo_track, record_datetime
+    rng = random.Random(1018)
+    for t in ("s4", "s5", "s6"):
+        keys = [s.key for s in clinical.SCENARIOS if s.kind == "chemo" and not (t == "s6" and chemo_track(s.key) == "single")]
+        for i in range(4 * len(keys)):
+            p = random_patient(rng, t, scenario=keys[i % len(keys)])
+            f = random_form(t, rng, p)
+            w = record_datetime(t, p, f, rng)
+            text = build_script(t, f, p, w, style=["formal", "mixed", "casual", "chart"][i % 4], seed=i).spoken_text
+            track, mins = chemo_track(p.regimen), w.hour * 60 + w.minute
+            assert "펌프" not in text and "자가주사" not in text, text
+            if t == "s4":
+                said = re.search(r"(?:금일|오늘) (.{1,20}?) 퇴원 예정", text)
+                clock = _parse_clock(said.group(1)) if said else None
+                assert said is None or not (mins >= 12 * 60 and re.search(r"오전|점심", said.group(1))), (w, text)
+                assert clock is None or clock > mins, (w, text)
+                assert {"single": "항암 주입 마친 후", "gcsf": "피하주사 맞으셨고", "fu": "5-FU 주입 종료 확인 후"}.get(track, "수액 제거 후") in text, text
+                assert text.count("탈모") <= 1 and "운전은 외래에서" not in text, text   # 기본 설명문 + regimen 설명문, 수술용 운전 문구
+                assert track != "single" or not re.search(r"탈모|구토 심할|구내염|날 것", text), text   # 표적치료 단독
+            if t == "s5" and track == "fu" and (p.hod, int(f["_shift"])) in ((2, 23), (3, 7), (3, 15), (3, 23), (4, 7)):
+                assert "5-FU" in text, text            # a 23-hour bag runs through this handover
+            if t == "s6":
+                if p.hod == 2:
+                    assert "전처치" in text and "항암 시작" in text, text
+                assert track != "fu" or f"23시간 지속 주입 {p.hod - 1}차 연결" in text, text
+                starts = [_parse_clock(m.group(0)) for m in re.finditer(r"(?m)^(?:오전|오후) \d{1,2}시(?: \d{1,2}분)?", text)]
+                assert starts == sorted(starts), text   # 11시 전처치 → 12시 시작 → 점심 → 15시 라운딩 → 종료/1차 → 23시

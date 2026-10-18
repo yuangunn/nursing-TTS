@@ -59,6 +59,16 @@ TEMPLATE = RecordTemplate(
                 opt("tf", "경관식", "경관식 주입함, 역류 없음.", "경관식 주입 중, 복부 불편감 없음."),
             ], default="all"),
         ]),
+        # 항암 후 경과기록 (user 2026-10-18): HOD#2 11시 전처치·수액 제거 → 12시 항암 시작 → 끝나면 수액 재연결(짧은 regimen은 오후 2시,
+        # 긴 regimen은 오후 4~5시) 또는 5-FU+NS 1L 23시간 1차 연결; HOD#3(5-FU) 낮에 2차 연결. 수술 환자는 이 칸이 비어 말하지 않는다.
+        Section("c_premed", "항암 전처치 (11:00) — 항암 환자", hint="전처치(해당 시) 후 주입 중인 수액 제거", fields=[
+            _T("tc1", "오전 11시"),
+            txt("chemo_premed", "전처치", placeholder="예: 항암 전처치로 덱사메타손 10mg IV 투여하고 주입 중인 수액 제거함", phrases=["{v}."]),
+        ]),
+        Section("c_start", "항암 시작 (12:00) — 항암 환자", fields=[
+            _T("tc2", "오후 12시"),
+            txt("chemo_start", "항암 시작", placeholder="예: TCHP 3차 항암 시작함", phrases=["{v}."]),
+        ]),
         Section("d_noon", "점심·중재 (12:30) — 이벤트", fields=[
             _T("t3", "오후 12시 30분"),
             sel("meal2", "점심", [
@@ -85,6 +95,10 @@ TEMPLATE = RecordTemplate(
                 opt("stable", "안정", "통증 외 특이 호소 없음.", "변화 없이 안정됨."),   # 20시 "특이사항 없이 안정적임"과 겹치지 않게
             ], default="after_pca"),
         ]),
+        Section("c_end_early", "항암 종료·5-FU 2차 (14:00) — 항암 환자", fields=[
+            _T("tc3", "오후 2시"),
+            txt("chemo_end_early", "종료·재연결", placeholder="예: 항암 주입 종료됨. continuous fluid 재연결함", phrases=["{v}."]),
+        ]),
         Section("e_round", "Evening 라운딩 (15:00) — 정규 사정", hint="V/S, 활동, 배액/배뇨", fields=[
             _T("t5", "오후 3시"),
             Field(key="vitals_evening", label="오후 활력징후", kind="vitals", default={"sbp": 118, "dbp": 76, "hr": 78, "rr": 18, "bt": 36.7, "spo2": "", "o2": ""}),
@@ -97,6 +111,10 @@ TEMPLATE = RecordTemplate(
                 opt("chemo_infusion", "항암제 주입 중", "항암제 주입 중이며 오심, 발진 등 특이 반응 없음.", "항암제 주입 중, 주입 부위 통증·발적 없음. 부작용 관찰 중."),
             ], default="walk_assist"),
             txt("drain_note", "배액/배뇨", placeholder="예: JP 배액 serosanguineous하게 30cc 비움", phrases=["{v}.", "{v}."]),
+        ]),
+        Section("c_end_late", "항암 종료·5-FU 1차 (16~17시) — 항암 환자", fields=[
+            _T("tc4", "오후 5시"),
+            txt("chemo_end_late", "종료·5-FU 연결", placeholder="예: 5-FU+NS 1L 23시간 지속 주입 1차 연결함, 50cc/hr로 주입 중", phrases=["{v}."]),
         ]),
         Section("e_dinner", "저녁 식사 (18:00) — 이벤트", fields=[
             _T("t6", "오후 6시"),

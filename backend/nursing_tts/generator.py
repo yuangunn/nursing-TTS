@@ -80,8 +80,9 @@ class Patient:
     kind: str = "op"           # op | chemo (chemotherapy admission: no surgery, cycle/day instead of POD)
     regimen: str = ""          # e.g. "mFOLFOX6"
     cycle: int | None = None   # 항암 n차
-    day: int | None = None     # D1, D2 ...
+    day: int | None = None     # D1, D2 ... (regimen day: the infusion day of this admission)
     scenario: str = ""         # clinical.py key the patient was drawn from
+    hod: int | None = None     # 항암 입원 일차 HOD#1 입원 → HOD#2 항암(=D day) … (user 2026-10-18)
 
     def context(self, rng: random.Random) -> dict[str, Any]:
         chemo = self.kind == "chemo"
@@ -93,7 +94,8 @@ class Patient:
             treatment = f"{self.regimen} 항암"
             treatment_ko = treatment  # nurses say the regimen name, not the drug list
             treatment_abbr = self.regimen
-            stage = f"{self.cycle}차 D{self.day}" if self.cycle else f"D{self.day or 1}"  # follows "<regimen> 항암"
+            stage = (f"{self.cycle}차 HOD {self.hod}" if self.cycle else f"HOD {self.hod}") if self.hod else \
+                (f"{self.cycle}차 D{self.day}" if self.cycle else f"D{self.day or 1}")  # follows "<regimen> 항암"
             surgery_spoken = treatment
         else:
             treatment, treatment_ko, treatment_abbr = surgery_spoken, surg_ko, surg_abbr or surg_ko
@@ -115,6 +117,7 @@ class Patient:
             "regimen": self.regimen,
             "cycle": self.cycle if self.cycle is not None else "",
             "day": self.day if self.day is not None else "",
+            "hod": self.hod if self.hod is not None else "",
             "prof": self.professor,
             "dept": self.department,
             "pod": self.pod if self.pod is not None else "",

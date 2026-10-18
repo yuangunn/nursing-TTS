@@ -73,7 +73,7 @@ def test_chemo_patients_never_get_surgical_templates_and_say_cycle():
         p = random_patient(rng, "s5")
         if p.kind == "chemo":
             s = build_script("s5", random_form("s5", rng, p), p, random_datetime(rng), style="mixed", seed=3)
-            assert "항암" in s.spoken_text and f"{p.cycle}차 D{p.day}" in s.spoken_text and "POD" not in s.spoken_text
+            assert "항암" in s.spoken_text and f"{p.cycle}차 HOD {p.hod}" in s.spoken_text and "POD" not in s.spoken_text   # 입원 일차 (user 2026-10-18)
             seen = True
             break
     assert seen
