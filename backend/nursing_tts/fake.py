@@ -67,7 +67,7 @@ TEXT_POOLS: dict[str, list[str]] = {
     "judgement": ["수술 후 폐 확장 저하에 의한 발열 가능성", "수술 부위 감염 가능성", "요로 감염 가능성", "탈수 가능성"],
     "noti_time": ["오전 10시 10분", "오후 2시 15분", "오후 6시 5분", "새벽 3시 10분"],
     "noti_content": ["BT 38.1, BP 150/85, HR 92, 수술 부위 oozing 없고 JP 양상 변화 없으나 폐음 하부 감소되어 있고 심호흡 잘 안 되는",
-                     "BT 38.4, HR 98, 오한 동반, 수술 부위 발적 없는", "BT 37.9, 소변 혼탁하고 배뇨 시 불편감 있는"],
+                     "BT 38.4, HR 98, 오한 동반, 수술 부위 발적 없는", "BT 37.9, 소변 turbid하고 배뇨 시 불편감 있는"],
     "orders": ["acetaminophen 1g IV 1회 투여, lung care 및 ambulation 격려, chest PA 촬영 후 결과 노티",
                "blood culture 2쌍, urine culture 시행 후 acetaminophen 1g IV", "CBC, CRP F/U 및 acetaminophen 650mg PO"],
     "med_given": ["오전 10시 20분 PRN acetaminophen 1g/100mL IV 30분간 점적", "오후 2시 30분 acetaminophen 650mg PO", "오후 6시 15분 PRN acetaminophen 1g IV"],
@@ -1237,6 +1237,9 @@ def _derive_s3_1(form: dict[str, Any], patient: Patient, sc, rng: random.Random)
     form["exam_care"] = "na"
     if key == "TURB" and form.get("foley") == "keep":
         form["foley"] = "cbi"                 # continuous irrigation runs through a 3-way catheter, and the urine is pink
+        for k in ("special_edu", "foley_note"):   # irrigation running ≠ catheter clamped for an intravesical instillation (2026-10-18)
+            if "잠근" in str(form.get(k) or ""):
+                form.pop(k)
 
 
 def _ev(**kw: Any) -> dict[str, Any]:
@@ -2003,7 +2006,7 @@ def _derive_s6(form: dict[str, Any], patient: Patient, sc, rng: random.Random, t
         form["p_drain_color"] = col = rng.choice(["serosanguineous", "serous"])   # the checklist reads the same drain (2026-10-18: 어깨 Hemovac "bilious")
         form["drain_note"] = f"{'Hemovac' if patient.department == '정형외과' else 'JP'} 배액 {col} {rng.randint(10, 80)}cc 비우고 양상 관찰함"
     elif not chemo and pod <= 1 and sc is not None and "keep" in (sc.form.get("foley") or []):
-        form["drain_note"] = "소변줄 통해 소변 맑고 시간당 50cc 이상 나옴"
+        form["drain_note"] = "소변줄 통해 소변 straw하게 시간당 50cc 이상 나옴"
     elif rng.random() < 0.5:
         form["drain_note"] = rng.choice(["자가배뇨 양호함", "배뇨 불편감 없음"])
     else:
@@ -2031,7 +2034,8 @@ def _derive_s6(form: dict[str, Any], patient: Patient, sc, rng: random.Random, t
         form["nrs_n"] = max(form["nrs_n"], 4)
     elif form["night_onset"] in ("asleep", "hypnotic"):
         form.pop("nrs_n", None)   # nobody scores the pain of a sleeping patient (2026-10-18 2차 검수: 70%)
-    form["night_line"] = rng.random() < 0.85
+        form.pop("vitals_night", None)   # 23시 수면 중: 통증 수면 중임·Good sleep pattern·주입 속도·IV site (user 2026-10-18)
+    form["night_line"] = True                # the night round always checks the running infusion and the IV site
     # --- charting checklist: only protocols this patient can have, with details taken from the record ---
     # the 07:00 round already charts sleep, meal, V/S, pain and the bed/rail/wheel check: a random record does not repeat
     # them as Routine / 환경관리 / 급성통증 checklist entries at 08:30 (2026-10-17 대량 검수: "뒤척이며 깊게 못 잤다" → 08:30
@@ -2061,7 +2065,7 @@ def _derive_s6(form: dict[str, Any], patient: Patient, sc, rng: random.Random, t
         _drop_section(form, t, "prot_foley")
     elif _section_on(form, t, "prot_foley"):
         form["p_foley_date"], form["p_foley_type"] = patient.op_date, "Foley catheter"
-        form["p_urine_color"] = "혈뇨 소량" if sc.key == "TURB" else rng.choice(["맑은 노란색", "맑은 노란색", "진한 노란색"])   # "혼탁함, 혼탁 없음"
+        form["p_urine_color"] = "pinkish하게" if sc.key == "TURB" else rng.choice(["straw하게", "straw하게", "orange 색깔로"])
         voided, scanned = form.pop("p_self_void", None), form.pop("p_residual_check", None)
         if voided or scanned:
             form["p_foley_remove"] = True    # the void comes hours after the 08:30 removal: the evening round says it
@@ -2097,7 +2101,7 @@ def _derive_s6(form: dict[str, Any], patient: Patient, sc, rng: random.Random, t
     if _section_on(form, t, "prot_glucose"):
         # 2026-10-17 대량 검수: "BST 아침 식전 380" at 09:00 after breakfast, "380 → 341로 안정됨", 380 with education only.
         # The check is two hours after breakfast (generator puts it at 10:15); 200 or more gets sliding-scale RI.
-        form["p_bst"], form["p_bst_time"] = True, "식후 2시간"
+        form["p_bst"], form["p_bst_time"] = True, "점심 식전"   # QID 06·12·17·21시 (매 식전 + 자기 전)
         v = form["p_bst_value"] = rng.choice([rng.randint(130, 199), rng.randint(130, 199), rng.randint(200, 280)])
         form["p_glucose_sx"] = "증상 없음" if v < 250 else rng.choice(["증상 없음", "갈증·다뇨"])
         if v >= 200:

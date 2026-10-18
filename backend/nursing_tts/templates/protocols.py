@@ -210,8 +210,8 @@ def catheter() -> Section:
         _s("foley_type", "종류", [opt("Foley catheter", "Foley catheter"), opt("Nelaton (간헐적)", "Nelaton"), opt("Suprapubic", "Suprapubic")], "Foley catheter"),
         _s("foley_size", "크기", [opt("14Fr", "14Fr"), opt("16Fr", "16Fr"), opt("18Fr", "18Fr")], "16Fr"),
         _t("foley_date", "삽입일", "예: 10월 14일", "10월 14일"),
-        _b("urine_check", "소변 양상·양 확인함", "소변 양상·양 확인함({p_urine_color}, {p_urine_amount}cc).", "소변 {p_urine_color}, {p_urine_amount}cc 배출됨.", "소변 {p_urine_color}, 혼탁 없음, {p_urine_amount}cc."),
-        _s("urine_color", "양상", [opt("맑은 노란색", "맑은 노란색"), opt("진한 노란색", "진한 노란색"), opt("혼탁함", "혼탁함"), opt("혈뇨 소량", "혈뇨 소량")], "맑은 노란색"),
+        _b("urine_check", "소변 양상·양 확인함", "소변 양상·양 확인함, {p_urine_color} {p_urine_amount}cc.", "소변 {p_urine_color} {p_urine_amount}cc 배출됨.", "소변 {p_urine_color} 나오고 {p_urine_amount}cc 확인함."),
+        _s("urine_color", "양상", [opt("straw하게", "straw하게"), opt("orange 색깔로", "orange 색깔로"), opt("pinkish하게", "pinkish하게"), opt("turbid하게", "turbid하게")], "straw하게"),   # 색 straw·orange·pinkish, 탁도 turbid (user 2026-10-18)
         _n("urine_amount", "양 (cc)", 400, 0, 5000, 50),
         _b("foley_fix", "도뇨관 고정·소변백 위치 확인함", "도뇨관 고정하고 소변백 방광 아래 위치 유지함.", "소변줄 꼬임 없이 고정 양호하고 소변백 바닥에 닿지 않게 유지함."),
         _b("peri_care", "회음부 간호 시행함", "회음부 간호 시행함.", "도뇨관 삽입 부위 청결 유지 위해 회음부 간호함."),

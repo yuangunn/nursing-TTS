@@ -445,7 +445,11 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
         o = next((o for o in f.options if o.value == f.default), None) if f.kind == "select" else None
         ctx[k] = o.label if o else f.default
 
-    sig_written, sig_tts, sig_key = signal_line(when, patient.name, template.signal_kind, signal_format,
+    kind = template.signal_kind
+    if kind == "경과기록":   # 2026-10-18 사용자: 다음 날부터는 경과기록, 수술 후 경과기록·항암 후 경과기록으로
+        kind = "항암 후 경과기록" if patient.kind == "chemo" else "수술 후 경과기록"
+    ctx["progress_kind"] = kind
+    sig_written, sig_tts, sig_key = signal_line(when, patient.name, kind, signal_format,
                                                 random.Random(seed + 3), signal_aliases)
     paragraphs: list[str] = [sig_written]
     tts_paragraphs: list[str] = [sig_tts]
@@ -519,8 +523,8 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
                 run = 0
         if fragments and section.group == "protocol" and template.key == "s6":
             # 경과기록 = 그날의 기록을 시간대별로 (user 2026-10-17): each checklist entry gets its own clock time after the evening round
-            if section.key == "prot_glucose":   # "식후 2시간" BST: two hours after the 08:00 breakfast
-                prot_i = max(prot_i, _PROT_TIMES.index("오전 10시 15분"))
+            if section.key == "prot_glucose":   # QID BST 06·12·17·21시 (user 2026-10-18): the pre-lunch check at noon
+                prot_i = max(prot_i, _PROT_TIMES.index("오후 12시"))
             fragments.insert(0, f"{_PROT_TIMES[min(prot_i, len(_PROT_TIMES) - 1)]} 환자명 {patient.name}.")
             prot_i += 1
         if fragments and dialogue:
@@ -573,6 +577,7 @@ def build_script(template_key: str, form: dict[str, Any], patient: Patient, when
         structured={
             "template": template.key,
             "record_kind": template.signal_kind,
+            "record_name": ctx["progress_kind"],
             "patient": patient.__dict__,
             "datetime": when.isoformat(timespec="minutes"),
             "style": style,

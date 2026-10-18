@@ -5,12 +5,12 @@ from .common import VITALS_FIELD, PAIN_NRS, PAIN_MED
 TEMPLATE = RecordTemplate(
     key="s3_2",
     title="S3-2. 수술/검사 후 상태 기록 (사정·노티·중재·재사정)",
-    signal_kind="수술후설명",
+    signal_kind="경과기록",   # POD 1 이후의 이벤트는 경과기록 (user 2026-10-18), 렌더링 "수술 후 경과 기록입니다"
     description="수술 후 POD 1-2 또는 검사 직후, 이상 소견 발견→노티→중재→재사정 흐름으로 구술합니다.",
     intros=["{name}님 진단명 {dx}, {surgery_en} POD {pod}. {event} 간호기록 시작합니다.",
             "{dx}, {surgery_abbr} POD {pod} 환자분 {event} 간호기록입니다.",
             "{surgery} POD {pod} 환자 {event} 관련 간호기록 시작합니다."],
-    closings=["이상 수술후 간호기록 마치겠습니다.", "이상 {event} 간호기록 마치겠습니다.", "이상 {event} 관련 간호기록 마칩니다.", "이상입니다."],
+    closings=["이상 {progress_kind} 마치겠습니다.", "이상 {event} 간호기록 마치겠습니다.", "이상 {event} 관련 간호기록 마칩니다.", "이상입니다."],
     sections=[
         Section("event", "이벤트", hint="기록 주제(발열, 통증, 출혈 등)", fields=[
             sel("event", "이벤트 종류", [
@@ -54,11 +54,11 @@ TEMPLATE = RecordTemplate(
             txt("drain", "배액 양상/양", placeholder="예: JP serosanguineous 40cc, 변화 없음",
                 phrases=["{v}, 특이 변화 없습니다.", "{v}입니다.", "배액은 {v}(이)고,"], default="JP 배액 serosanguineous 양상 40cc"),
             sel("urine", "배뇨", [
-                opt("clear", "맑은 노란색, 불편감 없음", "소변 노란색으로 맑고 배뇨 시 불편감 없습니다.", "소변 clear하게 나오고 배뇨 불편감 없고,"),
+                opt("clear", "straw·clear, 불편감 없음", "소변 straw하고 clear하게 나오고 배뇨 시 불편감 없습니다.", "소변 straw하게 잘 나오고 배뇨 불편감 없고,"),
                 opt("cloudy", "혼탁", "소변 turbid하게 나오고 배뇨 시 불편감 호소합니다.", "소변 turbid하고 배뇨통 있고,"),
-                opt("foley", "도뇨관 유지", "Foley 유지 중이며 소변 맑습니다.", "소변줄 유지 중이고 소변 맑고,"),
+                opt("foley", "도뇨관 유지", "Foley 유지 중이며 소변 straw하게 나옵니다.", "소변줄 유지 중이고 소변 straw하고,"),
                 opt("decreased", "소변량 감소", "소변량 감소되어 있습니다.", "소변량 줄어 있고,"),
-                opt("hematuria", "혈뇨", "소변 붉은색으로 혈뇨 보이고 덩어리 섞여 있습니다.", "소변 붉고 혈뇨 있고,"),
+                opt("hematuria", "혈뇨", "소변 bloody하게 나오고 덩어리 섞여 있습니다.", "소변 pinkish하다가 bloody하게 짙어졌고,"),
             ], default="clear"),
             sel("iv_site", "라인 삽입 부위", [
                 opt("clean", "발적·부종 없음", "말초 라인 삽입 부위 발적, 부종 없습니다.", "라인 부위 발적 없고,", "IV site 깨끗하구요,"),

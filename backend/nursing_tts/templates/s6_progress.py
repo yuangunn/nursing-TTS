@@ -11,8 +11,8 @@ TEMPLATE = RecordTemplate(
     title="S6. 경과기록 (기록체, 하루 세 듀티)",
     signal_kind="경과기록",
     description="하루 동안의 간호기록을 시각 순서로 차팅하듯 구술합니다. Day(07:00)·Evening(15:00)·Night(23:00) 정규 첫 라운딩에서 사정한 내용을 모두 말하고, 그 사이는 식사 확인·PCA·재사정·저녁 이벤트 같은 이벤트 차팅입니다. '~함/~됨' 기록체가 기본이며, 시각마다 '환자명 ○○○'을 다시 말합니다. 수술 당일 병실 도착 직후는 S3-1.",
-    intros=["지금 경과기록 하겠습니다.", "{name} 님 오늘 경과기록 하겠습니다.", "{name} 님 경과기록 시작합니다.", "환자명 {name}, 경과기록 하겠습니다."],
-    closings=["이상 경과기록 마치겠습니다.", "이상 경과기록 마치겠습니다.", "이상 {name} 님 경과기록 마치겠습니다.", "여기까지 {name} 님 경과기록입니다."],
+    intros=["지금 {progress_kind} 하겠습니다.", "{name} 님 오늘 {progress_kind} 하겠습니다.", "{name} 님 {progress_kind} 시작합니다.", "환자명 {name}, {progress_kind} 하겠습니다."],
+    closings=["이상 {progress_kind} 마치겠습니다.", "이상 {progress_kind} 마치겠습니다.", "이상 {name} 님 {progress_kind} 마치겠습니다.", "여기까지 {name} 님 {progress_kind}입니다."],   # 수술 후 / 항암 후 경과기록
     sections=[
         Section("d_round", "Day 라운딩 (07:00) — 정규 사정", hint="밤 동안 수면, 통증, 낙상 예방, 수액·라인, 상처, V/S", fields=[
             _T("t1", "오전 7시"),
@@ -123,12 +123,13 @@ TEMPLATE = RecordTemplate(
             num("nrs_n", "NRS", min=0, max=10, default=1, phrases=["밤 통증 {v}점.", "NRS {v}점 확인됨.", "통증 {v}점 정도로 조절됨."]),   # not the 07:00 wording again;
             # 2026-10-18 2차 검수: 잠든 환자에게는 점수가 없다(무작위 폼은 asleep·hypnotic이면 nrs_n을 뺌), 점수가 수면 상태 앞
             sel("night_onset", "수면 상태", [
-                opt("asleep", "수면 중", "수면 중임. 호흡 규칙적임.", "잠들어 있음, 특이 호소 없음."),
+                opt("asleep", "수면 중", "통증 수면 중임. 수면 양상 Good sleep pattern임.", "수면 중으로 통증 호소 없음. Good sleep pattern 보임."),
                 opt("resting", "안정", "침상에서 안정 취하고 있음.", "누워서 안정 중, 불편감 호소 없음."),
                 opt("awake_pain", "통증으로 못 잠", "통증으로 잠들지 못한다고 하여 PRN 진통제 투여함.", "통증 호소하며 깨어 있어 PRN 진통제 투여함."),
-                opt("hypnotic", "수면제 투여", "처방된 수면제 투여 후 수면 유도함.", "수면제 투여함. 이후 잠듦."),
+                opt("hypnotic", "수면제 투여", "처방된 수면제 투여 후 수면 중임. 수면 양상 Good sleep pattern임.", "수면제 투여 후 잠듦. 통증 수면 중임."),
             ], default="asleep"),
-            boolean("night_line", "라인·수액 확인", phrases=["수액 주입 속도 확인하고 라인 개방성 확인함.", "라인 역류 확인되고 수액 잘 들어감.", "IV 삽입 부위 이상 없음."], default=True),
+            boolean("night_line", "주입 속도·IV site 확인", phrases=["투여 중인 약물 주입 속도 확인함. IV site 확인함.", "투여 중인 수액 주입 속도와 IV site 확인함.",
+                    "주입 중인 약물 속도 확인하고 IV site 이상 없음."], default=True),
         ]),
     ],
 )
