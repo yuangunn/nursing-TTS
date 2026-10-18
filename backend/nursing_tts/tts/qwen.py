@@ -50,6 +50,23 @@ def _token_cap(texts: list[str]) -> int:
     return min(8192, 100 + 7 * max((len(t) for t in texts), default=0))
 
 
+def _decode_one_by_one(tokenizer) -> None:
+    """qwen_tts pads a batch to its longest item (reference codes + generated codes) and decodes it in one pass, so one
+    sentence that ran long made four ~50-second decodes at once: +8 GB on MPS in 15 s, 14 GB in all (2026-10-18).
+    Decoding item by item keeps the peak at one sentence; generation stays batched."""
+    orig = tokenizer.decode
+
+    def decode(encoded):
+        if isinstance(encoded, list) and len(encoded) > 1:
+            wavs, sr = [], None
+            for e in encoded:
+                w, sr = orig([e])
+                wavs.extend(w)
+            return wavs, sr
+        return orig(encoded)
+    tokenizer.decode = decode
+
+
 class QwenEngine:
     key = "qwen"
     label = "Qwen3-TTS (내장 한국어 목소리 복제)"
@@ -81,6 +98,9 @@ class QwenEngine:
             dev = pick_device(self.device_pref)
             dtype = torch.float32 if dev == "cpu" else torch.bfloat16
             self._m = Qwen3TTSModel.from_pretrained(self.model, device_map=dev, dtype=dtype)
+            tok = getattr(getattr(self._m, "model", None), "speech_tokenizer", None)
+            if tok is not None:
+                _decode_one_by_one(tok)
             self._prompts.clear()
             if self.idle_unload_s > 0:
                 self._arm_timer()

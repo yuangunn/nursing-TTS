@@ -264,3 +264,19 @@ def test_qwen_generation_has_a_length_ceiling():
     assert _token_cap(["환자분 통증 없다고 하십니다."]) < 400          # a short sentence cannot run for minutes
     assert _token_cap(["가" * 150]) >= 150 / 2 * 12.5                   # 150 syllables at 2 per second still fit
     assert _token_cap(["가" * 5000]) == 8192
+
+
+def test_qwen_decodes_a_batch_one_sentence_at_a_time():
+    """2026-10-18: the library padded a batch to its longest sentence and decoded it at once (+8 GB on MPS)."""
+    from nursing_tts.tts.qwen import _decode_one_by_one
+
+    class Tok:
+        calls = []
+
+        def decode(self, encoded):
+            self.calls.append(len(encoded))
+            return [f"wav{len(self.calls)}"] * len(encoded), 24000
+    tok = Tok()
+    _decode_one_by_one(tok)
+    assert tok.decode([{"audio_codes": 1}, {"audio_codes": 2}, {"audio_codes": 3}]) == (["wav1", "wav2", "wav3"], 24000)
+    assert Tok.calls == [1, 1, 1]
