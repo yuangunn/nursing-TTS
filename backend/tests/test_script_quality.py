@@ -873,6 +873,11 @@ def test_chemo_hospital_days_2026_10_18():
                 assert track != "single" or not re.search(r"탈모|구토 심할|구내염|날 것", text), text   # 표적치료 단독
             if t == "s5" and track == "fu" and (p.hod, int(f["_shift"])) in ((2, 23), (3, 7), (3, 15), (3, 23), (4, 7)):
                 assert "5-FU" in text, text            # a 23-hour bag runs through this handover
+            if t == "s5":
+                shift = int(f["_shift"])
+                before = p.hod == 1 or (p.hod == 2 and shift == 7)          # the infusion is still ahead
+                assert not (before and "시행하고 오늘" in text) and "항암 시작하셨" not in text, text
+                assert not (not before and "항암 진행 가능" in text) and not (p.hod == 1 and "항구토제 추가" in text), text
             if t == "s6":
                 if p.hod == 2:
                     assert "전처치" in text and "항암 시작" in text, text
