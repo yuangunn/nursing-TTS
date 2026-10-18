@@ -318,11 +318,15 @@ def test_progress_record_has_three_duty_roundings_and_its_own_kind():
         assert "수술후설명" not in head and signal.parse(s.spoken_text).kind == "경과기록", head
         assert ("항암 후 경과 기록입니다" if p.kind == "chemo" else "수술 후 경과 기록입니다") in head, head   # user 2026-10-18
         lines = s.spoken_text.splitlines()
+        from nursing_tts.fake import chemo_track
+        if p.kind == "chemo" and chemo_track(p.regimen) == "single":   # 허주마(·퍼제타): 14시 퇴원 기록으로 끝나는 하루
+            assert any(l.startswith("오전 7시") for l in lines) and "퇴원" in lines[-2] and not re.search(r"(?m)^오후 (3|11)시", s.spoken_text), lines
+            continue
         for t in ("오전 7시", "오후 3시", "오후 11시"):
             assert any(l.startswith(t) for l in lines), (t, lines)
         rounds = [next(l for l in lines if l.startswith(t)) for t in ("오전 7시", "오후 3시", "오후 11시")]   # 07:40 PRN 재사정은 라운딩 아님
         assert all(re.search(r"혈압|BP|활력|V/S|VS|바이탈", l) for l in rounds[:2]), rounds
-        # 23시: 자는 환자는 "통증 수면 중임·Good sleep pattern", 누구든 주입 속도·IV site 확인 (user 2026-10-18)
+        # 23시: 자는 환자는 "통증 수면 중임·잘 자고 있음", 누구든 주입 속도·IV site 확인 (user 2026-10-18)
         assert re.search(r"혈압|BP|활력|V/S|VS|바이탈|수면 중|잘 자고|수면 잘|수면 양상", rounds[2]) and re.search(r"주입 속도|약물 속도|IV site", rounds[2]), rounds[2]
         assert not re.search(r"장액혈성|(?<!무)혈성", s.spoken_text) and "serosanguineous" not in s.tts_text and "bloody" not in s.tts_text
         assert s.spoken_text.splitlines()[-1].startswith(("이상", "여기까지"))
@@ -388,14 +392,14 @@ def test_record_time_follows_the_patient_timeline():
             if t == "s4":
                 from nursing_tts.fake import chemo_track
                 track = chemo_track(p.regimen) if p.kind == "chemo" else ""
-                lo, hi = {"single": (14 * 60, 14 * 60 + 30), "gcsf": (14 * 60, 17 * 60 + 30), "fu": (9 * 60 + 30, 11 * 60 + 30)}.get(track, (8 * 60 + 30, 10 * 60 + 40))
+                lo, hi = {"single": (14 * 60, 14 * 60 + 30), "gcsf": (14 * 60 + 20, 17 * 60 + 50), "fu": (9 * 60 + 30, 11 * 60 + 30)}.get(track, (8 * 60 + 30, 10 * 60 + 40))
                 assert lo <= mins <= hi, (track, w)   # 단독 항암 당일 오후, G-CSF 24시간 뒤, 5-FU HOD#4 오전 (user 2026-10-18)
                 visit = _month_day(f["opd"])
                 assert any(same_day(w + timedelta(days=k), visit) for k in range(1, 45)), (w, f["opd"])   # clinic after the discharge
             if t == "s5":
                 assert w.hour in (7, 15, 23), w
             if t == "s6":
-                assert mins >= _parse_clock(f["t8"]) + 5, (f["t8"], w)
+                assert mins >= _parse_clock(f.get("t8") or f["tc3"]) + 5, (f.get("t8"), f.get("tc3"), w)   # 허주마: 14시 퇴원 기록 뒤
 
 
 def test_demo_read_through_context_rules():
@@ -955,7 +959,7 @@ def test_review_fixes_2026_10_18_evening():
     from nursing_tts import signal
     from nursing_tts.fake import record_datetime
     rng = random.Random(2026)
-    p = random_patient(rng, "s6")
+    p = random_patient(rng, "s6", scenario="TKA")      # the 23시 path of a manual form (HP/H have no 23시 round)
     f = random_form("s6", rng, p)
     f.update({"night_onset": "asleep", "nrs_n": 3, "vitals_night": {"sbp": 121, "dbp": 77, "hr": 70, "rr": 16, "bt": 36.6}})
     night = [l for l in build_script("s6", f, p, datetime(2026, 10, 18, 23, 40), style="chart", seed=1).spoken_text.splitlines() if l.startswith("오후 11시")]
@@ -973,3 +977,81 @@ def test_review_fixes_2026_10_18_evening():
         text = build_script("s5", f, p, record_datetime("s5", p, f, rng), style="mixed", seed=i).spoken_text
         if "퇴원" in str(f.get("special") or "") + str(f.get("plan") or ""):
             assert f.get("vs_summary") == "stable", (f.get("vs_summary"), text)
+
+
+
+def test_review_round2_fixes_2026_10_18():
+    """검토 2차(2026-10-18): 인계 PICC↔케모포트 니들, 주입 전·주입 중 발열·PRN·ANC, 항암 경과기록 08:30 약물 체크리스트,
+    시각만 있는 문단, 카보플라틴 전처치, 측정 동사 되풀이, 수면제 문구의 통증, 표 가져오기 NRS, 퇴원 기록 끝맺음·퇴원약 문구·G-CSF 시각,
+    한 인계의 Hb 두 값, "정상 범위." 끝맺음, 시그널 별칭."""
+    from datetime import datetime
+    from nursing_tts import importer, signal
+    from nursing_tts.fake import _parse_clock, chemo_track, record_datetime
+    from nursing_tts.templates import default_form
+    rng = random.Random(4242)
+    chemo = [s.key for s in clinical.SCENARIOS if s.kind == "chemo"]
+    for i in range(240):
+        p = random_patient(rng, "s5", scenario=chemo[i % len(chemo)])
+        f = random_form("s5", rng, p)
+        text = build_script("s5", f, p, record_datetime("s5", p, f, rng), style=["formal", "mixed", "casual"][i % 3], seed=i).spoken_text
+        shift = int(f["_shift"])
+        before = p.hod == 1 or (p.hod == 2 and shift == 7)
+        assert not ("PICC" in text and "케모포트 니들" in text), text
+        assert not (before and (re.search(r"항구토제|덱사메타손", text) or f["vs_summary"] in ("fever", "hypotension"))), text
+        assert not ("12시부터" in str(f.get("special") or "") and f["vs_summary"] in ("fever", "hypotension")), text
+        assert not (p.hod <= 2 and "ANC 1,200으로 감소" in text) and not (p.hod == 1 and shift == 15 and "ANC" in text), text
+        assert not re.search(r"정상 범위\.", text), text
+    for i in range(80):
+        p = random_patient(rng, "s5", scenario="Myomectomy")
+        f = random_form("s5", rng, p)
+        text = build_script("s5", f, p, record_datetime("s5", p, f, rng), style="mixed", seed=i).spoken_text
+        assert len(set(re.findall(r"Hb (\d+\.\d)", text))) <= 1, text
+    for i in range(120):
+        p = random_patient(rng, "s6", scenario=chemo[i % len(chemo)])
+        f = random_form("s6", rng, p)
+        text = build_script("s6", f, p, record_datetime("s6", p, f, rng), style="chart", seed=i).spoken_text
+        assert not re.search(r"(?m)^오전 (8|9|10)시[^\n]*(5 rights|투여 약물|약물 부작용|온단세트론|아프레피탄트|덱사메타손)", text), text
+        if p.hod == 2 and p.regimen in ("TCHP", "TCH", "T+C+Jemperli") or (p.regimen == "K+TC" and p.hod == 2 and p.day == 1):
+            assert "팔로노세트론" in next(l for l in text.splitlines() if l.startswith("오전 11시")), text
+        night = [l for l in text.splitlines() if l.startswith("오후 11시")]
+        if night and f.get("night_onset") in ("asleep", "hypnotic"):
+            assert "통증" in night[0], night
+    for i in range(120):
+        p = random_patient(rng, "s3_2")
+        f = random_form("s3_2", rng, p)
+        text = build_script("s3_2", f, p, record_datetime("s3_2", p, f, rng), style=["formal", "mixed", "casual", "chart"][i % 4], seed=i).spoken_text
+        assert not re.search(r"(재측정|다시 잰|체크하니) (?:[^.]|\.\d)*? (측정|체크)(되었습니다|됨)\.", text), text
+    for i in range(160):
+        p = random_patient(rng, "s4", scenario=chemo[i % len(chemo)] if i % 2 else None)
+        f = random_form("s4", rng, p)
+        w = record_datetime("s4", p, f, rng)
+        text = build_script("s4", f, p, w, style=["formal", "chart", "mixed"][i % 3], seed=i).spoken_text
+        assert not re.search(r"퇴원(하심|함|하셨|했|하였)[.,]", text), text
+        assert not ("퇴원약과" in text and re.search(r"퇴원약[^.]{0,6}(없|처방 없)", text)), text
+        if p.kind == "chemo" and p.regimen == "TCHP":
+            assert w.hour * 60 + w.minute >= 16 * 60 + 10, w           # G-CSF 24 h after the 16~17시 30분 end
+    # 직접 설정 기본 폼: 시각만 있는 문단 없음
+    p = random_patient(rng, "s6", scenario="TKA")
+    txt = build_script("s6", default_form("s6"), p, datetime(2026, 10, 18, 23, 40), style="formal", seed=3).spoken_text
+    assert not any(re.fullmatch(r"(오전|오후) \d+시( \d+분)?,? (환자명 \S+|\S+ 님)\.", l) for l in txt.splitlines()), txt
+    # 표 가져오기: 23시 NRS만 연결하면 그 점수를 읽는다
+    spec = importer.build_specs("s6", [{"밤 NRS": "5"}], {"columns": {"form.nrs_n": "밤 NRS"}})["specs"][0]
+    night = [l for l in build_script("s6", spec["form"], p, datetime(2026, 10, 18, 23, 40), style="chart", seed=1).spoken_text.splitlines() if l.startswith("오후 11시")]
+    assert night and "5점" in night[0], night
+    # 시그널: 모든 별칭 × 형식, 님 있음·없음, "님,"·"기록 시작 하겠습니다"
+    for kind, aliases in signal.KIND_ALIASES.items():
+        for a in aliases:
+            for fmt in signal.FORMATS:
+                w, _, k = signal.render(datetime(2026, 10, 12, 21, 42), "강신자", kind, fmt["written"].replace("{kind}", a), random.Random(1))
+                m = signal.parse(w)
+                assert m.ok and m.kind == kind and m.name == "강신자", (a, w, m)
+    for kind in signal.KIND_ALIASES:                      # the real path: render picks an alias and drops a doubled 기록
+        for fmt in signal.FORMATS:
+            for s in range(30):
+                w, _, k = signal.render(datetime(2026, 10, 12, 21, 42), "강신자", kind, fmt["key"], random.Random(s), use_aliases=True)
+                m = signal.parse(w)
+                assert m.ok and m.kind == kind and m.format == k and not re.search(r"지하겠습니다|기록지 기록", w), (w, m.format, k)
+    for line, want in (("2026년 10월 12일 오후 9시 42분 환자 강신자 님, 퇴원간호 기록입니다.", "strict"),
+                       ("2026년 10월 12일 오후 9시 42분 환자 강신자 님, 인계하겠습니다.", "nim_do"),
+                       ("2026년 10월 12일 오후 9시 42분 강신자 님 인계 기록 시작 하겠습니다.", "nim_record_start")):
+        assert signal.parse(line).format == want, (line, signal.parse(line).format)
