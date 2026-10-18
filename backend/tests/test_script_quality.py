@@ -316,18 +316,21 @@ def test_progress_record_has_three_duty_roundings_and_its_own_kind():
         s = build_script("s6", f, p, random_datetime(rng), style="chart", seed=9100 + i)
         head = s.spoken_text.splitlines()[0]
         assert "수술후설명" not in head and signal.parse(s.spoken_text).kind == "경과기록", head
+        assert ("항암 후 경과 기록입니다" if p.kind == "chemo" else "수술 후 경과 기록입니다") in head, head   # user 2026-10-18
         lines = s.spoken_text.splitlines()
         for t in ("오전 7시", "오후 3시", "오후 11시"):
             assert any(l.startswith(t) for l in lines), (t, lines)
         rounds = [next(l for l in lines if l.startswith(t)) for t in ("오전 7시", "오후 3시", "오후 11시")]   # 07:40 PRN 재사정은 라운딩 아님
-        assert all(re.search(r"혈압|BP|활력|V/S|VS|바이탈", l) for l in rounds), rounds
+        assert all(re.search(r"혈압|BP|활력|V/S|VS|바이탈", l) for l in rounds[:2]), rounds
+        # 23시: 자는 환자는 "통증 수면 중임·Good sleep pattern", 누구든 주입 속도·IV site 확인 (user 2026-10-18)
+        assert re.search(r"혈압|BP|활력|V/S|VS|바이탈|수면 중", rounds[2]) and re.search(r"주입 속도|약물 속도|IV site", rounds[2]), rounds[2]
         assert not re.search(r"장액혈성|(?<!무)혈성", s.spoken_text) and "serosanguineous" not in s.tts_text and "bloody" not in s.tts_text
         assert s.spoken_text.splitlines()[-1].startswith(("이상", "여기까지"))
 
 
 COMMON_CLOSING = {"s1": "이상 간호정보조사지 마치겠습니다.", "s2": "이상 수술전 간호기록 마치겠습니다.", "s3_1": "이상 수술후 간호기록 마치겠습니다.",
-                  "s3_2": "이상 수술후 간호기록 마치겠습니다.", "s4": "이상 퇴원 간호기록 마치겠습니다.", "s5": "이상 인계기록지 마치겠습니다.",
-                  "s6": "이상 경과기록 마치겠습니다."}
+                  "s3_2": "이상 수술 후 경과기록 마치겠습니다.", "s4": "이상 퇴원 간호기록 마치겠습니다.", "s5": "이상 인계기록지 마치겠습니다.",
+                  "s6": "이상 수술 후 경과기록 마치겠습니다."}   # POD 1부터 경과기록, 항암 환자는 항암 후 경과기록 (user 2026-10-18)
 
 
 def test_strict_signal_ends_with_the_common_closing():
@@ -341,8 +344,9 @@ def test_strict_signal_ends_with_the_common_closing():
             f = random_form(t, rng, p)
             for dlg in ((False, True) if t == "s1" else (False,)):
                 s = build_script(t, f, p, random_datetime(rng), style="formal", seed=9300 + i, signal_format="strict", dialogue=dlg)
-                assert s.spoken_text.splitlines()[-1] == closing, (t, dlg, s.spoken_text.splitlines()[-1])
-                assert re.search(r"님 \S+ 기록입니다\.$", s.spoken_text.splitlines()[0]), s.spoken_text.splitlines()[0]
+                want = closing.replace("수술 후", "항암 후") if p.kind == "chemo" else closing
+                assert s.spoken_text.splitlines()[-1] == want, (t, dlg, s.spoken_text.splitlines()[-1])
+                assert re.search(r"님 [^.]+ 기록입니다\.$", s.spoken_text.splitlines()[0]), s.spoken_text.splitlines()[0]
             r = build_script(t, f, p, random_datetime(rng), style="formal", seed=9400 + i, signal_format="random")
             varied.add(r.spoken_text.splitlines()[-1])
     assert len(varied) > len(COMMON_CLOSING), varied   # the random mix still varies the closing
@@ -515,7 +519,7 @@ def test_progress_record_day_is_coherent():
         if f.get("p_drain_remove"):
             assert "제거" in f.get("drain_note", "")
         if f.get("p_bst"):
-            assert f["p_bst_time"] == "식후 2시간" and bool(f.get("p_insulin_give")) == (f["p_bst_value"] >= 200)
+            assert f["p_bst_time"] == "점심 식전" and bool(f.get("p_insulin_give")) == (f["p_bst_value"] >= 200)   # QID 06·12·17·21시
         s = build_script("s6", f, p, random_datetime(rng), style="formal", seed=i)
         txt = s.spoken_text
         if "노티" in txt and "해열제" in txt and f.get("p_fever_noti") and f.get("p_antipyretic_give"):
@@ -820,3 +824,21 @@ def test_second_review_admission_2026_10_18():
             assert f.get("dysphagia") is not True, f.get("dysphagia")
         if p.scenario == "Ileostomy repair" and dlg:
             assert "항암 맞으러 왔어요" not in s, s
+
+
+def test_urine_and_foley_wording_2026_10_18():
+    """사용자 2026-10-18: 소변 양상은 색 straw(스트로우)·orange(오렌지)·pinkish(핑키시)와 탁도 clear·turbid로 말하고
+    ("맑고 노랗습니다·연분홍·혼탁" 아님), 소변줄은 "Foley"로 쓰고 "폴리"로 읽는다. 방광 세척 중에 "소변줄 잠근 상태" 없음."""
+    rng = random.Random(5150)
+    for t in ("s3_1", "s3_2", "s5", "s6"):
+        for i in range(60):
+            p = random_patient(rng, t, scenario=random.Random(i).choice([None, "TURB", "RALRP", "TAH", "Partial nephrectomy"]))
+            f = random_form(t, rng, p)
+            s = build_script(t, f, p, random_datetime(rng), style=["formal", "mixed", "casual", "chart"][i % 4], seed=i)
+            assert not re.search(r"소변[^.,]{0,8}(맑고 노랗|노란색으로 맑|노랗고 맑|맑습니다|맑음|연분홍|혼탁)|폴리", s.spoken_text), s.spoken_text
+            if "Foley" in s.spoken_text:
+                assert "폴리" in s.tts_text and "Foley" not in s.tts_text, s.tts_text
+            if re.search(r"straw|pinkish|orange 색깔", s.spoken_text):
+                assert re.search(r"스트로우|핑키시|오렌지", s.tts_text), s.tts_text
+            if t == "s3_1" and f.get("foley") == "cbi":
+                assert "잠근" not in s.spoken_text, s.spoken_text

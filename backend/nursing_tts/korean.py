@@ -195,7 +195,8 @@ ABBREVIATIONS: dict[str, list[str]] = {
     "PTBD": ["피티비디"], "ENBD": ["이엔비디"], "chest tube": ["체스트 튜브"], "Rt": ["라이트"], "Lt": ["레프트"],
     "Rt.": ["라이트"], "Lt.": ["레프트"], "arm": ["암"], "Fr.": ["프렌치"],
     "sanguineous": ["생기너스"], "serosanguineous": ["시로생기너스"], "serous": ["시러스"],
-    "bloody": ["블러디"], "turbid": ["터비드"],
+    "bloody": ["블러디"], "turbid": ["터비드"], "straw": ["스트로우"], "pinkish": ["핑키시"], "orange": ["오렌지"],
+    "Good sleep pattern": ["굿 슬립 패턴"], "good sleep pattern": ["굿 슬립 패턴"],
     "oozing": ["우징"], "pus": ["퍼스"], "bile": ["바일"], "purulent": ["퓨룰런트"],
     "dressing": ["드레싱"], "stapler": ["스테플러"], "steri-strip": ["스테리스트립"],
     # respiratory

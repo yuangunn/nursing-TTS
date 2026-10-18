@@ -59,10 +59,10 @@ TEMPLATE = RecordTemplate(
             ], default="jp_sang"),
             num("drain_amount", "배액량", unit="cc", min=0, max=2000, default=20, phrases=[], speak_prob=0.0),
             sel("foley", "도뇨관", [
-                opt("cbi", "3-way 방광 세척", "3-way Foley 22Fr 유지하며 방광 세척 중이고 소변 연분홍색으로 나오고 있습니다.",
-                    "3-way 소변줄로 방광 세척 중이고 소변 연분홍색이고,"),   # TURB (2026-10-18: CBI인데 "16 Fr, 맑고 노란색")
-                opt("keep", "유지", "Foley catheter 16 Fr. 유지 중이며 소변 맑고 노란색으로 잘 나오고 있습니다.", "소변줄 유지 중이고 소변 clear하게 잘 나오고 있고,",
-                    "폴리 유지 중이고 소변 노랗고 맑구요,"),
+                opt("cbi", "3-way 방광 세척", "3-way Foley 22Fr 유지하며 방광 세척 중이고 소변 pinkish하게 나오고 있습니다.",
+                    "3-way 소변줄로 방광 세척 중이고 소변 pinkish하게 나오고,"),   # TURB (2026-10-18: CBI인데 "16 Fr, 맑고 노란색")
+                opt("keep", "유지", "Foley catheter 16Fr 유지 중이며 소변 straw하고 clear하게 잘 나오고 있습니다.", "소변줄 유지 중이고 소변 straw하게 잘 나오고 있고,",
+                    "Foley 유지 중이고 소변 straw하고 clear하구요,"),
                 opt("removed", "제거됨, 자가배뇨", "소변줄 제거하고 자가배뇨 확인하였습니다.", "소변줄 빼고 self voiding 잘 하시고,"),
                 opt("none", "없음", "소변줄 없이 올라오셨고 수술 후 6시간 이내 자가배뇨 확인 예정입니다.", "소변줄 없이 올라오셨고 첫 자가배뇨 확인 필요합니다.",
                     "소변줄 없이 올라오셨고,"),

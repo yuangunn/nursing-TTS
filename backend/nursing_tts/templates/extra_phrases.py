@@ -52,11 +52,11 @@ EXTRA: dict[tuple[str, str, str], list[str]] = {
     # ---------------- urinary ----------------
     ("s5", "voiding", "normal"): ["소변 잘 보십니다.", "배뇨 양상 정상입니다.", "소변 문제 없으십니다."],
     ("s5", "voiding", "self"): ["소변 잘 보고 계십니다.", "self voiding 잘 됩니다.", "자가배뇨 문제 없으십니다."],
-    ("s5", "voiding", "foley"): ["폴리 유지 중입니다.", "소변줄 가지고 계십니다.", "Foley 유지 중이고 소변 맑습니다."],
-    ("s5", "voiding", "foley_removed"): ["소변줄 어제 빼고 소변 잘 보십니다.", "폴리 제거 후 자가배뇨 확인했습니다.", "소변줄 제거하고 self voiding 잘 하십니다."],
-    ("*", "foley", "keep"): ["폴리 유지 중이고 소변 맑고 노랗습니다.", "소변줄 유지 중이며 유린 아웃풋 괜찮습니다.", "Foley 16 Fr. 유지 중, 소변 양상 양호합니다."],
-    ("*", "foley", "removed"): ["소변줄 뺐고 소변 잘 보셨습니다.", "폴리 제거 후 자가배뇨 확인했습니다."],
-    ("*", "urine", "clear"): ["소변 맑고 노랗습니다.", "소변 양상 괜찮습니다.", "소변 색 맑습니다."],
+    ("s5", "voiding", "foley"): ["Foley 유지 중입니다.", "소변줄 가지고 계십니다.", "Foley 유지 중이고 소변 straw하게 나옵니다."],
+    ("s5", "voiding", "foley_removed"): ["소변줄 어제 빼고 소변 잘 보십니다.", "Foley 제거 후 자가배뇨 확인했습니다.", "소변줄 제거하고 self voiding 잘 하십니다."],
+    ("*", "foley", "keep"): ["Foley 유지 중이고 소변 straw하고 clear하게 나옵니다.", "소변줄 유지 중이며 유린 아웃풋 괜찮습니다.", "Foley 16Fr 유지 중, 소변 양상 양호합니다."],
+    ("*", "foley", "removed"): ["소변줄 뺐고 소변 잘 보셨습니다.", "Foley 제거 후 자가배뇨 확인했습니다."],
+    ("*", "urine", "clear"): ["소변 straw하고 clear합니다.", "소변 양상 괜찮습니다.", "소변 straw하게 나옵니다."],   # 색 straw·orange·pinkish, 탁도 clear·turbid
     # ---------------- drains / lines ----------------
     ("*", "drain", "jp_sang"): ["JP bloody하게 {drain_amount}cc 나왔습니다.", "JP 배액 bloody하게 {drain_amount}cc 나왔습니다.", "JP {drain_amount}cc bloody하게 나오고 있습니다.",
                                 "JP drain 하나 가지고 오셨고 {drain_amount}cc bloody하게 배액됩니다."],
