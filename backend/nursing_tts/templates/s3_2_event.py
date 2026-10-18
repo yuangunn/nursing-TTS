@@ -69,7 +69,7 @@ TEMPLATE = RecordTemplate(
             PAIN_NRS,
             sel("pain_med", "진통", PAIN_MED, default="pca"),
             txt("judgement", "간호 판단", placeholder="예: 수술 후 폐 확장 저하에 의한 발열 가능성",
-                phrases=["{v} 있어 담당의 noti 하기로 하였습니다.", "{v} 의심되어 주치의 노티 하기로 했고,", "{v} 생각되어 노티하였습니다."],
+                phrases=["{v} 있어 담당의 noti 하기로 하였습니다.", "{v} 의심되어 주치의 노티하기로 했고,", "{v} 생각되어 노티하였습니다."],
                 default="수술 후 폐 확장 저하에 의한 발열 가능성"),
         ]),
         Section("noti", "2. 노티", hint="시각, 대상, SBAR 요약, 받은 처방", fields=[
@@ -137,7 +137,7 @@ TEMPLATE = RecordTemplate(
                 opt("na", "해당 없음"),
             ], default="no_change", skip_values=("na",)),
             txt("plan", "추적 계획", placeholder="예: chest PA 판독 확인 후 주치의 노티, 4시간 간격 체온 추적",
-                phrases=["{v} 예정입니다.", "{v} 예정이고,", "{v} 하기로 하였습니다."],
+                phrases=["{v} 예정입니다.", "{v} 예정이고,", "{v}하기로 하였습니다."],
                 default="chest PA 결과 판독 확인 후 주치의 노티 예정이며 4시간 간격으로 체온 추적 관찰"),
         ]),
     ],

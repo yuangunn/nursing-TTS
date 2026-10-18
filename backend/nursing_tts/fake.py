@@ -1707,8 +1707,8 @@ def _derive_s4(form: dict[str, Any], patient: Patient, sc, rng: random.Random) -
         form.pop("activity")                  # "활동 제한 없다" next to "쪼그려 앉기·계단 피하도록"
     if "사람 많은" in notes and "사람 많은" in str(form.get("driving") or ""):
         form.pop("driving", None)
-    if form.get("opd") and any("8시 30분 채혈" in str(v) for v in form.values() if isinstance(v, str)):
-        form["opd"] = re.sub(r"오전 9시|오후 \d+시( \d+분)?", "오전 10시 30분", form["opd"])   # the 08:30 blood (exam or leaflet) is for a late-morning visit
+    if form.get("opd") and (any("8시 30분 채혈" in str(v) for v in form.values() if isinstance(v, str)) or "아침" in str(form.get("exam_prep") or "")):
+        form["opd"] = re.sub(r"오전 9시|오후 \d+시( \d+분)?", rng.choice(["오전 10시 30분", "오전 11시"]), form["opd"])   # the 08:30 / 아침 공복 blood is for a late-morning visit (2026-10-18: 공복 채혈 + 오후 3시 외래)
     if _upper_limb(patient.diagnosis) and re.search(r"항응고|리바록사반|에독사반|에녹사파린", str(form.get("discharge_meds") or "")):
         plain = [x for x in _pool(sc, "discharge_meds", "s4") if not re.search(r"항응고|리바록사반|에독사반|에녹사파린", x)]
         form["discharge_meds"] = rng.choice(plain) if plain else "진통제 1주분, 근이완제, 위장약"   # no VTE prophylaxis after arm surgery (2026-10-18: 쇄골 골절 + 리바록사반)
