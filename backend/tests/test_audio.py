@@ -215,9 +215,10 @@ def test_bad_sentences_are_resynthesized_until_readback_passes():
 
         def synthesize_many(self, texts, ref, seed=None):
             self.calls.append(list(texts))
-            # take number is encoded in the amplitude so the fake verifier can tell takes apart
+            # take number is encoded in the amplitude so the fake verifier can tell takes apart, and in the length
+            # because the joined audio is leveled per sentence
             amp = 0.1 * (len(self.calls))
-            return [np.ones(24000, dtype=np.float32) * amp for _ in texts], 24000
+            return [np.ones(24000 + 2400 * len(self.calls), dtype=np.float32) * amp for _ in texts], 24000
 
     def verify(spoken, tts, audio, sr):
         take = round(float(audio.max()) / 0.1)
@@ -232,7 +233,7 @@ def test_bad_sentences_are_resynthesized_until_readback_passes():
     assert [len(c) for c in eng.calls] == [3, 1, 1]          # all chunks, then only the bad one twice
     assert [s["retries"] for s in segs] == [0, 2, 0]
     assert segs[1]["cer"] == 0.05 and segs[0]["cer"] == 0.02
-    assert abs(float(audio.max()) - 0.3) < 1e-6              # the third take of the bad chunk is what got kept
+    assert abs(segs[1]["end"] - segs[1]["start"] - 1.3) < 1e-3   # the third take of the bad chunk is what got kept
 
 
 def test_only_real_clips_are_offered_and_each_is_mixed_probabilistically(tmp_path):
@@ -296,3 +297,34 @@ def test_chunk_retry_uses_another_reference_clip():
     line = "금일 오후 퇴원 예정이며 퇴원약에 대해 교육하였습니다."
     _, _, segs = synthesize_script(Eng(), [line], [line], ("a.wav", "A"), 1, verify=verify, retries=2, retry_refs=[("b.wav", "B")])
     assert used == ["A", "B"] and segs[0]["cer"] == 0.0
+
+
+def test_sentences_are_leveled_to_one_speech_level():
+    """2026-10-19 user: "마스터링이 잘 안되어있어" — one voice's prompt clips differ by 16 dB and the clone copies the level."""
+    from nursing_tts.tts.base import synthesize_script
+
+    class Eng:
+        def synthesize_many(self, texts, ref, seed=None):
+            return [np.full(24000, a, dtype=np.float32) for a, _ in zip([0.02, 0.3, 0.1], texts)], 24000
+    lines = ["첫 번째 문장은 스무 글자를 넘기려고 길게 씁니다. 두 번째 문장도 스무 글자를 넘기려고 길게 씁니다. 세 번째 문장도 스무 글자를 넘기려고 길게 씁니다."]
+    audio, sr, segs = synthesize_script(Eng(), lines, lines, ("a.wav", "A"), 1)
+    levels = [20 * np.log10(np.sqrt(np.mean(audio[int(s["start"] * sr) + 2000: int(s["end"] * sr) - 2000] ** 2))) for s in segs]
+    assert len(levels) == 3 and max(levels) - min(levels) < 0.5 and abs(levels[0] + 20) < 0.5
+
+
+def test_qwen_reference_ends_in_silence_and_a_closed_sentence():
+    """2026-10-19: tight clips + transcripts without a period made the clone swallow "양치," / "환자," and clip "…십니다"."""
+    from nursing_tts.tts.qwen import _prepare_reference
+    audio, text = _prepare_reference(np.full(24000, 0.03, dtype=np.float32), 24000, "약이나 식품에 알러지 없으십니다 ")
+    assert text == "약이나 식품에 알러지 없으십니다."
+    assert len(audio) == 36000 and not audio[24000:].any()
+    assert abs(20 * np.log10(np.sqrt(np.mean(audio[:24000] ** 2))) + 20) < 0.5
+    assert _prepare_reference(np.full(2400, 0.1, dtype=np.float32), 24000, "있으세요?")[1] == "있으세요?"
+
+
+def test_qwen_sentences_end_with_a_pause_mark():
+    """2026-10-19 user: "~십니다." came out as "~십니ㄷ" — the model input ends in "..." so the last syllable is finished."""
+    from nursing_tts.tts.qwen import _end_with_pause
+    assert _end_with_pause("집에서 드시던 약은 없다고 하십니다.") == "집에서 드시던 약은 없다고 하십니다..."
+    assert _end_with_pause("드시는 약 있으세요?") == "드시는 약 있으세요?"
+    assert _end_with_pause("기다려 주세요...") == "기다려 주세요..."
