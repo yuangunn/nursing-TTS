@@ -50,6 +50,25 @@ def _token_cap(texts: list[str]) -> int:
     return min(8192, 100 + 7 * max((len(t) for t in texts), default=0))
 
 
+def _prepare_reference(audio: np.ndarray, sr: int, text: str) -> tuple[np.ndarray, str]:
+    """Clips cut tight from real dictation end right after the last syllable and their transcripts often lack the
+    final period, so the clone took the new text as the clip's continuation: it swallowed a short opening word
+    ("양치, 베타딘…" → "…타딘", "환자, 보호자…" → "보호자…") and copied the clipped endings ("…십니ㄷ",
+    2026-10-19 user). A level-matched clip, 0.5 s of silence after it and a closed sentence mark the boundary."""
+    from .base import level_speech
+    audio = np.concatenate([level_speech(np.asarray(audio, dtype=np.float32), sr), np.zeros(int(0.5 * sr), dtype=np.float32)])
+    text = text.strip()
+    return audio, text if text[-1:] in ".?!" else f"{text}."
+
+
+def _end_with_pause(text: str) -> str:
+    """"…하십니다." → "…하십니다...": the clone often stopped on the last consonant ("…십니ㄷ", 2026-10-19 user); a trailing
+    ellipsis lets it finish the syllable (sentences still voiced at the very end of the output 6/28 → 2/28). Model input
+    only — the ground-truth and phonetic texts keep their period."""
+    t = text.rstrip()
+    return f"{t[:-1]}..." if t.endswith(".") and not t.endswith("..") else text
+
+
 def _decode_one_by_one(tokenizer) -> None:
     """qwen_tts pads a batch to its longest item (reference codes + generated codes) and decodes it in one pass, so one
     sentence that ran long made four ~50-second decodes at once: +8 GB on MPS in 15 s, 14 GB in all (2026-10-18).
@@ -148,6 +167,8 @@ class QwenEngine:
             prompt = self._prompts.get(key)
             if prompt is None:  # encode the reference once per sample; batches reuse it
                 audio, sr = read_audio(ref_path)
+                if ref_text:
+                    audio, ref_text = _prepare_reference(audio, sr, ref_text)
                 prompt = m.create_voice_clone_prompt(ref_audio=(audio, sr), ref_text=ref_text or None,
                                                      x_vector_only_mode=not ref_text)
                 self._prompts[key] = prompt
@@ -158,7 +179,7 @@ class QwenEngine:
                 if seed is not None:
                     import torch
                     torch.manual_seed(seed + start)
-                wavs, sr = m.generate_voice_clone(text=group, language="Korean", voice_clone_prompt=prompt,
+                wavs, sr = m.generate_voice_clone(text=[_end_with_pause(t) for t in group], language="Korean", voice_clone_prompt=prompt,
                                                   max_new_tokens=_token_cap(group))
                 out.extend(np.asarray(w, dtype=np.float32) for w in wavs)
             self._last_used = time.time()

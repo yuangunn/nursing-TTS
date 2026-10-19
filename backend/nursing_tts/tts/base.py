@@ -68,6 +68,24 @@ def trim_silence(audio: np.ndarray, sr: int, threshold: float = 0.002, keep: flo
     return out
 
 
+def level_speech(audio: np.ndarray, sr: int, target_db: float = -20.0, max_gain_db: float = 15.0) -> np.ndarray:
+    """Scale a chunk so its speech (the loudest 10 % of 10 ms frames) sits at ``target_db``.
+
+    The clone copies its prompt clip's level and one voice's clips differ by 16 dB in speech level, so sentences
+    jumped up to 14 dB within one recording (2026-10-19 user: "마스터링이 잘 안되어있어"). Near-silent chunks are
+    boosted at most ``max_gain_db``."""
+    n = int(0.01 * sr)
+    if len(audio) < 2 * n:
+        return audio
+    count = len(audio) // n
+    e = np.sqrt(np.mean(audio[: count * n].reshape(count, n) ** 2, axis=1))
+    lv = float(np.percentile(e, 90))
+    if lv < 1e-6:
+        return audio
+    gain = min(10 ** (max_gain_db / 20), 10 ** (target_db / 20) / lv)
+    return (audio * gain).astype(np.float32)
+
+
 def natural_pause(rng: random.Random, scale: float = 1.0) -> float:
     """Pause length in seconds. Log-normal fitted to three real nurse dictations (2026-10-15):
     median 0.6 s, p90 1.6 s, a few 2-4 s; section changes (scale ~1.6) run longer."""
@@ -161,6 +179,7 @@ def synthesize_script(engine: TTSEngine, spoken_lines: list[str], tts_lines: lis
     segments: list[dict] = []
     pos = 0
     for k, ((i, spoken, tts, last_chunk), a) in enumerate(zip(plan, audios)):
+        a = level_speech(a, sr)  # after the read-back: retries may use a louder or quieter clip
         pieces.append(a)
         seg = {"start": round(pos / sr, 3), "end": round((pos + len(a)) / sr, 3), "text": spoken, "tts": tts}
         if cers[k] is not None:
