@@ -14,6 +14,7 @@ import BatchPage from "./pages/BatchPage";
 import SettingsPage from "./pages/SettingsPage";
 import ResultsPage from "./pages/ResultsPage";
 import PhrasesPage from "./pages/PhrasesPage";
+import TrainPage from "./pages/TrainPage";
 import { EnergyContext } from "./lib/energy";
 
 const TITLES: Record<Tab, { t: string; d: string }> = {
@@ -22,6 +23,7 @@ const TITLES: Record<Tab, { t: string; d: string }> = {
   batch: { t: "3 · 대량 생성", d: "가상 환자를 자동으로 만들어 녹음을 한꺼번에 생성합니다." },
   results: { t: "4 · 결과물 · 검수", d: "생성된 녹음을 듣고 승인/반려한 뒤 학습용 데이터셋으로 내보냅니다." },
   phrases: { t: "말투 관리", d: "요소별 말투 변형을 보고 고치거나 추가합니다." },
+  train: { t: "목소리 학습", d: "한 사람의 녹음을 모아 전사를 확인하고 학습해, 그 사람의 억양과 말버릇을 가진 새 목소리를 만듭니다." },
   settings: { t: "설정", d: "음성 엔진, 저장 위치, 백엔드 설치 상태." },
   import: { t: "표 데이터 가져오기", d: "CSV·엑셀 표의 열을 환자 정보·체크 항목에 연결하고 셀 값의 뜻을 정해 행마다 대본과 녹음을 만듭니다." },
   review: { t: "2 · 대본 생성", d: "기록 종류·가상 환자·상태를 직접 고르거나 🎲 무작위로 대본을 만들고, 읽어 보며 고친 뒤 바구니에 담습니다. 병동에서 쓰지 않는 문장은 표시해 두세요." },
@@ -118,6 +120,7 @@ export default function App() {
               {tab === "voices" && <VoicesPage />}
               {tab === "results" && <ResultsPage />}
               {tab === "phrases" && <PhrasesPage />}
+              {tab === "train" && <TrainPage />}
               {tab === "settings" && <SettingsPage />}
             </div>
           </div>

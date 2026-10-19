@@ -95,13 +95,14 @@ def _mk(audio: np.ndarray, sr: int, s: int, e: int, n: int, pad: float) -> Clip:
 
 
 def process(path: Path, sr: int = 24000, transcribe: bool = True, max_clips: int = 12,
-            model_size: str = "small", device: str = "auto") -> list[Clip]:
+            model_size: str = "small", device: str = "auto", min_len: float = 6.0, pad: float = 0.15) -> list[Clip]:
+    """``max_clips=0`` keeps every clip (training data wants all of the recording, references want the best few)."""
     audio, _ = read_audio(path, sr)
     audio = normalize_peak(audio, 0.9)
-    clips = slice_recording(audio, sr)
-    # prefer clips closest to 10 s
-    clips.sort(key=lambda c: abs((c.end - c.start) - 10.0))
-    clips = sorted(clips[:max_clips], key=lambda c: c.start)
+    clips = slice_recording(audio, sr, min_len=min_len, pad=pad)
+    if max_clips:   # prefer clips closest to 10 s
+        clips.sort(key=lambda c: abs((c.end - c.start) - 10.0))
+        clips = sorted(clips[:max_clips], key=lambda c: c.start)
     if transcribe:
         try:
             from . import verify as verify_mod

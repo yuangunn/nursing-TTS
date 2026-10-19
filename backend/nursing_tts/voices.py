@@ -36,6 +36,7 @@ class Voice:
     primary_sample: str = ""
     pitch: float = 0.0     # preset: semitones applied to everything synthesised with this voice (and the demo)
     tempo: float = 1.0     # preset: speaking-rate factor (>1 faster)
+    model: str = ""        # 목소리 학습 adapter id (finetune.model_dir): this voice speaks through it instead of clips
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -54,8 +55,9 @@ def _load(voice_id: str) -> Voice | None:
     if not p.exists():
         return None
     raw = json.loads(p.read_text(encoding="utf-8"))
-    raw["samples"] = [VoiceSample(**s) for s in raw.get("samples", [])]
-    return Voice(**raw)
+    raw["samples"] = [VoiceSample(**{k: v for k, v in s.items() if k in VoiceSample.__dataclass_fields__}) for s in raw.get("samples", [])]
+    # unknown keys are dropped: a voice saved by a newer version must not empty the whole list (v0.1.26 + Voice.model)
+    return Voice(**{k: v for k, v in raw.items() if k in Voice.__dataclass_fields__})
 
 
 def _save(v: Voice) -> None:
@@ -124,6 +126,10 @@ def update_voice(voice_id: str, **fields: Any) -> Voice:
 
 
 def delete_voice(voice_id: str) -> None:
+    v = _load(voice_id)
+    if v and v.model:
+        from .finetune import model_dir
+        shutil.rmtree(model_dir(v.model), ignore_errors=True)
     p = _voice_path(voice_id)
     if p.exists():
         shutil.rmtree(p)
@@ -223,6 +229,10 @@ def pick_reference(voice_id: str, rng=None, prefer_primary: bool = False, style:
     a question-style clip makes a handover sound like questions.  Falls back to all clips.
     """
     v = _load(voice_id)
+    if v and v.model:   # a trained voice: the engine gets the adapter folder
+        from .finetune import model_dir
+        d = model_dir(v.model)
+        return (d, "") if (d / "adapter.pt").exists() else None
     if not v or not v.samples:
         return None
     if prefer_primary or rng is None:

@@ -953,6 +953,140 @@ def noises():
     return noise_library.catalogue()
 
 
+# ---------------------------------------------------------------------------
+# 목소리 학습 (fine-tuning): datasets of one speaker's clips -> adapter -> a new voice
+# ---------------------------------------------------------------------------
+
+@app.get("/api/finetune/status")
+def finetune_status():
+    from . import finetune
+    ok, msg = finetune.available()
+    return {"available": ok, "message": msg, "active": finetune.active(), "min_items": finetune.MIN_ITEMS,
+            "defaults": finetune.DEFAULTS}
+
+
+@app.get("/api/finetune/datasets")
+def finetune_datasets():
+    from . import finetune
+    return finetune.list_datasets()
+
+
+@app.post("/api/finetune/datasets/from-voice")
+def finetune_from_voice(body: dict[str, Any]):
+    from . import finetune
+    try:
+        ds = finetune.from_voice(str(body.get("voice_id") or ""), str(body.get("name") or ""))
+    except KeyError:
+        raise HTTPException(404, "클립이 있는 목소리를 골라 주세요.")
+    return finetune.summary(ds)
+
+
+@app.post("/api/finetune/datasets/from-recordings")
+async def finetune_from_recordings(files: list[UploadFile] = File(...), name: str = Form(""), voice_id: str = Form(""),
+                                   transcribe: bool = Form(True)):
+    """Long recordings of one speaker -> 3-14 s clips with Whisper drafts to confirm."""
+    from . import finetune
+    tmps: list[Path] = []
+    try:
+        for f in files:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=Path(f.filename or "rec.wav").suffix or ".wav") as tmp:
+                shutil.copyfileobj(f.file, tmp)
+                tmps.append(Path(tmp.name))
+        ds = finetune.from_recordings(tmps, name, voice_id, transcribe, load_settings())
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(400, f"오디오를 읽거나 자를 수 없습니다: {e}")
+    finally:
+        for t in tmps:
+            t.unlink(missing_ok=True)
+    return finetune.summary(ds)
+
+
+@app.get("/api/finetune/datasets/{ds_id}")
+def finetune_dataset(ds_id: str):
+    from . import finetune
+    ds = finetune.get_dataset(ds_id)
+    if not ds:
+        raise HTTPException(404, "no such dataset")
+    return {**finetune.summary(ds), "clips": ds["items"]}
+
+
+@app.patch("/api/finetune/datasets/{ds_id}/clips/{clip_id}")
+def finetune_update_clip(ds_id: str, clip_id: str, body: dict[str, Any]):
+    from . import finetune
+    try:
+        return finetune.update_item(ds_id, clip_id, **{k: body[k] for k in ("text", "include", "confirmed") if k in body})
+    except KeyError:
+        raise HTTPException(404, "no such clip")
+
+
+@app.get("/api/finetune/datasets/{ds_id}/clips/{clip_id}/audio")
+def finetune_clip_audio(ds_id: str, clip_id: str):
+    from . import finetune
+    p = finetune.item_path(ds_id, clip_id)
+    if not p or not p.exists():
+        raise HTTPException(404, "no such clip")
+    return FileResponse(p, media_type="audio/wav")
+
+
+@app.delete("/api/finetune/datasets/{ds_id}")
+def finetune_delete_dataset(ds_id: str):
+    from . import finetune
+    finetune.delete_dataset(ds_id)
+    return {"ok": True}
+
+
+@app.post("/api/finetune/train")
+def finetune_train(body: dict[str, Any]):
+    from . import finetune
+    from .tts.registry import get_engine
+    ok, msg = finetune.available()
+    if not ok:
+        raise HTTPException(400, msg)
+    if any(j.get("status") in ("queued", "running") for j in jobs.list_jobs()):
+        raise HTTPException(409, "녹음을 만드는 중입니다. 끝난 뒤 학습을 시작하세요.")
+    settings = load_settings()
+    getattr(get_engine(settings), "unload", lambda: None)()   # the trainer needs the memory the TTS model holds
+    try:
+        return finetune.start(str(body.get("dataset_id") or ""), str(body.get("name") or ""),
+                              settings.get("qwen_model") or "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+                              epochs=body.get("epochs"), lr=body.get("lr"), rank=body.get("rank"))
+    except KeyError:
+        raise HTTPException(404, "no such dataset")
+    except (ValueError, RuntimeError) as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/finetune/models")
+def finetune_models():
+    from . import finetune
+    return finetune.list_models()
+
+
+@app.get("/api/finetune/models/{model_id}")
+def finetune_model(model_id: str):
+    from . import finetune
+    if not (finetune.model_dir(model_id) / "config.json").exists():
+        raise HTTPException(404, "no such model")
+    return finetune.status(model_id)
+
+
+@app.post("/api/finetune/models/{model_id}/cancel")
+def finetune_cancel(model_id: str):
+    from . import finetune
+    if not (finetune.model_dir(model_id) / "config.json").exists():
+        raise HTTPException(404, "no such model")
+    return finetune.cancel(model_id)
+
+
+@app.delete("/api/finetune/models/{model_id}")
+def finetune_delete_model(model_id: str):
+    from . import finetune
+    finetune.delete_model(model_id)
+    return {"ok": True}
+
+
 @app.post("/api/noises")
 async def noises_add(file: UploadFile = File(...), label: str = Form(""), continuous: bool = Form(False),
                      gain: float = Form(0.5)):

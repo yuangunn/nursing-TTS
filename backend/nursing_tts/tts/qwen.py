@@ -50,6 +50,19 @@ def _token_cap(texts: list[str]) -> int:
     return min(8192, 100 + 7 * max((len(t) for t in texts), default=0))
 
 
+def _release() -> None:
+    import gc
+    gc.collect()
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        elif hasattr(torch, "mps"):
+            torch.mps.empty_cache()
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def _prepare_reference(audio: np.ndarray, sr: int, text: str) -> tuple[np.ndarray, str]:
     """Clips cut tight from real dictation end right after the last syllable and their transcripts often lack the
     final period, so the clone took the new text as the clip's continuation: it swallowed a short opening word
@@ -139,16 +152,14 @@ class QwenEngine:
                 return
             self._m = None
             self._prompts.clear()
-        import gc
-        gc.collect()
-        try:
-            import torch
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-            elif hasattr(torch, "mps"):
-                torch.mps.empty_cache()
-        except Exception:  # noqa: BLE001
-            pass
+        _release()
+
+    def unload(self) -> None:
+        """Drop the weights now (a training run needs the memory)."""
+        with self._lock:
+            self._m = None
+            self._prompts.clear()
+        _release()
 
     def synthesize(self, text: str, ref: tuple[Path, str] | None, seed: int | None = None) -> tuple[np.ndarray, int]:
         wavs, sr = self.synthesize_many([text], ref, seed)
@@ -159,10 +170,25 @@ class QwenEngine:
         """Batched generation: ``self.batch`` texts per call share one voice prompt."""
         if ref is None:
             raise RuntimeError("Qwen3-TTS는 참조 음성(등록된 목소리)이 필요합니다.")
+        from .. import finetune
+        if finetune.active():   # the trainer holds the GPU memory; two 1.7B models swap the machine to a standstill
+            raise RuntimeError("목소리 학습 중에는 녹음을 만들 수 없습니다. 학습이 끝난 뒤 다시 시도하세요.")
         ref_path, ref_text = ref
         out: list[np.ndarray] = []
         with self._lock:
             m = self._load()
+            if Path(ref_path).is_dir():   # a fine-tuned voice: the adapter folder instead of a reference clip
+                with finetune.use(m, Path(ref_path)):
+                    for start in range(0, len(texts), self.batch):
+                        group = texts[start:start + self.batch]
+                        if seed is not None:
+                            import torch
+                            torch.manual_seed(seed + start)
+                        wavs, sr = m.generate_custom_voice(text=[_end_with_pause(t) for t in group], speaker=finetune.SPEAKER,
+                                                           language="Auto", max_new_tokens=_token_cap(group))
+                        out.extend(np.asarray(w, dtype=np.float32) for w in wavs)
+                self._last_used = time.time()
+                return self._fix(out, sr)
             key = (str(ref_path), ref_path.stat().st_mtime, ref_text)
             prompt = self._prompts.get(key)
             if prompt is None:  # encode the reference once per sample; batches reuse it
@@ -183,6 +209,9 @@ class QwenEngine:
                                                   max_new_tokens=_token_cap(group))
                 out.extend(np.asarray(w, dtype=np.float32) for w in wavs)
             self._last_used = time.time()
+        return self._fix(out, sr)
+
+    def _fix(self, out: list[np.ndarray], sr: int) -> tuple[list[np.ndarray], int]:
         fixed: list[np.ndarray] = []
         for audio in out:
             if audio.ndim > 1:
