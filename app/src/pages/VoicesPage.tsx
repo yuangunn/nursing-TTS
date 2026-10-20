@@ -254,7 +254,15 @@ export default function VoicesPage() {
       <div>
         {voice ? (
           <>
-            <div className="panel">
+            {voice.model && (
+              <div className="panel">
+                <h2>{voice.name}</h2>
+                <div className="callout ok" style={{ marginBottom: 0 }}>
+                  목소리 학습으로 만든 목소리입니다. 참조 클립 대신 학습 결과로 말합니다. 아래 예시로 들어 보고, 지우려면 목록의 삭제를 누르세요(학습 결과도 함께 지워집니다).
+                </div>
+              </div>
+            )}
+            {!voice.model && <div className="panel">
               <h2>{voice.name} — 목소리 학습용 샘플 녹음</h2>
               <div className="row">
                 <div>
@@ -303,20 +311,20 @@ export default function VoicesPage() {
               </div>
               {busy && <div className="muted">{busy}</div>}
               {err && <div className="error">{err}</div>}
-            </div>
+            </div>}
 
             <div className="panel">
               <h2>이 목소리의 예시 <span className="hint">고정 문장을 이 목소리로 읽은 생성본 · 원음은 재생하지 않습니다 · 음높이·속도를 바꿔 "프리셋 저장"하면 녹음 생성에도 적용</span></h2>
-              <VoiceDemo voiceId={voice.id} disabled={!voice.samples.length} initialPitch={voice.pitch ?? 0} initialTempo={voice.tempo ?? 1}
+              <VoiceDemo voiceId={voice.id} disabled={!voice.samples.length && !voice.model} initialPitch={voice.pitch ?? 0} initialTempo={voice.tempo ?? 1}
                 onSave={(pitch, tempo) => patchVoice(voice.id, { pitch, tempo })} />
               <div className="row" style={{ marginTop: 10 }}>
-                <div className="narrow"><button onClick={testVoice} disabled={!voice.samples.length || !!busy}>🔊 다른 문장으로 합성 테스트</button></div>
+                <div className="narrow"><button onClick={testVoice} disabled={(!voice.samples.length && !voice.model) || !!busy}>🔊 다른 문장으로 합성 테스트</button></div>
                 <div className="muted">{testNote}</div>
               </div>
               {testUrl && <div style={{ marginTop: 10 }}><Visualizer autoPlay src={testUrl} onEnergy={setEnergy} height={120} /></div>}
             </div>
 
-            <div className="panel">
+            {!voice.model && <div className="panel">
               <h2>
                 <button className="link" onClick={() => setShowClips(!showClips)} style={{ font: "inherit", padding: 0 }}>
                   {showClips ? "▾" : "▸"} 고급: <Term k="참조 클립" /> 관리
@@ -339,7 +347,7 @@ export default function VoicesPage() {
                 {!voice.samples.length && <li className="muted">샘플이 없습니다. 위에서 대본을 읽어 녹음하세요.</li>}
               </ul>}
               {!showClips && !voice.samples.length && <div className="muted">아직 참조 클립이 없습니다. 위에서 대본을 읽어 녹음하거나 긴 녹음에서 추출하세요.</div>}
-            </div>
+            </div>}
           </>
         ) : (
           <div className="panel"><div className="empty"><b>왼쪽에서 목소리를 먼저 추가하세요</b>이름만 적고 ＋ 추가를 누르면 여기에 녹음 화면이 나타납니다.</div></div>

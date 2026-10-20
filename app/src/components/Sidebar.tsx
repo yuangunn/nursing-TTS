@@ -1,7 +1,7 @@
 import { AppStatus } from "../lib/onboarding";
 import logo from "../../build/icon-win.png";
 
-export type Tab = "record" | "review" | "batch" | "voices" | "results" | "phrases" | "settings" | "import";
+export type Tab = "record" | "review" | "batch" | "voices" | "results" | "phrases" | "settings" | "import" | "train";
 
 interface Props {
   tab: Tab;
@@ -21,6 +21,7 @@ export default function Sidebar({ tab, onTab, status, version }: Props) {
   ];
   const more: { key: Tab; label: string; icon: string }[] = [
     { key: "import", label: "표 데이터 가져오기", icon: "⇪" },
+    { key: "train", label: "목소리 학습", icon: "✦" },
     { key: "phrases", label: "말투 관리", icon: "❝" },
     { key: "settings", label: "설정", icon: "⚙" },
   ];

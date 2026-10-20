@@ -294,6 +294,7 @@ export interface Voice {
   primary_sample: string;
   pitch?: number;
   tempo?: number;
+  model?: string;   // 목소리 학습 adapter: this voice speaks through it, not through clips
 }
 export interface JobItem {
   index: number;
